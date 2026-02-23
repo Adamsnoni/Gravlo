@@ -1,6 +1,6 @@
 // src/components/AppShell.jsx
 import React, { useState, useEffect } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutGrid, Building2, Bell, CreditCard, Settings, LogOut, Menu, X, KeyRound, ChevronRight, Crown, User, AlertTriangle, Archive } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -42,6 +42,15 @@ export default function AppShell() {
   const isTenant = role === 'tenant';
   const NAV = isTenant ? TENANT_NAV : LANDLORD_NAV;
   const userPlan = PLANS[profile?.subscription?.planId || 'free'] || PLANS.free;
+
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(isTenant ? '/tenant' : '/dashboard');
+
+  useEffect(() => {
+    // Keep it synced with the actual URL if navigation happens outside sidebar clicks
+    // but default to exact match to prevent dual highlights
+    setActiveTab(location.pathname);
+  }, [location.pathname]);
 
   // Real-time listener for pending unit join requests & notifications (landlords only)
   useEffect(() => {
@@ -90,8 +99,15 @@ export default function AppShell() {
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
         {NAV.map(({ to, icon: Icon, label }) => (
-          <NavLink key={to} to={to} onClick={() => setSidebarOpen(false)}
-            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <Link
+            key={to}
+            to={to}
+            onClick={() => {
+              setActiveTab(to);
+              setSidebarOpen(false);
+            }}
+            className={`nav-item ${activeTab === to ? 'active' : ''}`}
+          >
             <Icon size={17} />
             <span>{label}</span>
             {label === 'Dashboard' && unreadNotificationsCount > 0 && (
@@ -104,7 +120,7 @@ export default function AppShell() {
                 {pendingCount > 9 ? '9+' : pendingCount}
               </span>
             )}
-          </NavLink>
+          </Link>
         ))}
       </nav>
 
