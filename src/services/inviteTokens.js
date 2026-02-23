@@ -1,0 +1,177 @@
+// src/services/inviteTokens.js
+// ─────────────────────────────────────────────────────────────────────────────
+// Secure per-unit invite link system.
+// Tokens are UUID-v4 strings, stored in `inviteTokens/{token}`.
+// Links expire after 24 hours.  Auto-assigns tenant on acceptance.
+// ─────────────────────────────────────────────────────────────────────────────
+import { db } from './firebase';
+import {
+    doc, getDoc, setDoc, updateDoc, collection,
+    query, where, getDocs, Timestamp,
+} from 'firebase/firestore';
+import { updateUnit } from './firebase';
+import { createTenancy, closeActiveTenanciesForUnit } from './tenancy';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Build the full invite URL from a token */
+export function buildInviteLink(token) {
+    return `${window.location.origin}/invite/${token}`;
+}
+
+// ── Create ────────────────────────────────────────────────────────────────────
+
+/**
+ * Create a new invite token for a specific unit.
+ * Revokes any existing pending token for the same unit first.
+ * Returns { token, link, expiresAt }
+ */
+export async function createInviteToken({
+    landlordUid, propertyId, unitId, unitName, propertyName,
+}) {
+    // Revoke existing pending tokens for this unit
+    await revokePendingTokensForUnit(propertyId, unitId);
+
+    const token = crypto.randomUUID();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // +24h
+
+    await setDoc(doc(db, 'inviteTokens', token), {
+        token,
+        landlordUid,
+        propertyId,
+        unitId,
+        unitName: unitName || '',
+        propertyName: propertyName || '',
+        createdAt: Timestamp.fromDate(now),
+        expiresAt: Timestamp.fromDate(expiresAt),
+        status: 'pending',
+        acceptedBy: null,
+    });
+
+    return { token, link: buildInviteLink(token), expiresAt };
+}
+
+// ── Fetch & Validate ──────────────────────────────────────────────────────────
+
+/**
+ * Fetch an invite token doc and check validity.
+ * Returns { data, valid, reason }
+ * reason: 'ok' | 'not_found' | 'expired' | 'already_used' | 'unit_occupied'
+ */
+export async function fetchInviteToken(token) {
+    if (!token) return { data: null, valid: false, reason: 'not_found' };
+
+    const snap = await getDoc(doc(db, 'inviteTokens', token));
+    if (!snap.exists()) return { data: null, valid: false, reason: 'not_found' };
+
+    const data = snap.data();
+
+    if (data.status === 'accepted') {
+        return { data, valid: false, reason: 'already_used' };
+    }
+
+    if (data.status === 'expired') {
+        return { data, valid: false, reason: 'expired' };
+    }
+
+    // Wall-clock expiry check
+    const expiresAt = data.expiresAt?.toDate?.() ?? new Date(data.expiresAt);
+    if (new Date() > expiresAt) {
+        await updateDoc(doc(db, 'inviteTokens', token), { status: 'expired' });
+        return { data, valid: false, reason: 'expired' };
+    }
+
+    // Guard: check if the unit is already occupied by someone else
+    const unitRef = doc(db, 'users', data.landlordUid, 'properties', data.propertyId, 'units', data.unitId);
+    const unitSnap = await getDoc(unitRef);
+    if (unitSnap.exists()) {
+        const unit = unitSnap.data();
+        if (unit.status === 'occupied' && unit.tenantId) {
+            return { data, valid: false, reason: 'unit_occupied' };
+        }
+    }
+
+    return { data, valid: true, reason: 'ok' };
+}
+
+// ── Accept ────────────────────────────────────────────────────────────────────
+
+/**
+ * Accept an invite.  Called after the tenant is authenticated.
+ * 1. Validates token is still pending + not expired + unit is vacant
+ * 2. Closes any stale active tenancy for the unit (safety net)
+ * 3. Updates unit doc with tenant info
+ * 4. Creates a new active tenancy record (enables recurring invoices)
+ * 5. Marks token as accepted
+ *
+ * @param {string} token
+ * @param {{ uid, displayName, email }} tenantUser
+ */
+export async function acceptInviteToken(token, tenantUser) {
+    const { data, valid, reason } = await fetchInviteToken(token);
+    if (!valid) throw new Error(reason);
+
+    const { landlordUid, propertyId, unitId, unitName, propertyName } = data;
+
+    // Get unit details for rent/billing info
+    const unitRef = doc(db, 'users', landlordUid, 'properties', propertyId, 'units', unitId);
+    const unitSnap = await getDoc(unitRef);
+    const unitData = unitSnap.exists() ? unitSnap.data() : {};
+
+    // Safety: close any lingering active tenancy for the unit
+    await closeActiveTenanciesForUnit(landlordUid, propertyId, unitId);
+
+    // Update the unit document
+    await updateUnit(landlordUid, propertyId, unitId, {
+        tenantId: tenantUser.uid,
+        tenantName: tenantUser.displayName || '',
+        tenantEmail: tenantUser.email || '',
+        status: 'occupied',
+    });
+
+    // Create the tenancy record (starts recurring invoice scheduling)
+    await createTenancy({
+        tenantId: tenantUser.uid,
+        landlordId: landlordUid,
+        propertyId,
+        unitId,
+        tenantName: tenantUser.displayName || '',
+        tenantEmail: tenantUser.email || '',
+        unitName: unitName || unitData.unitName || '',
+        propertyName: propertyName || '',
+        rentAmount: unitData.rentAmount || 0,
+        billingCycle: unitData.billingCycle || 'monthly',
+        currency: unitData.currency || 'NGN',
+    });
+
+    // Mark token accepted
+    await updateDoc(doc(db, 'inviteTokens', token), {
+        status: 'accepted',
+        acceptedBy: tenantUser.uid,
+        acceptedAt: Timestamp.now(),
+    });
+
+    return { propertyId, unitId, landlordUid };
+}
+
+// ── Revoke ────────────────────────────────────────────────────────────────────
+
+export async function revokeToken(token) {
+    await updateDoc(doc(db, 'inviteTokens', token), { status: 'expired' });
+}
+
+export async function revokePendingTokensForUnit(propertyId, unitId) {
+    try {
+        const q = query(
+            collection(db, 'inviteTokens'),
+            where('propertyId', '==', propertyId),
+            where('unitId', '==', unitId),
+            where('status', '==', 'pending'),
+        );
+        const snap = await getDocs(q);
+        await Promise.all(snap.docs.map(d => updateDoc(d.ref, { status: 'expired' })));
+    } catch (err) {
+        console.warn('revokePendingTokensForUnit query failed (add composite index):', err.message);
+    }
+}
