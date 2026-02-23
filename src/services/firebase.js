@@ -17,7 +17,7 @@ import {
   getFirestore,
   collection, collectionGroup, doc,
   addDoc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
-  query, where, orderBy, onSnapshot,
+  query, where, orderBy, onSnapshot, limit,
   serverTimestamp, Timestamp, writeBatch,
 } from 'firebase/firestore';
 
