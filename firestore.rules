@@ -13,13 +13,17 @@ service cloud.firestore {
 
         // ── Units ────────────────────────────────────────────────────────────────
         match /units/{unitId} {
-          // Owner (landlord) has full access
+          // Owners have full access
           allow read, write: if request.auth != null && request.auth.uid == uid;
 
-          // Any authenticated user can read units for the tenant join/portal flow.
-          // This is safe: unit data (name, rent, status) is non-sensitive public info
-          // shared intentionally via the invite link.
+          // Authenticated users can read unit info
           allow read: if request.auth != null;
+
+          // Tenants can request to join a vacant unit
+          allow update: if request.auth != null 
+            && resource.data.status == 'vacant'
+            && request.resource.data.status == 'pending_approval'
+            && request.resource.data.pendingTenantId == request.auth.uid;
         }
 
         // ── Payments ─────────────────────────────────────────────────────────────
@@ -38,9 +42,10 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == uid;
       }
 
-      // ── Notifications ─────────────────────────────────────────────────────────
       match /notifications/{notifId} {
         allow read, write: if request.auth != null && request.auth.uid == uid;
+        // Allow authenticated users to send join requests/notifications to the landlord
+        allow create: if request.auth != null;
       }
     }
 

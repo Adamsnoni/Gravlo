@@ -12,7 +12,7 @@ import {
 import { format, differenceInDays, isPast, subMonths } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { subscribeProperties, subscribeReminders, subscribePendingUnits, updateUnit, serverTimestamp } from '../services/firebase';
+import { subscribeProperties, subscribeReminders, subscribePendingUnits, subscribeNotifications, markNotificationRead, updateUnit, serverTimestamp } from '../services/firebase';
 import { createTenancy } from '../services/tenancy';
 import StatusBadge from '../components/StatusBadge';
 import PropertyCard from '../components/PropertyCard';
@@ -39,6 +39,7 @@ export default function DashboardPage() {
   const [properties, setProperties] = useState([]);
   const [reminders, setReminders] = useState([]);
   const [pendingUnits, setPendingUnits] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [approvingSaving, setApprovingSaving] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
 
@@ -47,7 +48,8 @@ export default function DashboardPage() {
     const u1 = subscribeProperties(user.uid, (data) => { setProperties(data); setDataLoading(false); });
     const u2 = subscribeReminders(user.uid, setReminders);
     const u3 = subscribePendingUnits(user.uid, setPendingUnits);
-    return () => { u1(); u2(); u3(); };
+    const u4 = subscribeNotifications(user.uid, setNotifications);
+    return () => { u1(); u2(); u3(); u4(); };
   }, [user]);
 
   const approvePending = async (unit) => {
@@ -229,47 +231,97 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             </motion.div>
 
-            {/* Urgent */}
-            <motion.div {...fadeUp(0.25)} className="card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-display text-ink text-lg font-semibold">Urgent Alerts</h2>
-                <Link to="/reminders" className="text-sage hover:text-sage-light transition-colors">
-                  <ArrowRight size={16} />
+            {/* Recent Activity Feed */}
+            <motion.div {...fadeUp(0.25)} className="card p-0 overflow-hidden flex flex-col">
+              <div className="p-6 pb-4 flex items-center justify-between border-b border-stone-100">
+                <h2 className="font-display text-ink text-lg font-semibold">Recent Activity</h2>
+                <span className="badge-stone">{notifications.length}</span>
+              </div>
+
+              <div className="flex-1 max-h-[400px] overflow-y-auto custom-scrollbar">
+                {notifications.length === 0 && urgentRem.length === 0 && overdueRem.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+                    <div className="w-12 h-12 rounded-full bg-sage/10 flex items-center justify-center mb-3">
+                      <Bell size={20} className="text-sage" />
+                    </div>
+                    <p className="font-body text-sm text-stone-500 font-medium">No recent activity</p>
+                    <p className="font-body text-xs text-stone-400 mt-1">We'll alert you here when things happen.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-stone-100">
+                    {/* Combine Notifications and Urgent Reminders */}
+                    {[
+                      ...notifications.map(n => ({ ...n, feedType: 'notification' })),
+                      ...overdueRem.map(r => ({ ...r, feedType: 'reminder', overdue: true })),
+                      ...urgentRem.map(r => ({ ...r, feedType: 'reminder', overdue: false }))
+                    ]
+                      .sort((a, b) => {
+                        const dateA = a.createdAt?.toDate?.() || a.dueDate?.toDate?.() || new Date(a.createdAt || a.dueDate);
+                        const dateB = b.createdAt?.toDate?.() || b.dueDate?.toDate?.() || new Date(b.createdAt || b.dueDate);
+                        return dateB - dateA;
+                      })
+                      .slice(0, 15)
+                      .map(item => (
+                        <div key={item.id} className={`p-4 hover:bg-stone-50 transition-colors ${!item.read && item.feedType === 'notification' ? 'bg-sage/5' : ''}`}>
+                          <div className="flex gap-4">
+                            <div className={`w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center ${item.feedType === 'notification'
+                                ? item.type === 'unit_request' ? 'bg-amber/10 text-amber' : 'bg-sage/10 text-sage'
+                                : item.overdue ? 'bg-rust/10 text-rust' : 'bg-amber/10 text-amber'
+                              }`}>
+                              {item.feedType === 'notification'
+                                ? item.type === 'unit_request' ? <User size={16} /> : <Bell size={16} />
+                                : <AlertTriangle size={16} />
+                              }
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="font-body text-sm text-ink leading-snug">
+                                  {item.feedType === 'notification' ? (
+                                    <>
+                                      <span className="font-semibold">{item.tenantName}</span> {' '}
+                                      {item.type === 'unit_request' ? 'requested to join' : 'sent a notification'} {' '}
+                                      <span className="font-semibold">{item.unitName}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="font-semibold">{item.tenantName}</span> {' '}
+                                      payment is {item.overdue ? 'overdue' : 'due soon'}
+                                    </>
+                                  )}
+                                </p>
+                                {item.feedType === 'notification' && !item.read && (
+                                  <button
+                                    onClick={() => markNotificationRead(user.uid, item.id)}
+                                    className="w-2 h-2 rounded-full bg-sage flex-shrink-0 mt-1.5"
+                                    title="Mark as read"
+                                  />
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="font-body text-[11px] text-stone-400">
+                                  {item.feedType === 'notification'
+                                    ? format(item.createdAt?.toDate?.() || new Date(item.createdAt), 'MMM d, h:mm a')
+                                    : `Due ${format(item.dueDate?.toDate?.() || new Date(item.dueDate), 'MMM d')}`
+                                  }
+                                </span>
+                                {item.feedType === 'notification' && (
+                                  <Link to={`/properties/${item.propertyId}?tab=units`} className="text-[11px] font-semibold text-sage hover:underline">
+                                    View Request
+                                  </Link>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+              <div className="p-4 bg-stone-50 border-t border-stone-100">
+                <Link to="/reminders" className="w-full btn-ghost text-xs justify-center py-2">
+                  View full history <ArrowRight size={13} className="ml-1" />
                 </Link>
               </div>
-              {urgentRem.length === 0 && overdueRem.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <div className="w-12 h-12 rounded-full bg-sage/10 flex items-center justify-center mb-3">
-                    <Bell size={20} className="text-sage" />
-                  </div>
-                  <p className="font-body text-sm text-stone-400">No urgent reminders</p>
-                  <p className="font-body text-xs text-stone-300 mt-1">All payments on track</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {[...overdueRem, ...urgentRem].slice(0, 5).map(r => {
-                    const d = r.dueDate?.toDate?.() ?? new Date(r.dueDate);
-                    const overdue = isPast(d);
-                    return (
-                      <div key={r.id} className="flex items-center gap-3 p-3 rounded-xl bg-stone-50 hover:bg-stone-100 transition-colors">
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${overdue ? 'bg-rust' : 'bg-amber'}`} />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-body font-medium text-sm text-ink truncate">{r.tenantName}</p>
-                          <p className="font-body text-xs text-stone-400">
-                            {overdue ? 'Overdue' : `Due ${format(d, 'MMM d')}`}
-                          </p>
-                        </div>
-                        <span className="font-body font-semibold text-sm text-ink">
-                          {fmt(r.amount || 0)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  <Link to="/reminders" className="btn-ghost w-full text-xs mt-1 justify-center">
-                    View all reminders <ChevronRight size={13} />
-                  </Link>
-                </div>
-              )}
             </motion.div>
           </div>
 

@@ -260,6 +260,16 @@ export const subscribeUnits = (uid, propId, cb) =>
     (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
   );
 
+export const subscribePendingUnitsCount = (uid, cb) =>
+  onSnapshot(
+    query(
+      collectionGroup(db, 'units'),
+      where('landlordId', '==', uid),
+      where('status', '==', 'pending_approval'),
+    ),
+    (snap) => cb(snap.size)
+  );
+
 /**
  * Subscribe to all units with status 'pending_approval' owned by the landlord.
  * Uses collectionGroup — requires a Firestore composite index on (landlordId, status).
@@ -389,3 +399,23 @@ export const requestUnitApproval = async (landlordUid, propertyId, unitId, tenan
     read: false,
   });
 };
+// ════════════════════════════════════════════════════════════════════════════
+// NOTIFICATIONS
+// ════════════════════════════════════════════════════════════════════════════
+export const subscribeNotifications = (uid, cb) =>
+  onSnapshot(
+    query(collection(db, 'users', uid, 'notifications'), orderBy('createdAt', 'desc'), limit(50)),
+    (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+
+export const markNotificationRead = (uid, notifId) =>
+  updateDoc(doc(db, 'users', uid, 'notifications', notifId), { read: true });
+
+export const deleteNotification = (uid, notifId) =>
+  deleteDoc(doc(db, 'users', uid, 'notifications', notifId));
+
+export const subscribeUnreadNotificationsCount = (uid, cb) =>
+  onSnapshot(
+    query(collection(db, 'users', uid, 'notifications'), where('read', '==', false)),
+    (snap) => cb(snap.size)
+  );

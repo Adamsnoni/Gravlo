@@ -5,8 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutGrid, Building2, Bell, CreditCard, Settings, LogOut, Menu, X, KeyRound, ChevronRight, Crown, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { db } from '../services/firebase';
-import { collectionGroup, query, where, onSnapshot } from 'firebase/firestore';
+import { db, subscribeUnreadNotificationsCount, subscribePendingUnitsCount } from '../services/firebase';
 import { getFlag } from '../utils/countries';
 import toast from 'react-hot-toast';
 import { PLANS } from '../services/subscription';
@@ -35,22 +34,24 @@ export default function AppShell() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
 
   const role = profile?.role || 'landlord';
   const isTenant = role === 'tenant';
   const NAV = isTenant ? TENANT_NAV : LANDLORD_NAV;
   const userPlan = PLANS[profile?.subscription?.planId || 'free'] || PLANS.free;
 
-  // Real-time listener for pending unit join requests (landlords only)
+  // Real-time listener for pending unit join requests & notifications (landlords only)
   useEffect(() => {
     if (isTenant || !user?.uid) return;
-    const q = query(
-      collectionGroup(db, 'units'),
-      where('landlordId', '==', user.uid),
-      where('status', '==', 'pending_approval'),
-    );
-    const unsub = onSnapshot(q, snap => setPendingCount(snap.size), () => { });
-    return unsub;
+
+    // Joint request badge (on Properties)
+    const unsubUnits = subscribePendingUnitsCount(user.uid, setPendingCount);
+
+    // Unread notifications badge (on Dashboard)
+    const unsubNotifs = subscribeUnreadNotificationsCount(user.uid, setUnreadNotificationsCount);
+
+    return () => { unsubUnits(); unsubNotifs(); };
   }, [user?.uid, isTenant]);
 
   const handleLogout = async () => {
@@ -91,6 +92,11 @@ export default function AppShell() {
             className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <Icon size={17} />
             <span>{label}</span>
+            {label === 'Dashboard' && unreadNotificationsCount > 0 && (
+              <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-sage text-cream text-[10px] font-body font-bold flex items-center justify-center animate-pulse">
+                {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+              </span>
+            )}
             {label === 'Properties' && pendingCount > 0 && (
               <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-rust text-cream text-[10px] font-body font-bold flex items-center justify-center">
                 {pendingCount > 9 ? '9+' : pendingCount}
