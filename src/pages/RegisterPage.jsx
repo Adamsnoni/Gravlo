@@ -30,6 +30,10 @@ export default function RegisterPage() {
     changeCountry(code);
   };
 
+  // --- Real-time password match validation ---
+  const passwordsMatch = form.confirm === '' || form.password === form.confirm;
+  const canSubmit = !loading && form.password.length >= 8 && form.confirm.length >= 8 && form.password === form.confirm;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const { fullName, email, password, confirm, countryCode, accountType } = form;
@@ -177,10 +181,20 @@ export default function RegisterPage() {
             </div>
 
             <PasswordInput id="reg-password" label="Password *" value={form.password} onChange={set('password')} placeholder="Min. 8 characters" autoComplete="new-password" required />
-            <PasswordInput id="reg-confirm" label="Confirm Password *" value={form.confirm} onChange={set('confirm')} placeholder="Min. 8 characters" autoComplete="new-password" required />
+
+            {/* Confirm password with inline match error */}
+            <div>
+              <PasswordInput id="reg-confirm" label="Confirm Password *" value={form.confirm} onChange={set('confirm')} placeholder="Min. 8 characters" autoComplete="new-password" required />
+              {!passwordsMatch && (
+                <p className="mt-1.5 font-body text-xs text-rust flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-rust inline-block flex-shrink-0" />
+                  Passwords do not match.
+                </p>
+              )}
+            </div>
 
             <div className="pt-2">
-              <button type="submit" disabled={loading} className="btn-primary w-full py-3">
+              <button type="submit" disabled={!canSubmit} className="btn-primary w-full py-3 disabled:opacity-50 disabled:cursor-not-allowed">
                 {loading ? <div className="w-4 h-4 border-2 border-cream border-t-transparent rounded-full animate-spin" /> : <><span>Create Account</span><ArrowRight size={16} /></>}
               </button>
             </div>

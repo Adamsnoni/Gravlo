@@ -8,7 +8,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    MapPin, Building2, Hash, Plus, Trash2, ChevronRight,
+    MapPin, Plus, Trash2, ChevronRight,
     Check, DoorOpen, Info, User, Mail,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -59,7 +59,6 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
     const [propForm, setPropForm] = useState({
         name: '', address: '', type: 'Apartment', status: 'vacant',
         monthlyRent: '', rentType: 'monthly',
-        buildingName: '', unitNumber: '', floor: '',
     });
 
     // Step 2 — Unit count
@@ -150,7 +149,7 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
 
     const handleClose = () => {
         setStep(1);
-        setPropForm({ name: '', address: '', type: 'Apartment', status: 'vacant', monthlyRent: '', rentType: 'monthly', buildingName: '', unitNumber: '', floor: '' });
+        setPropForm({ name: '', address: '', type: 'Apartment', status: 'vacant', monthlyRent: '', rentType: 'monthly' });
         setUnitCount('');
         setUnits([]);
         setCreatedPropertyId(null);
@@ -218,23 +217,7 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
                             </div>
                         </Field>
 
-                        <div className="grid grid-cols-3 gap-3">
-                            <Field label="Building Name">
-                                <div className="relative">
-                                    <Building2 size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-                                    <input className="input-base pl-8" placeholder="Optional" value={propForm.buildingName} onChange={setP('buildingName')} />
-                                </div>
-                            </Field>
-                            <Field label="Unit No.">
-                                <div className="relative">
-                                    <Hash size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-                                    <input className="input-base pl-8" placeholder="e.g. 4B" value={propForm.unitNumber} onChange={setP('unitNumber')} />
-                                </div>
-                            </Field>
-                            <Field label="Floor">
-                                <input className="input-base" type="number" placeholder="e.g. 2" value={propForm.floor} onChange={setP('floor')} />
-                            </Field>
-                        </div>
+
 
                         <div className="grid sm:grid-cols-2 gap-3">
                             <Field label={`Default Rent (${currencySymbol})`}>
