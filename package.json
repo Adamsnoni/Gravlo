@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy-all": "git add . && git commit -m 'Syncing updates to GitHub and Firebase' && git push origin main && firebase deploy"
   },
   "dependencies": {
     "date-fns": "^3.3.1",
