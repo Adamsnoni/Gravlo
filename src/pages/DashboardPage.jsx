@@ -26,18 +26,38 @@ const safeToDate = (d) => {
   return isNaN(date.getTime()) ? null : date;
 };
 
+const safeFmt = (val, fmtFunc) => {
+  if (typeof fmtFunc !== 'function') return val || 0;
+  try {
+    return fmtFunc(val);
+  } catch (e) {
+    console.error('Format error:', e, val);
+    return val || 0;
+  }
+};
+
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 16 },
   animate: { opacity: 1, y: 0 },
   transition: { delay, duration: 0.4 },
 });
 
-const generateChartData = (properties) => {
-  const months = Array.from({ length: 6 }, (_, i) => subMonths(new Date(), 5 - i));
-  return months.map(m => ({
-    month: format(m, 'MMM'),
-    revenue: properties.filter(p => p.status === 'occupied').reduce((s, p) => s + (p.monthlyRent || 0), 0) * (0.8 + Math.random() * 0.4),
-  }));
+const generateChartData = (properties, fmtFunc) => {
+  try {
+    const months = Array.from({ length: 6 }, (_, i) => subMonths(new Date(), 5 - i));
+    return months.map(m => {
+      const rev = (properties || [])
+        .filter(p => p && p.status === 'occupied')
+        .reduce((s, p) => s + Number(p.monthlyRent || 0), 0) * (0.8 + Math.random() * 0.4);
+      return {
+        month: format(m, 'MMM'),
+        revenue: isNaN(rev) ? 0 : rev,
+      };
+    });
+  } catch (e) {
+    console.error('Chart data error:', e);
+    return [];
+  }
 };
 
 export default function DashboardPage() {
@@ -56,6 +76,7 @@ export default function DashboardPage() {
     const u2 = subscribeReminders(user.uid, setReminders);
     const u3 = subscribePendingUnits(user.uid, setPendingUnits);
     const u4 = subscribeNotifications(user.uid, setNotifications);
+    console.log('Dashboard: Subscribed to all feeds for', user.uid);
     return () => { u1(); u2(); u3(); u4(); };
   }, [user]);
 
@@ -92,27 +113,27 @@ export default function DashboardPage() {
     finally { setApprovingSaving(false); }
   };
 
-  const occupied = properties.filter(p => p.status === 'occupied').length;
-  const vacant = properties.filter(p => p.status === 'vacant').length;
-  const monthlyRev = properties.filter(p => p.status === 'occupied').reduce((s, p) => s + (p.monthlyRent || 0), 0);
-  const urgentRem = reminders.filter(r => {
+  const occupied = (properties || []).filter(p => p && p.status === 'occupied').length;
+  const vacant = (properties || []).filter(p => p && p.status === 'vacant').length;
+  const monthlyRev = (properties || []).filter(p => p && p.status === 'occupied').reduce((s, p) => s + Number(p.monthlyRent || 0), 0);
+  const urgentRem = (reminders || []).filter(r => {
     const d = safeToDate(r.dueDate);
     if (!d) return false;
     return !isPast(d) && differenceInDays(d, new Date()) <= 5 && r.status !== 'paid';
   });
-  const overdueRem = reminders.filter(r => {
+  const overdueRem = (reminders || []).filter(r => {
     const d = safeToDate(r.dueDate);
     if (!d) return false;
     return isPast(d) && r.status !== 'paid';
   });
 
-  const chartData = generateChartData(properties);
+  const chartData = generateChartData(properties, fmt);
   const firstName = (profile?.fullName || user?.displayName || 'there').split(' ')[0];
 
   const stats = [
-    { label: 'Total Properties', value: properties.length, icon: Building2, color: 'text-sage', bg: 'bg-sage/10', change: null },
-    { label: 'Occupied', value: occupied, icon: Users, color: 'text-sage', bg: 'bg-sage/10', change: properties.length > 0 ? `${Math.round(occupied / properties.length * 100)}% occupancy` : '0%' },
-    { label: 'Monthly Revenue', value: fmt(monthlyRev), icon: TrendingUp, color: 'text-amber', bg: 'bg-amber/10', change: `${occupied} active leases` },
+    { label: 'Total Properties', value: (properties || []).length, icon: Building2, color: 'text-sage', bg: 'bg-sage/10', change: null },
+    { label: 'Occupied', value: occupied, icon: Users, color: 'text-sage', bg: 'bg-sage/10', change: (properties || []).length > 0 ? `${Math.round(occupied / properties.length * 100)}% occupancy` : '0%' },
+    { label: 'Monthly Revenue', value: safeFmt(monthlyRev, fmt), icon: TrendingUp, color: 'text-amber', bg: 'bg-amber/10', change: `${occupied} active leases` },
     { label: 'Urgent Reminders', value: urgentRem.length + overdueRem.length, icon: AlertTriangle, color: 'text-rust', bg: 'bg-rust/10', change: overdueRem.length > 0 ? `${overdueRem.length} overdue` : 'All current' },
   ];
 
@@ -230,10 +251,10 @@ export default function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#EDE5D4" vertical={false} />
                   <XAxis dataKey="month" tick={{ fontFamily: 'DM Sans', fontSize: 11, fill: '#A89272' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontFamily: 'DM Sans', fontSize: 11, fill: '#A89272' }} axisLine={false} tickLine={false}
-                    tickFormatter={v => fmt(v)} />
+                    tickFormatter={v => safeFmt(v, fmt)} />
                   <Tooltip
                     contentStyle={{ background: '#1A1612', border: 'none', borderRadius: 10, fontFamily: 'DM Sans', fontSize: 12, color: '#F5F0E8' }}
-                    formatter={v => [fmt(v), 'Revenue']}
+                    formatter={v => [safeFmt(v, fmt), 'Revenue']}
                   />
                   <Area type="monotone" dataKey="revenue" stroke="#4A7C59" strokeWidth={2} fill="url(#revGrad)" />
                 </AreaChart>
