@@ -2,23 +2,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Building2, MapPin, Bed, Bath, Hash } from 'lucide-react';
+import { Plus, Search, Building2, MapPin, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useLocale } from '../context/LocaleContext';
 import { subscribeProperties, addProperty, deleteProperty } from '../services/firebase';
 import PropertyCard from '../components/PropertyCard';
 import Modal from '../components/Modal';
-import { RENT_TYPES } from '../utils/formatRent';
 import toast from 'react-hot-toast';
 import { canAddProperty, getUpgradePlan, getUserPlan } from '../services/subscription';
 
 const TYPES = ['Apartment', 'House', 'Studio', 'Duplex', 'Commercial', 'Other'];
-const STATUSES = ['occupied', 'vacant', 'maintenance'];
 const FILTERS = ['All', 'Occupied', 'Vacant', 'Maintenance'];
 
 export default function PropertiesPage() {
   const { user } = useAuth();
-  const { fmtRent, currencyName, currencySymbol } = useLocale();
   const navigate = useNavigate();
 
   const [properties, setProperties] = useState([]);
@@ -29,13 +25,7 @@ export default function PropertiesPage() {
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const emptyForm = {
-    name: '', address: '', type: 'Apartment', status: 'vacant',
-    monthlyRent: '', rentType: 'monthly',
-    bedrooms: '', bathrooms: '', sqft: '',
-    buildingName: '', unitNumber: '', floor: '',
-    tenantName: '', tenantEmail: '', tenantPhone: '', description: '',
-  };
+  const emptyForm = { name: '', address: '', type: 'Apartment', description: '' };
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
@@ -62,23 +52,17 @@ export default function PropertiesPage() {
     setSaving(true);
     try {
       const docRef = await addProperty(user.uid, {
-        ...form,
-        monthlyRent: parseInt(form.monthlyRent) || 0,
-        bedrooms: parseInt(form.bedrooms) || 0,
-        bathrooms: parseFloat(form.bathrooms) || 0,
-        sqft: parseInt(form.sqft) || 0,
+        name: form.name,
+        address: form.address,
+        type: form.type,
+        description: form.description,
+        status: 'vacant',
       });
-      toast.success('Property added!');
+      toast.success('Property created!');
       setShowModal(false);
       setForm(emptyForm);
-      // Navigate to the success/onboarding page
       navigate(`/properties/${docRef.id}/success`, {
-        state: {
-          propertyId: docRef.id,
-          propertyName: form.name,
-          monthlyRent: parseInt(form.monthlyRent) || 0,
-          rentType: form.rentType || 'monthly',
-        },
+        state: { propertyId: docRef.id, propertyName: form.name },
       });
     } catch {
       toast.error('Failed to add property.');
@@ -186,119 +170,40 @@ export default function PropertiesPage() {
       )}
 
       {/* Add Modal */}
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Add New Property" size="lg">
-        <form onSubmit={handleAdd} className="space-y-5">
-          <Section title="Property Info">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <Field label="Property Name *">
-                <input className="input-base" placeholder="e.g. Sunset Apartments 4B" value={form.name} onChange={set('name')} required />
-              </Field>
-              <Field label="Property Type">
-                <select className="input-base" value={form.type} onChange={set('type')}>
-                  {TYPES.map(t => <option key={t}>{t}</option>)}
-                </select>
-              </Field>
-            </div>
-            <Field label="Address *">
-              <div className="relative">
-                <MapPin size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-                <input className="input-base pl-9" placeholder="Full street address" value={form.address} onChange={set('address')} required />
-              </div>
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Add Property" size="md">
+        <form onSubmit={handleAdd} className="space-y-4">
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Field label="Property / Building Name *">
+              <input className="input-base" placeholder="e.g. Sunset Court" value={form.name}
+                onChange={set('name')} required autoFocus />
             </Field>
-
-            <div className="bg-stone-50 rounded-xl p-4 border border-stone-100">
-              <p className="font-body text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">Multi-Unit Building (Optional)</p>
-              <p className="font-body text-xs text-stone-400 mb-3">
-                Use these fields if this property is part of a building with multiple units. This helps tenants identify their exact apartment.
-              </p>
-              <div className="grid sm:grid-cols-3 gap-4">
-                <Field label="Building Name">
-                  <div className="relative">
-                    <Building2 size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-                    <input className="input-base pl-9" placeholder="e.g. Sunset Apartments" value={form.buildingName} onChange={set('buildingName')} />
-                  </div>
-                </Field>
-                <Field label="Unit Number">
-                  <div className="relative">
-                    <Hash size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-                    <input className="input-base pl-9" placeholder="e.g. 4B, 101, A-12" value={form.unitNumber} onChange={set('unitNumber')} />
-                  </div>
-                </Field>
-                <Field label="Floor">
-                  <input className="input-base" type="number" placeholder="e.g. 2" value={form.floor} onChange={set('floor')} />
-                </Field>
-              </div>
-            </div>
-            <Field label="Status">
-              <div className="flex gap-2">
-                {STATUSES.map(s => (
-                  <button type="button" key={s} onClick={() => setForm(f => ({ ...f, status: s }))}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-body font-medium border capitalize transition-all ${form.status === s
-                      ? s === 'occupied' ? 'bg-sage/10 text-sage border-sage/30'
-                        : s === 'vacant' ? 'bg-amber/10 text-amber border-amber/30'
-                          : 'bg-rust/10 text-rust border-rust/30'
-                      : 'bg-stone-50 text-stone-400 border-stone-200 hover:bg-stone-100'
-                      }`}>
-                    {s}
-                  </button>
-                ))}
-              </div>
+            <Field label="Property Type">
+              <select className="input-base" value={form.type} onChange={set('type')}>
+                {TYPES.map(t => <option key={t}>{t}</option>)}
+              </select>
             </Field>
-          </Section>
+          </div>
 
-          <Section title="Financials & Specs">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <Field label={`Rent Amount (${currencySymbol})`}>
-                <input className="input-base" type="number" placeholder="e.g. 250000" value={form.monthlyRent} onChange={set('monthlyRent')} />
-              </Field>
-              <Field label="Rent Duration">
-                <select className="input-base" value={form.rentType} onChange={set('rentType')}>
-                  {RENT_TYPES.map(({ value, label }) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Bedrooms">
-                <div className="relative">
-                  <Bed size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-                  <input className="input-base pl-9" type="number" placeholder="3" value={form.bedrooms} onChange={set('bedrooms')} />
-                </div>
-              </Field>
-              <Field label="Bathrooms">
-                <div className="relative">
-                  <Bath size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-                  <input className="input-base pl-9" type="number" placeholder="2" value={form.bathrooms} onChange={set('bathrooms')} />
-                </div>
-              </Field>
+          <Field label="Address *">
+            <div className="relative">
+              <MapPin size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+              <input className="input-base pl-9" placeholder="Full street address" value={form.address}
+                onChange={set('address')} required />
             </div>
-            {form.monthlyRent && (
-              <p className="font-body text-xs text-stone-400 mt-1">
-                Displays as: <span className="font-semibold text-sage">{fmtRent(parseInt(form.monthlyRent), form.rentType)}</span>
-              </p>
-            )}
-            <Field label="Area (sqft)">
-              <input className="input-base" type="number" placeholder="e.g. 1200" value={form.sqft} onChange={set('sqft')} />
-            </Field>
-          </Section>
+          </Field>
 
-          {form.status === 'occupied' && (
-            <Section title="Tenant Information">
-              <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="Tenant Name"><input className="input-base" placeholder="Full name" value={form.tenantName} onChange={set('tenantName')} /></Field>
-                <Field label="Tenant Phone"><input className="input-base" placeholder="+1 555 000 0000" value={form.tenantPhone} onChange={set('tenantPhone')} /></Field>
-                <Field label="Tenant Email" className="sm:col-span-2"><input className="input-base" type="email" placeholder="tenant@email.com" value={form.tenantEmail} onChange={set('tenantEmail')} /></Field>
-              </div>
-            </Section>
-          )}
-
-          <Field label="Notes (optional)">
-            <textarea className="input-base min-h-[72px] resize-none" placeholder="Any additional details…" value={form.description} onChange={set('description')} />
+          <Field label="Description (optional)">
+            <textarea className="input-base min-h-[72px] resize-none" placeholder="Any notes about this property…"
+              value={form.description} onChange={set('description')} />
           </Field>
 
           <div className="flex gap-3 pt-2 justify-end">
             <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary">
-              {saving ? <div className="w-4 h-4 border-2 border-cream border-t-transparent rounded-full animate-spin" /> : <><Plus size={15} /> Save Property</>}
+              {saving
+                ? <div className="w-4 h-4 border-2 border-cream border-t-transparent rounded-full animate-spin" />
+                : <><ChevronRight size={15} /> Next: Set Up Units</>}
             </button>
           </div>
         </form>
@@ -307,14 +212,6 @@ export default function PropertiesPage() {
   );
 }
 
-function Section({ title, children }) {
-  return (
-    <div>
-      <p className="font-body text-xs font-semibold text-stone-400 uppercase tracking-wider mb-3 pb-2 border-b border-stone-100">{title}</p>
-      <div className="space-y-3">{children}</div>
-    </div>
-  );
-}
 function Field({ label, children, className = '' }) {
   return (
     <div className={className}>

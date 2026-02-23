@@ -47,7 +47,7 @@ const slideVariants = {
 
 export default function CreatePropertyWithUnitsModal({ isOpen, onClose, propertyCount = 0 }) {
     const { user } = useAuth();
-    const { currencySymbol, fmtRent } = useLocale();
+    const { currencySymbol } = useLocale();
     const navigate = useNavigate();
 
     const [step, setStep] = useState(1);
@@ -58,7 +58,6 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
     // Step 1 — Property form
     const [propForm, setPropForm] = useState({
         name: '', address: '', type: 'Apartment', status: 'vacant',
-        monthlyRent: '', rentType: 'monthly',
     });
 
     // Step 2 — Unit count
@@ -96,10 +95,7 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
         }
         setSaving(true);
         try {
-            const docRef = await addProperty(user.uid, {
-                ...propForm,
-                monthlyRent: parseInt(propForm.monthlyRent) || 0,
-            });
+            const docRef = await addProperty(user.uid, { ...propForm });
             setCreatedPropertyId(docRef.id);
             setCreatedPropertyName(propForm.name);
             setStep(2);
@@ -115,9 +111,7 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
         e.preventDefault();
         const n = Math.max(1, Math.min(50, parseInt(unitCount) || 1));
         setUnitCount(n);
-        setUnits(Array.from({ length: n }, (_, i) =>
-            makeUnit(i, propForm.monthlyRent, propForm.rentType)
-        ));
+        setUnits(Array.from({ length: n }, (_, i) => makeUnit(i)));
         setStep(3);
     };
 
@@ -129,7 +123,7 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
             for (const u of valid) {
                 await addUnit(user.uid, createdPropertyId, {
                     unitName: u.unitName.trim(),
-                    rentAmount: parseInt(u.rentAmount) || parseInt(propForm.monthlyRent) || 0,
+                    rentAmount: parseInt(u.rentAmount) || 0,
                     billingCycle: u.billingCycle || 'monthly',
                     status: u.tenantName || u.tenantEmail ? 'occupied' : 'vacant',
                     tenantId: null,
@@ -149,7 +143,7 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
 
     const handleClose = () => {
         setStep(1);
-        setPropForm({ name: '', address: '', type: 'Apartment', status: 'vacant', monthlyRent: '', rentType: 'monthly' });
+        setPropForm({ name: '', address: '', type: 'Apartment', status: 'vacant' });
         setUnitCount('');
         setUnits([]);
         setCreatedPropertyId(null);
@@ -219,21 +213,6 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
 
 
 
-                        <div className="grid sm:grid-cols-2 gap-3">
-                            <Field label={`Default Rent (${currencySymbol})`}>
-                                <input className="input-base" type="number" placeholder="e.g. 250000" value={propForm.monthlyRent} onChange={setP('monthlyRent')} />
-                            </Field>
-                            <Field label="Billing Cycle">
-                                <select className="input-base" value={propForm.rentType} onChange={setP('rentType')}>
-                                    {RENT_TYPES.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-                                </select>
-                            </Field>
-                        </div>
-                        {propForm.monthlyRent && (
-                            <p className="font-body text-xs text-stone-400 -mt-1">
-                                Displays as <strong className="text-sage">{fmtRent(parseInt(propForm.monthlyRent), propForm.rentType)}</strong>
-                            </p>
-                        )}
 
                         <Field label="Status">
                             <div className="flex gap-2">
@@ -317,7 +296,7 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
 
                         <div className="flex items-center justify-between">
                             <p className="font-body text-sm text-stone-500">
-                                Fill in details for each unit. Rent defaults to <strong className="text-sage">{fmtRent(parseInt(propForm.monthlyRent) || 0, propForm.rentType)}</strong> if left blank.
+                                Fill in the details for each unit below.
                             </p>
                             <span className="font-body text-xs text-stone-400 bg-stone-100 px-2 py-1 rounded-lg">
                                 {units.length} unit{units.length !== 1 ? 's' : ''}
@@ -356,7 +335,7 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
                                             <input
                                                 className="input-base text-sm h-9"
                                                 type="number"
-                                                placeholder={propForm.monthlyRent || '—'}
+                                                placeholder="e.g. 150000"
                                                 value={unit.rentAmount}
                                                 onChange={e => setUnit(unit.id, 'rentAmount', e.target.value)}
                                             />
