@@ -19,6 +19,13 @@ import PropertyCard from '../components/PropertyCard';
 import { toast } from 'react-hot-toast';
 
 
+const safeToDate = (d) => {
+  if (!d) return null;
+  if (typeof d.toDate === 'function') return d.toDate();
+  const date = new Date(d);
+  return isNaN(date.getTime()) ? null : date;
+};
+
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 16 },
   animate: { opacity: 1, y: 0 },
@@ -89,11 +96,13 @@ export default function DashboardPage() {
   const vacant = properties.filter(p => p.status === 'vacant').length;
   const monthlyRev = properties.filter(p => p.status === 'occupied').reduce((s, p) => s + (p.monthlyRent || 0), 0);
   const urgentRem = reminders.filter(r => {
-    const d = r.dueDate?.toDate?.() ?? new Date(r.dueDate);
+    const d = safeToDate(r.dueDate);
+    if (!d) return false;
     return !isPast(d) && differenceInDays(d, new Date()) <= 5 && r.status !== 'paid';
   });
   const overdueRem = reminders.filter(r => {
-    const d = r.dueDate?.toDate?.() ?? new Date(r.dueDate);
+    const d = safeToDate(r.dueDate);
+    if (!d) return false;
     return isPast(d) && r.status !== 'paid';
   });
 
@@ -256,8 +265,8 @@ export default function DashboardPage() {
                       ...urgentRem.map(r => ({ ...r, feedType: 'reminder', overdue: false }))
                     ]
                       .sort((a, b) => {
-                        const dateA = a.createdAt?.toDate?.() || a.dueDate?.toDate?.() || new Date(a.createdAt || a.dueDate);
-                        const dateB = b.createdAt?.toDate?.() || b.dueDate?.toDate?.() || new Date(b.createdAt || b.dueDate);
+                        const dateA = safeToDate(a.createdAt) || safeToDate(a.dueDate) || new Date(0);
+                        const dateB = safeToDate(b.createdAt) || safeToDate(b.dueDate) || new Date(0);
                         return dateB - dateA;
                       })
                       .slice(0, 15)
@@ -265,8 +274,8 @@ export default function DashboardPage() {
                         <div key={item.id} className={`p-4 hover:bg-stone-50 transition-colors ${!item.read && item.feedType === 'notification' ? 'bg-sage/5' : ''}`}>
                           <div className="flex gap-4">
                             <div className={`w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center ${item.feedType === 'notification'
-                                ? item.type === 'unit_request' ? 'bg-amber/10 text-amber' : 'bg-sage/10 text-sage'
-                                : item.overdue ? 'bg-rust/10 text-rust' : 'bg-amber/10 text-amber'
+                              ? item.type === 'unit_request' ? 'bg-amber/10 text-amber' : 'bg-sage/10 text-sage'
+                              : item.overdue ? 'bg-rust/10 text-rust' : 'bg-amber/10 text-amber'
                               }`}>
                               {item.feedType === 'notification'
                                 ? item.type === 'unit_request' ? <User size={16} /> : <Bell size={16} />
@@ -300,8 +309,8 @@ export default function DashboardPage() {
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="font-body text-[11px] text-stone-400">
                                   {item.feedType === 'notification'
-                                    ? format(item.createdAt?.toDate?.() || new Date(item.createdAt), 'MMM d, h:mm a')
-                                    : `Due ${format(item.dueDate?.toDate?.() || new Date(item.dueDate), 'MMM d')}`
+                                    ? (safeToDate(item.createdAt) ? format(safeToDate(item.createdAt), 'MMM d, h:mm a') : 'Recently')
+                                    : (safeToDate(item.dueDate) ? `Due ${format(safeToDate(item.dueDate), 'MMM d')}` : 'Invalid date')
                                   }
                                 </span>
                                 {item.feedType === 'notification' && (
