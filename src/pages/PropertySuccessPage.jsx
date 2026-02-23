@@ -2,20 +2,22 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Post-creation Success / Onboarding view.
 // Reached after a landlord creates a new property.
-// Offers two actions: "Invite Tenant to App" and "Add Later".
+// Offers three actions: "Quick-Add Units", "Invite Tenant to App", "Add Later".
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     CheckCircle2, UserPlus, ArrowRight,
     Copy, Check, Ticket, RefreshCw, Building2, FileText, Calendar,
+    Layers, Hash, Sparkles, ExternalLink,
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { regenerateInviteCode } from '../services/inviteCodes';
+import { addUnitsBatch } from '../services/firebase';
 
 export default function PropertySuccessPage() {
     const navigate = useNavigate();
@@ -31,10 +33,16 @@ export default function PropertySuccessPage() {
     const totalDue = monthlyRent + securityDeposit;
     const dueDate = format(addDays(new Date(), 30), 'MMM d, yyyy');
 
-    const [view, setView] = useState('main'); // 'main' | 'invite'
+    const [view, setView] = useState('main'); // 'main' | 'invite' | 'units'
     const [code, setCode] = useState(inviteCode || '');
     const [copied, setCopied] = useState(false);
     const [regenerating, setRegenerating] = useState(false);
+
+    // ── Quick-Add Units state ────────────────────────────────────────────────
+    const [unitCount, setUnitCount] = useState(5);
+    const [prefix, setPrefix] = useState('1');
+    const [generating, setGenerating] = useState(false);
+    const [unitsCreated, setUnitsCreated] = useState(0); // 0 = not yet, >0 = count created
 
     // Safety: if someone lands here directly without state, redirect
     if (!propertyId || !propertyName) {
@@ -68,11 +76,38 @@ export default function PropertySuccessPage() {
         finally { setRegenerating(false); }
     };
 
+    /* ── Unit name preview logic ───────────────────────────────────────────── */
+    const previewNames = useMemo(() => {
+        const count = Math.max(1, Math.min(100, Number(unitCount) || 1));
+        const isNumericPrefix = /^\d+$/.test(prefix.trim());
+        const startNum = isNumericPrefix ? parseInt(prefix.trim(), 10) : 1;
+        return Array.from({ length: count }, (_, i) =>
+            isNumericPrefix ? String(startNum + i) : `${prefix.trim()}${i + 1}`
+        );
+    }, [unitCount, prefix]);
+
+    /* ── Generate units handler ────────────────────────────────────────────── */
+    const handleGenerateUnits = async () => {
+        if (previewNames.length === 0) return;
+        setGenerating(true);
+        try {
+            await addUnitsBatch(user.uid, propertyId, previewNames);
+            setUnitsCreated(previewNames.length);
+            toast.success(`${previewNames.length} units created!`);
+        } catch (err) {
+            console.error('Batch unit creation failed:', err);
+            toast.error('Failed to create units. Please try again.');
+        } finally {
+            setGenerating(false);
+        }
+    };
+
     /* ════════════════════════════════════════════════════════════════════════ */
     return (
         <div className="min-h-[70vh] flex items-center justify-center px-4">
             <AnimatePresence mode="wait">
-                {/* ── Main onboarding view ───────────────────────────────────────── */}
+
+                {/* ── Main onboarding view ─────────────────────────────────────── */}
                 {view === 'main' && (
                     <motion.div
                         key="main"
@@ -98,20 +133,37 @@ export default function PropertySuccessPage() {
                         </p>
 
                         {/* Action cards */}
-                        <div className="grid gap-4 sm:grid-cols-2 text-left">
-                            {/* Invite Tenant */}
+                        <div className="grid gap-4 sm:grid-cols-3 text-left">
+                            {/* Quick-Add Units */}
                             <button
-                                onClick={() => setView('invite')}
+                                onClick={() => { setUnitsCreated(0); setView('units'); }}
                                 className="group card p-5 border-2 border-sage/20 hover:border-sage/50 hover:shadow-deep transition-all text-left"
                             >
                                 <div className="w-11 h-11 rounded-xl bg-sage/10 flex items-center justify-center mb-3 group-hover:bg-sage/20 transition-colors">
-                                    <UserPlus size={20} className="text-sage" />
+                                    <Layers size={20} className="text-sage" />
                                 </div>
-                                <p className="font-body font-semibold text-ink text-sm mb-1">Invite Tenant to App</p>
+                                <p className="font-body font-semibold text-ink text-sm mb-1">Quick-Add Units</p>
                                 <p className="font-body text-xs text-stone-400 leading-relaxed">
-                                    Generate and share an invite code so your tenant can join this property.
+                                    Batch-create unit numbers for a multi-unit building instantly.
                                 </p>
                                 <div className="flex items-center gap-1 mt-3 text-sage font-body text-xs font-medium">
+                                    Generate <ArrowRight size={12} />
+                                </div>
+                            </button>
+
+                            {/* Invite Tenant */}
+                            <button
+                                onClick={() => setView('invite')}
+                                className="group card p-5 border-2 border-stone-100 hover:border-stone-300 hover:shadow-deep transition-all text-left"
+                            >
+                                <div className="w-11 h-11 rounded-xl bg-stone-100 flex items-center justify-center mb-3 group-hover:bg-stone-200 transition-colors">
+                                    <UserPlus size={20} className="text-stone-500" />
+                                </div>
+                                <p className="font-body font-semibold text-ink text-sm mb-1">Invite Tenant</p>
+                                <p className="font-body text-xs text-stone-400 leading-relaxed">
+                                    Generate and share an invite code so your tenant can join.
+                                </p>
+                                <div className="flex items-center gap-1 mt-3 text-stone-400 font-body text-xs font-medium">
                                     Continue <ArrowRight size={12} />
                                 </div>
                             </button>
@@ -126,7 +178,7 @@ export default function PropertySuccessPage() {
                                 </div>
                                 <p className="font-body font-semibold text-ink text-sm mb-1">Add Later</p>
                                 <p className="font-body text-xs text-stone-400 leading-relaxed">
-                                    Skip for now and go to your property dashboard. You can invite tenants anytime.
+                                    Skip for now — go to your property dashboard and set up later.
                                 </p>
                                 <div className="flex items-center gap-1 mt-3 text-stone-400 font-body text-xs font-medium">
                                     Go to Dashboard <ArrowRight size={12} />
@@ -182,7 +234,150 @@ export default function PropertySuccessPage() {
                     </motion.div>
                 )}
 
-                {/* ── Invite code view ───────────────────────────────────────────── */}
+                {/* ── Quick-Add Units view ──────────────────────────────────────── */}
+                {view === 'units' && (
+                    <motion.div
+                        key="units"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.35 }}
+                        className="w-full max-w-md"
+                    >
+                        {/* Header */}
+                        <div className="text-center mb-8">
+                            <div className="w-16 h-16 rounded-full bg-sage/10 flex items-center justify-center mx-auto mb-5">
+                                <Layers size={28} className="text-sage" />
+                            </div>
+                            <h2 className="font-display text-ink text-2xl font-semibold mb-1">Quick-Add Units</h2>
+                            <p className="font-body text-sm text-stone-400">
+                                Batch-create units for <span className="font-semibold text-ink">{propertyName}</span>.
+                            </p>
+                        </div>
+
+                        {unitsCreated > 0 ? (
+                            /* ── Success state ───────────────────────────────────── */
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="text-center"
+                            >
+                                <div className="w-16 h-16 rounded-full bg-sage/10 flex items-center justify-center mx-auto mb-4">
+                                    <CheckCircle2 size={32} className="text-sage" />
+                                </div>
+                                <p className="font-display text-ink text-xl font-semibold mb-1">
+                                    {unitsCreated} unit{unitsCreated !== 1 ? 's' : ''} created!
+                                </p>
+                                <p className="font-body text-sm text-stone-400 mb-8">
+                                    All units are vacant and ready to assign to tenants.
+                                </p>
+
+                                <div className="flex flex-col gap-3">
+                                    <button
+                                        onClick={() => navigate(`/properties/${propertyId}`)}
+                                        className="btn-primary w-full py-3 justify-center"
+                                    >
+                                        <ExternalLink size={15} />
+                                        View Building Portal
+                                    </button>
+                                    <button
+                                        onClick={() => setView('main')}
+                                        className="btn-secondary w-full py-2.5 justify-center text-sm"
+                                    >
+                                        ← Back to Overview
+                                    </button>
+                                </div>
+                            </motion.div>
+                        ) : (
+                            /* ── Input form ──────────────────────────────────────── */
+                            <div className="card p-6 space-y-5">
+                                {/* Number of units */}
+                                <div>
+                                    <label className="block font-body text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1.5">
+                                        Number of Units
+                                    </label>
+                                    <div className="relative">
+                                        <Hash size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="100"
+                                            className="input-base pl-10"
+                                            value={unitCount}
+                                            onChange={e => setUnitCount(Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Starting number / prefix */}
+                                <div>
+                                    <label className="block font-body text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1.5">
+                                        Starting Number / Prefix
+                                    </label>
+                                    <div className="relative">
+                                        <Layers size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+                                        <input
+                                            type="text"
+                                            className="input-base pl-10"
+                                            placeholder="e.g. 1  or  Apt-  or  101"
+                                            value={prefix}
+                                            onChange={e => setPrefix(e.target.value)}
+                                        />
+                                    </div>
+                                    <p className="font-body text-xs text-stone-400 mt-1.5">
+                                        Numeric prefix counts up from that number. Text prefix appends 1, 2, 3…
+                                    </p>
+                                </div>
+
+                                {/* Live preview */}
+                                <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
+                                    <p className="font-body text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2">
+                                        Preview
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {previewNames.slice(0, 5).map((name, i) => (
+                                            <span
+                                                key={i}
+                                                className="inline-flex items-center px-2.5 py-1 rounded-lg bg-white border border-stone-200 font-body text-xs font-medium text-ink shadow-sm"
+                                            >
+                                                {name}
+                                            </span>
+                                        ))}
+                                        {previewNames.length > 5 && (
+                                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-white border border-stone-200 font-body text-xs text-stone-400">
+                                                +{previewNames.length - 5} more
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Generate button */}
+                                <button
+                                    onClick={handleGenerateUnits}
+                                    disabled={generating || previewNames.length === 0}
+                                    className="btn-primary w-full py-3 justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {generating ? (
+                                        <div className="w-4 h-4 border-2 border-cream border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                        <><Sparkles size={16} /> Generate {previewNames.length} Unit{previewNames.length !== 1 ? 's' : ''}</>
+                                    )}
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Navigation footer */}
+                        {unitsCreated === 0 && (
+                            <div className="flex justify-start mt-5">
+                                <button onClick={() => setView('main')} className="btn-secondary text-sm">
+                                    ← Back
+                                </button>
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+
+                {/* ── Invite code view ─────────────────────────────────────────── */}
                 {view === 'invite' && (
                     <motion.div
                         key="invite"
@@ -269,6 +464,7 @@ export default function PropertySuccessPage() {
                         </div>
                     </motion.div>
                 )}
+
             </AnimatePresence>
         </div>
     );

@@ -18,7 +18,7 @@ import {
   collection, collectionGroup, doc,
   addDoc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
   query, where, orderBy, onSnapshot,
-  serverTimestamp, Timestamp,
+  serverTimestamp, Timestamp, writeBatch,
 } from 'firebase/firestore';
 
 // 🔴 Replace with your Firebase project config
@@ -258,6 +258,40 @@ export const subscribeUnits = (uid, propId, cb) =>
     (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
   );
 
+/**
+ * Create multiple units in a single atomic batch write.
+ *
+ * @param {string}   uid            — landlord UID
+ * @param {string}   propId         — property document ID
+ * @param {string[]} unitNamesArray — array of unit name strings (e.g. ['Unit 1A', 'Unit 1B'])
+ * @param {Object}   [baseData={}]  — shared fields merged into every unit (e.g. { rent, currency })
+ * @returns {Promise<string[]>}     — array of newly created unit document IDs
+ */
+export const addUnitsBatch = async (uid, propId, unitNamesArray, baseData = {}) => {
+  if (!unitNamesArray || unitNamesArray.length === 0) return [];
+
+  const batch = writeBatch(db);
+  const unitsCol = collection(db, 'users', uid, 'properties', propId, 'units');
+  const now = serverTimestamp();
+  const refs = [];
+
+  for (const name of unitNamesArray) {
+    const ref = doc(unitsCol);          // auto-generated ID
+    refs.push(ref);
+    batch.set(ref, {
+      ...baseData,
+      name,
+      status: 'vacant',
+      landlordId: uid,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  await batch.commit();
+  return refs.map(r => r.id);
+};
+
 // Search tenants by email prefix (for assign-tenant typeahead)
 export const searchTenants = async (emailPrefix) => {
   if (!emailPrefix || emailPrefix.length < 2) return [];
@@ -266,4 +300,66 @@ export const searchTenants = async (emailPrefix) => {
     query(collection(db, 'users'), where('email', '>=', emailPrefix.toLowerCase()), where('email', '<', end.toLowerCase()), where('role', '==', 'tenant'))
   );
   return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// UNIT APPROVAL FLOW  (building-portal / tenant self-selection)
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Fetch all vacant units for a property (one-shot read).
+ * @param {string} landlordUid
+ * @param {string} propertyId
+ * @returns {Promise<Array>}
+ */
+export const getVacantUnits = async (landlordUid, propertyId) => {
+  const snap = await getDocs(
+    query(
+      collection(db, 'users', landlordUid, 'properties', propertyId, 'units'),
+      where('status', '==', 'vacant'),
+      orderBy('name'),
+    )
+  );
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+/**
+ * Tenant requests to join a specific vacant unit.
+ * Sets the unit to status:'pending_approval' and writes a landlord notification.
+ *
+ * @param {string} landlordUid
+ * @param {string} propertyId
+ * @param {string} unitId
+ * @param {{ uid, displayName, email }} tenantUser
+ */
+export const requestUnitApproval = async (landlordUid, propertyId, unitId, tenantUser) => {
+  const unitRef = doc(db, 'users', landlordUid, 'properties', propertyId, 'units', unitId);
+  const unitSnap = await getDoc(unitRef);
+  if (!unitSnap.exists()) throw new Error('Unit not found.');
+
+  const unit = unitSnap.data();
+  if (unit.status !== 'vacant') throw new Error('Unit is no longer available.');
+
+  // Mark unit as pending
+  await updateDoc(unitRef, {
+    status: 'pending_approval',
+    pendingTenantId: tenantUser.uid,
+    pendingTenantName: tenantUser.displayName || '',
+    pendingTenantEmail: tenantUser.email || '',
+    pendingRequestedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  // Write a notification for the landlord
+  await addDoc(collection(db, 'users', landlordUid, 'notifications'), {
+    type: 'unit_request',
+    propertyId,
+    unitId,
+    unitName: unit.name || unitId,
+    tenantId: tenantUser.uid,
+    tenantName: tenantUser.displayName || '',
+    tenantEmail: tenantUser.email || '',
+    createdAt: serverTimestamp(),
+    read: false,
+  });
 };

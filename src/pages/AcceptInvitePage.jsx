@@ -3,12 +3,20 @@
 // Public page — validates a unit invite token and lets the tenant accept it.
 // Works for both logged-in users and new users (redirect to register).
 // Route: /invite/:token
+//
+// Flow:
+//   token has unitId  → single-unit accept (original flow)
+//   token has no unitId → building portal: show vacant unit grid → request approval
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Home, Check, Clock, AlertTriangle, KeyRound, Loader2, DoorOpen, UserX } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+    Home, Check, Clock, AlertTriangle, KeyRound, Loader2,
+    DoorOpen, UserX, Building2, ChevronRight, BellRing,
+} from 'lucide-react';
 import { fetchInviteToken, acceptInviteToken } from '../services/inviteTokens';
+import { getVacantUnits, requestUnitApproval } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -28,13 +36,22 @@ export function consumePendingInvite() {
 
 export default function AcceptInvitePage() {
     const { token } = useParams();
-    const { user, profile } = useAuth();
+    const { user } = useAuth();
     const navigate = useNavigate();
 
-    const [status, setStatus] = useState('loading'); // loading | valid | expired | used | occupied | error | accepting | done
+    // Core invite state
+    const [status, setStatus] = useState('loading');
+    // loading | valid | expired | used | occupied | error | accepting | done
+    // picking | submitting | pending_approval
     const [inviteData, setInviteData] = useState(null);
     const [expiresAt, setExpiresAt] = useState(null);
 
+    // Unit picker state (building-portal path)
+    const [vacantUnits, setVacantUnits] = useState([]);
+    const [loadingUnits, setLoadingUnits] = useState(false);
+    const [selectedUnitId, setSelectedUnitId] = useState(null);
+
+    /* ── Load & validate token ─────────────────────────────────────────────── */
     useEffect(() => {
         (async () => {
             try {
@@ -43,7 +60,22 @@ export default function AcceptInvitePage() {
                     setInviteData(data);
                     const exp = data.expiresAt?.toDate?.() ?? new Date(data.expiresAt);
                     setExpiresAt(exp);
-                    setStatus('valid');
+
+                    // If token has no specific unit → building portal (picker flow)
+                    if (!data.unitId) {
+                        setStatus('picking');
+                        setLoadingUnits(true);
+                        try {
+                            const units = await getVacantUnits(data.landlordUid, data.propertyId);
+                            setVacantUnits(units);
+                        } catch {
+                            toast.error('Could not load available units.');
+                        } finally {
+                            setLoadingUnits(false);
+                        }
+                    } else {
+                        setStatus('valid');
+                    }
                 } else {
                     if (reason === 'already_used') setStatus('used');
                     else if (reason === 'expired') setStatus('expired');
@@ -57,20 +89,17 @@ export default function AcceptInvitePage() {
         })();
     }, [token]);
 
+    /* ── Single-unit accept (original flow) ────────────────────────────────── */
     const handleAccept = async () => {
         if (!user) {
-            // Not logged in — save token and redirect to register
             savePendingInvite(token);
             navigate(`/register?invite=${token}`, { replace: true });
             return;
         }
-
-        // Tenant must not be the landlord
         if (user.uid === inviteData?.landlordUid) {
             toast.error("You can't accept your own invite.");
             return;
         }
-
         setStatus('accepting');
         try {
             await acceptInviteToken(token, user);
@@ -82,7 +111,33 @@ export default function AcceptInvitePage() {
         }
     };
 
-    // ── Done ──────────────────────────────────────────────────────────────────
+    /* ── Building-portal: request approval for selected unit ───────────────── */
+    const handleRequestApproval = async () => {
+        if (!user) {
+            savePendingInvite(token);
+            navigate(`/register?invite=${token}`, { replace: true });
+            return;
+        }
+        if (!selectedUnitId) return;
+        if (user.uid === inviteData?.landlordUid) {
+            toast.error("You can't request your own unit.");
+            return;
+        }
+        setStatus('submitting');
+        try {
+            await requestUnitApproval(inviteData.landlordUid, inviteData.propertyId, selectedUnitId, user);
+            const chosen = vacantUnits.find(u => u.id === selectedUnitId);
+            setInviteData(d => ({ ...d, unitName: chosen?.name || selectedUnitId }));
+            setStatus('pending_approval');
+            toast.success('Request sent to your landlord!');
+        } catch (err) {
+            toast.error(err.message || 'Failed to submit. Please try again.');
+            setStatus('picking');
+        }
+    };
+
+    /* ════════════════════════════════════════════════════════════════════════ */
+    /* ── Done (single-unit accepted) ─────────────────────────────────────── */
     if (status === 'done') {
         return (
             <PageShell>
@@ -103,7 +158,156 @@ export default function AcceptInvitePage() {
         );
     }
 
-    // ── Unit already occupied ─────────────────────────────────────────────────
+    /* ── Pending approval (building-portal path success) ─────────────────── */
+    if (status === 'pending_approval') {
+        return (
+            <PageShell>
+                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                    className="flex flex-col items-center text-center gap-4 max-w-sm">
+                    <div className="w-20 h-20 rounded-full bg-sage/15 flex items-center justify-center">
+                        <BellRing size={36} className="text-sage" />
+                    </div>
+                    <h2 className="font-display text-ink text-2xl font-semibold">Request Sent!</h2>
+                    <p className="font-body text-stone-500 text-sm">
+                        Your request for <strong>{inviteData?.unitName}</strong> at <strong>{inviteData?.propertyName}</strong> has been sent to your landlord.
+                        You'll be notified once they confirm.
+                    </p>
+                    <div className="w-full p-4 rounded-xl bg-sage/8 border border-sage/20 text-left">
+                        <p className="font-body text-xs text-sage font-semibold uppercase tracking-wider mb-1">What happens next?</p>
+                        <p className="font-body text-xs text-stone-500">Your landlord will review and approve your request. Once approved, you'll see the unit in your Homes dashboard.</p>
+                    </div>
+                    <button onClick={() => navigate('/tenant')} className="btn-primary mt-2 w-full justify-center">
+                        <Home size={16} /> Go to My Homes
+                    </button>
+                </motion.div>
+            </PageShell>
+        );
+    }
+
+    /* ── Unit picker (building-portal path) ──────────────────────────────── */
+    if (status === 'picking' || status === 'submitting') {
+        return (
+            <PageShell>
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                    className="w-full max-w-md space-y-5">
+
+                    {/* Property header */}
+                    <div className="card overflow-hidden">
+                        <div className="bg-gradient-to-br from-ink to-ink/90 p-6 relative">
+                            <div className="absolute inset-0 opacity-5" style={{ backgroundImage: `radial-gradient(circle at 1px 1px, #F5F0E8 1px, transparent 0)`, backgroundSize: '20px 20px' }} />
+                            <div className="relative flex items-center gap-4">
+                                <div className="w-14 h-14 rounded-2xl bg-sage/20 border border-sage/30 flex items-center justify-center flex-shrink-0">
+                                    <Building2 size={24} className="text-sage" />
+                                </div>
+                                <div>
+                                    <p className="font-body text-stone-400 text-xs uppercase tracking-wider mb-0.5">Building Portal</p>
+                                    <h2 className="font-display text-cream text-xl font-semibold">{inviteData?.propertyName}</h2>
+                                    <p className="font-body text-stone-400 text-sm">Select your unit to request access</p>
+                                </div>
+                            </div>
+                        </div>
+                        {expiresAt && (
+                            <div className="px-5 py-3 flex items-center gap-2">
+                                <Clock size={13} className="text-stone-400 flex-shrink-0" />
+                                <span className="font-body text-xs text-stone-400">
+                                    Invite expires {formatDistanceToNow(expiresAt, { addSuffix: true })}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Logged-in as */}
+                    {user && (
+                        <p className="font-body text-sm text-stone-500 text-center">
+                            Requesting as <strong className="text-ink">{user.email}</strong>
+                        </p>
+                    )}
+
+                    {/* Unit grid */}
+                    <div>
+                        <p className="font-body text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">
+                            Available Units
+                        </p>
+
+                        {loadingUnits ? (
+                            <div className="flex items-center justify-center py-10">
+                                <Loader2 size={28} className="text-sage animate-spin" />
+                            </div>
+                        ) : vacantUnits.length === 0 ? (
+                            <div className="card p-6 text-center">
+                                <DoorOpen size={28} className="text-stone-300 mx-auto mb-2" />
+                                <p className="font-body text-sm text-stone-400">No vacant units available right now.</p>
+                                <p className="font-body text-xs text-stone-300 mt-1">Contact your landlord directly.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-3">
+                                <AnimatePresence>
+                                    {vacantUnits.map((unit, i) => {
+                                        const isSelected = selectedUnitId === unit.id;
+                                        return (
+                                            <motion.button
+                                                key={unit.id}
+                                                initial={{ opacity: 0, y: 8 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ delay: i * 0.04 }}
+                                                type="button"
+                                                onClick={() => setSelectedUnitId(isSelected ? null : unit.id)}
+                                                className={`relative text-left p-4 rounded-2xl border-2 transition-all ${isSelected
+                                                    ? 'border-sage bg-sage/8 shadow-md'
+                                                    : 'border-stone-200 bg-white hover:border-stone-300 hover:shadow-sm'
+                                                    }`}
+                                            >
+                                                {isSelected && (
+                                                    <div className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-sage flex items-center justify-center">
+                                                        <Check size={11} className="text-white" />
+                                                    </div>
+                                                )}
+                                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-2.5 ${isSelected ? 'bg-sage/20' : 'bg-stone-100'}`}>
+                                                    <DoorOpen size={17} className={isSelected ? 'text-sage' : 'text-stone-400'} />
+                                                </div>
+                                                <p className={`font-body text-sm font-semibold ${isSelected ? 'text-ink' : 'text-stone-700'}`}>
+                                                    {unit.name}
+                                                </p>
+                                                {unit.rentAmount > 0 && (
+                                                    <p className="font-body text-xs text-stone-400 mt-0.5">
+                                                        {unit.rentAmount?.toLocaleString()} / {unit.billingCycle || 'mo'}
+                                                    </p>
+                                                )}
+                                            </motion.button>
+                                        );
+                                    })}
+                                </AnimatePresence>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* CTA */}
+                    <button
+                        onClick={handleRequestApproval}
+                        disabled={!selectedUnitId || status === 'submitting' || !user}
+                        className="btn-primary w-full py-3 justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {status === 'submitting'
+                            ? <><Loader2 size={16} className="animate-spin" /> Sending Request…</>
+                            : !user
+                                ? <><KeyRound size={16} /> Sign In / Sign Up to Continue</>
+                                : <><ChevronRight size={16} /> Request to Join{selectedUnitId ? ` · ${vacantUnits.find(u => u.id === selectedUnitId)?.name}` : ''}</>
+                        }
+                    </button>
+
+                    {!user && (
+                        <p className="font-body text-xs text-stone-400 text-center">
+                            Already have an account?{' '}
+                            <Link to={`/login?invite=${token}`} onClick={() => savePendingInvite(token)}
+                                className="text-sage font-medium hover:underline">Sign in</Link>
+                        </p>
+                    )}
+                </motion.div>
+            </PageShell>
+        );
+    }
+
+    /* ── Unit already occupied ───────────────────────────────────────────── */
     if (status === 'occupied') {
         return (
             <PageShell>
@@ -116,7 +320,7 @@ export default function AcceptInvitePage() {
         );
     }
 
-    // ── Expired ───────────────────────────────────────────────────────────────
+    /* ── Expired ─────────────────────────────────────────────────────────── */
     if (status === 'expired') {
         return (
             <PageShell>
@@ -129,7 +333,7 @@ export default function AcceptInvitePage() {
         );
     }
 
-    // ── Already used ──────────────────────────────────────────────────────────
+    /* ── Already used ───────────────────────────────────────────────────── */
     if (status === 'used') {
         return (
             <PageShell>
@@ -143,7 +347,7 @@ export default function AcceptInvitePage() {
         );
     }
 
-    // ── Error ─────────────────────────────────────────────────────────────────
+    /* ── Error ───────────────────────────────────────────────────────────── */
     if (status === 'error') {
         return (
             <PageShell>
@@ -156,7 +360,7 @@ export default function AcceptInvitePage() {
         );
     }
 
-    // ── Loading ───────────────────────────────────────────────────────────────
+    /* ── Loading ─────────────────────────────────────────────────────────── */
     if (status === 'loading') {
         return (
             <PageShell>
@@ -166,7 +370,7 @@ export default function AcceptInvitePage() {
         );
     }
 
-    // ── Valid ─────────────────────────────────────────────────────────────────
+    /* ── Valid: single-unit invite ──────────────────────────────────────── */
     return (
         <PageShell>
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
@@ -232,7 +436,7 @@ export default function AcceptInvitePage() {
     );
 }
 
-// ── Shared layout ─────────────────────────────────────────────────────────────
+// ── Shared layout ──────────────────────────────────────────────────────────────
 function PageShell({ children }) {
     return (
         <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-center p-6">
