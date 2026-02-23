@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Building2, TrendingUp, Users, AlertTriangle, ArrowRight,
-  Plus, Bell, Wrench, ChevronRight, DoorOpen,
+  Plus, Bell, Wrench, ChevronRight, User, UserCheck, ExternalLink,
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -12,10 +12,11 @@ import {
 import { format, differenceInDays, isPast, subMonths } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { subscribeProperties, subscribeReminders } from '../services/firebase';
+import { subscribeProperties, subscribeReminders, subscribePendingUnits, updateUnit } from '../services/firebase';
+import { createTenancy } from '../services/tenancy';
 import StatusBadge from '../components/StatusBadge';
 import PropertyCard from '../components/PropertyCard';
-import CreatePropertyWithUnitsModal from '../components/CreatePropertyWithUnitsModal';
+
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 16 },
@@ -36,15 +37,48 @@ export default function DashboardPage() {
   const { fmt, country } = useLocale();
   const [properties, setProperties] = useState([]);
   const [reminders, setReminders] = useState([]);
-  const [showAddFlow, setShowAddFlow] = useState(false);
+  const [pendingUnits, setPendingUnits] = useState([]);
+  const [approvingSaving, setApprovingSaving] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
     const u1 = subscribeProperties(user.uid, (data) => { setProperties(data); setDataLoading(false); });
     const u2 = subscribeReminders(user.uid, setReminders);
-    return () => { u1(); u2(); };
+    const u3 = subscribePendingUnits(user.uid, setPendingUnits);
+    return () => { u1(); u2(); u3(); };
   }, [user]);
+
+  const approvePending = async (unit) => {
+    setApprovingSaving(true);
+    try {
+      await updateUnit(user.uid, unit.propertyId, unit.id, {
+        status: 'occupied',
+        tenantId: unit.pendingTenantId,
+        tenantName: unit.pendingTenantName || '',
+        tenantEmail: unit.pendingTenantEmail || '',
+        pendingTenantId: null,
+        pendingTenantName: null,
+        pendingTenantEmail: null,
+        pendingRequestedAt: null,
+      });
+      await createTenancy({
+        tenantId: unit.pendingTenantId,
+        landlordId: user.uid,
+        propertyId: unit.propertyId,
+        unitId: unit.id,
+        tenantName: unit.pendingTenantName || '',
+        tenantEmail: unit.pendingTenantEmail || '',
+        unitName: unit.unitName || unit.name || '',
+        propertyName: unit.propertyName || '',
+        rentAmount: unit.rentAmount || 0,
+        billingCycle: unit.billingCycle || 'monthly',
+        currency: country?.currency || 'NGN',
+      });
+      toast.success(`${unit.pendingTenantName || 'Tenant'} approved!`);
+    } catch (err) { console.error(err); toast.error('Failed to approve request.'); }
+    finally { setApprovingSaving(false); }
+  };
 
   const occupied = properties.filter(p => p.status === 'occupied').length;
   const vacant = properties.filter(p => p.status === 'vacant').length;
@@ -87,12 +121,58 @@ export default function DashboardPage() {
                 <em>{firstName}</em>
               </h1>
             </div>
-            <div className="hidden sm:flex items-center gap-2">
-              <button onClick={() => setShowAddFlow(true)} className="btn-primary">
-                <DoorOpen size={16} /> Add Apartment / Unit
-              </button>
-            </div>
+
           </motion.div>
+
+          {/* ── Global Pending Requests Widget ────────────────────── */}
+          {pendingUnits.length > 0 && (
+            <motion.div {...fadeUp(0)} className="rounded-2xl border-2 border-amber/30 bg-amber/5 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-xl bg-amber/15 flex items-center justify-center flex-shrink-0">
+                  <User size={15} className="text-amber" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-body text-sm font-semibold text-ink">
+                    Action Required · {pendingUnits.length} New Join Request{pendingUnits.length !== 1 ? 's' : ''}
+                  </p>
+                  <p className="font-body text-xs text-stone-400">Tenants waiting for your approval</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {pendingUnits.map(unit => (
+                  <div key={unit.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-xl border border-amber/20 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="font-body text-sm font-semibold text-ink truncate">
+                        {unit.pendingTenantName || 'Unknown Tenant'}
+                      </p>
+                      <p className="font-body text-xs text-stone-500">
+                        {unit.propertyName && <span className="font-medium">{unit.propertyName}</span>}
+                        {unit.propertyName && (unit.unitName || unit.name) && ' (​'}
+                        {(unit.unitName || unit.name) && <span>{unit.unitName || unit.name}</span>}
+                        {unit.propertyName && (unit.unitName || unit.name) && ')'}
+                        {unit.pendingTenantEmail && (
+                          <span className="ml-1 text-stone-400">· {unit.pendingTenantEmail}</span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Link to={`/properties/${unit.propertyId}?tab=units`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-medium bg-white border border-stone-200 text-stone-500 hover:border-ink/30 hover:text-ink transition-all">
+                        <ExternalLink size={12} /> View Property
+                      </Link>
+                      <button
+                        onClick={() => approvePending(unit)}
+                        disabled={approvingSaving}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-medium bg-sage text-cream hover:bg-sage/90 transition-all disabled:opacity-50"
+                      >
+                        <UserCheck size={12} /> Approve
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
 
           {/* Stat Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -223,11 +303,7 @@ export default function DashboardPage() {
         </>
       )}
 
-      <CreatePropertyWithUnitsModal
-        isOpen={showAddFlow}
-        onClose={() => setShowAddFlow(false)}
-        propertyCount={properties.length}
-      />
+
     </div>
   );
 }

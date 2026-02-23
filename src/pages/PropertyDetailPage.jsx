@@ -281,12 +281,48 @@ export default function PropertyDetailPage() {
                 <MapPin size={14} />
                 <span className="font-body text-sm">{property.address}</span>
               </div>
-              <div className="flex flex-wrap gap-6">
+              <div className="flex flex-wrap gap-6 mb-6">
                 <Stat label="Rent" value={fmtRent(property.monthlyRent, property.rentType)} accent />
                 <Stat label="Units" value={units.length} />
                 <Stat label="Occupied" value={units.filter(u => u.status === 'occupied').length} />
                 <Stat label="Bedrooms" value={property.bedrooms || '—'} />
                 <Stat label="Total Collected" value={fmt(totalPaid)} />
+              </div>
+
+              {/* ── Quick Actions bar ─────────────────────────────────── */}
+              <div className="rounded-2xl bg-white/8 border border-white/12 backdrop-blur-sm p-4">
+                <p className="font-body text-xs font-semibold text-stone-400 uppercase tracking-wider mb-3">Quick Actions</p>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  {/* Tenant Onboarding / Invite Link */}
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-sage/20 flex items-center justify-center flex-shrink-0">
+                      <Link2 size={16} className="text-sage" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-body text-xs font-semibold text-cream mb-0.5">Tenant Onboarding Link</p>
+                      <p className="font-body text-xs text-stone-400">Share with tenants to let them claim their unit</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 bg-ink/50 border border-white/10 rounded-xl px-3 py-2 min-w-0 sm:max-w-xs w-full sm:w-auto">
+                    <span className="font-mono text-xs text-stone-300 truncate flex-1 select-all">
+                      {window.location.origin}/join/{user.uid}/{id}?pname={encodeURIComponent(property?.name || '')}
+                    </span>
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/join/${user.uid}/${id}?pname=${encodeURIComponent(property?.name || '')}`;
+                        navigator.clipboard.writeText(url);
+                        setPortalLinkCopied(true);
+                        setTimeout(() => setPortalLinkCopied(false), 2000);
+                      }}
+                      className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-body font-medium px-2.5 py-1.5 rounded-lg transition-all ${portalLinkCopied
+                        ? 'bg-sage text-cream'
+                        : 'bg-white/10 text-stone-300 hover:bg-white/20 hover:text-cream'
+                        }`}
+                    >
+                      {portalLinkCopied ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy Link</>}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -417,38 +453,6 @@ export default function PropertyDetailPage() {
                     </div>
                   );
                 })()}
-
-                {/* ── Tenant Onboarding Card ─────────────────────────────── */}
-                {units.length > 0 && (
-                  <div className="mb-5 rounded-2xl border border-sage/25 bg-sage/5 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-sage/15 flex items-center justify-center flex-shrink-0">
-                      <Link2 size={18} className="text-sage" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-body text-sm font-semibold text-ink mb-0.5">Tenant Onboarding</p>
-                      <p className="font-body text-xs text-stone-500 mb-2">
-                        Share this building portal with your tenants to let them claim their units.
-                      </p>
-                      <div className="flex items-center gap-2 bg-white border border-stone-200 rounded-xl px-3 py-2 max-w-sm">
-                        <span className="font-mono text-xs text-stone-600 truncate flex-1 select-all">
-                          {window.location.origin}/join/{user.uid}/{id}?pname={encodeURIComponent(property?.name || '')}
-                        </span>
-                        <button
-                          onClick={() => {
-                            const url = `${window.location.origin}/join/${user.uid}/${id}?pname=${encodeURIComponent(property?.name || '')}`;
-                            navigator.clipboard.writeText(url);
-                            setPortalLinkCopied(true);
-                            setTimeout(() => setPortalLinkCopied(false), 2000);
-                          }}
-                          className={`flex-shrink-0 flex items-center gap-1 text-xs font-body font-medium transition-colors ${portalLinkCopied ? 'text-sage' : 'text-stone-400 hover:text-ink'
-                            }`}
-                        >
-                          {portalLinkCopied ? <><Check size={13} /> Copied!</> : <><Copy size={13} /> Copy</>}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {units.length === 0 ? (
                   <EmptyState

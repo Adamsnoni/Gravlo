@@ -259,6 +259,27 @@ export const subscribeUnits = (uid, propId, cb) =>
   );
 
 /**
+ * Subscribe to all units with status 'pending_approval' owned by the landlord.
+ * Uses collectionGroup — requires a Firestore composite index on (landlordId, status).
+ * If the console shows an index link, click it to create it automatically.
+ */
+export const subscribePendingUnits = (uid, cb) =>
+  onSnapshot(
+    query(
+      collectionGroup(db, 'units'),
+      where('landlordId', '==', uid),
+      where('status', '==', 'pending_approval'),
+    ),
+    (snap) => cb(snap.docs.map(d => {
+      // Path: users/{uid}/properties/{propertyId}/units/{unitId}
+      const pathSegments = d.ref.path.split('/');
+      const propertyId = pathSegments[3];
+      return { id: d.id, propertyId, ...d.data() };
+    })),
+  );
+
+
+/**
  * Create multiple units in a single atomic batch write.
  *
  * @param {string}   uid            — landlord UID
