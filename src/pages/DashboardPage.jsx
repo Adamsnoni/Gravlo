@@ -12,10 +12,11 @@ import {
 import { format, differenceInDays, isPast, subMonths } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { subscribeProperties, subscribeReminders, subscribePendingUnits, updateUnit } from '../services/firebase';
+import { subscribeProperties, subscribeReminders, subscribePendingUnits, updateUnit, serverTimestamp } from '../services/firebase';
 import { createTenancy } from '../services/tenancy';
 import StatusBadge from '../components/StatusBadge';
 import PropertyCard from '../components/PropertyCard';
+import { toast } from 'react-hot-toast';
 
 
 const fadeUp = (delay = 0) => ({
@@ -57,6 +58,8 @@ export default function DashboardPage() {
         tenantId: unit.pendingTenantId,
         tenantName: unit.pendingTenantName || '',
         tenantEmail: unit.pendingTenantEmail || '',
+        welcomeMessageSent: true,
+        welcomeMessageDate: serverTimestamp(),
         pendingTenantId: null,
         pendingTenantName: null,
         pendingTenantEmail: null,

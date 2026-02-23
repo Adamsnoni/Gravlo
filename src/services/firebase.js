@@ -21,6 +21,8 @@ import {
   serverTimestamp, Timestamp, writeBatch,
 } from 'firebase/firestore';
 
+export { serverTimestamp };
+
 // 🔴 Replace with your Firebase project config
 const firebaseConfig = {
   apiKey: 'AIzaSyAUoBd0RUQgHCmC5gVh3CcAU6rNgjW00nw',

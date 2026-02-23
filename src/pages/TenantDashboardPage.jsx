@@ -1,9 +1,10 @@
 // src/pages/TenantDashboardPage.jsx
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Home, CreditCard, ArrowRight, Bell, Hash } from 'lucide-react';
-import { format } from 'date-fns';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Home, CreditCard, ArrowRight, Bell, Hash, PartyPopper, Sparkles, Building2, MapPin, Mail, CheckCircle2 } from 'lucide-react';
+import { format, isAfter, subHours } from 'date-fns';
+import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { subscribeTenantProperties, subscribeTenantPayments, subscribeReminders } from '../services/firebase';
@@ -49,6 +50,38 @@ export default function TenantDashboardPage() {
 
   const firstName = (profile?.fullName || user?.displayName || 'there').split(' ')[0];
 
+  // Logic for "Approved Tenant Experience"
+  const newApprovals = properties.filter(p => {
+    if (!p.welcomeMessageSent) return false;
+    const welcomeDate = p.welcomeMessageDate?.toDate?.() || new Date(p.welcomeMessageDate);
+    // Show celebration if approved in the last 48 hours
+    return isAfter(welcomeDate, subHours(new Date(), 48));
+  });
+
+  useEffect(() => {
+    if (newApprovals.length > 0) {
+      const duration = 3 * 1000;
+      const animationEnd = Date.now() + duration;
+      const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+      const randomInRange = (min, max) => Math.random() * (max - min) + min;
+
+      const interval = setInterval(function () {
+        const timeLeft = animationEnd - Date.now();
+
+        if (timeLeft <= 0) {
+          return clearInterval(interval);
+        }
+
+        const particleCount = 50 * (timeLeft / duration);
+        confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+        confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
+      }, 250);
+
+      return () => clearInterval(interval);
+    }
+  }, [newApprovals.length]);
+
   return (
     <div className="space-y-8">
       <motion.div {...fadeUp(0)} className="flex items-start justify-between">
@@ -88,6 +121,88 @@ export default function TenantDashboardPage() {
             </div>
           </div>
         </motion.div>
+
+        {/* ── Approved Tenant Celebration ────────────────────────────── */}
+        <AnimatePresence>
+          {newApprovals.map((prop, idx) => (
+            <motion.div
+              key={`welcome-${prop.id}`}
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -20 }}
+              transition={{ delay: idx * 0.1, duration: 0.5, type: 'spring' }}
+              className="relative overflow-hidden rounded-3xl border-2 border-sage/30 bg-gradient-to-br from-sage/5 to-white p-1 mb-8 shadow-xl"
+            >
+              {/* Decorative Sparkles */}
+              <div className="absolute top-4 right-6 text-sage/20 animate-pulse">
+                <Sparkles size={48} />
+              </div>
+
+              <div className="bg-white rounded-[1.4rem] p-6 sm:p-8">
+                <div className="flex flex-col md:flex-row gap-8 items-start">
+                  {/* Left side: Icon & Title */}
+                  <div className="flex-shrink-0 flex flex-col items-center md:items-start text-center md:text-left">
+                    <div className="w-20 h-20 rounded-3xl bg-sage flex items-center justify-center mb-4 shadow-lg shadow-sage/20">
+                      <CheckCircle2 size={40} className="text-cream" />
+                    </div>
+                    <h2 className="font-display text-ink text-3xl font-bold leading-tight">
+                      Welcome Home!
+                    </h2>
+                    <p className="font-body text-sage font-semibold mt-1 flex items-center gap-1.5 justify-center md:justify-start text-lg">
+                      <PartyPopper size={20} /> Request Approved
+                    </p>
+                  </div>
+
+                  {/* Right side: Info Card */}
+                  <div className="flex-1 w-full space-y-6">
+                    <div className="p-5 rounded-2xl bg-stone-50 border border-stone-100 flex flex-col gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-sage/10 flex items-center justify-center flex-shrink-0 text-sage">
+                          <Building2 size={20} />
+                        </div>
+                        <div>
+                          <p className="font-body text-xs text-stone-400 uppercase tracking-wider font-semibold">Address</p>
+                          <p className="font-display text-ink font-semibold">{prop.buildingName || prop.propertyName || prop.name}</p>
+                          <p className="font-body text-stone-500 text-sm">{prop.address}</p>
+                          {prop.unitNumber && (
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sage/10 text-sage text-xs font-bold mt-2">
+                              <Hash size={12} /> Unit {prop.unitNumber}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="h-px bg-stone-100 w-full" />
+
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-amber/10 flex items-center justify-center flex-shrink-0 text-amber">
+                          <Mail size={20} />
+                        </div>
+                        <div>
+                          <p className="font-body text-xs text-stone-400 uppercase tracking-wider font-semibold">A quick note</p>
+                          <p className="font-body text-stone-600 text-sm italic leading-relaxed">
+                            "We are glad to have you! Please find building rules attached. Feel free to reach out via management contact if you need anything."
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Actions */}
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <Link to="/tenant/payments" className="btn-primary flex-1 py-4 text-base justify-center shadow-lg shadow-sage/10">
+                        <CreditCard size={18} /> Pay Your Rent
+                      </Link>
+                      <a href={`mailto:${prop.landlordEmail || ''}?subject=Question regarding ${prop.name}`}
+                        className="btn-secondary flex-1 py-4 text-base justify-center">
+                        <Mail size={18} /> Contact Management
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
 
         <motion.div {...fadeUp(0.15)} className="stat-card hidden lg:flex">
           <div className="w-10 h-10 rounded-xl bg-sage/10 flex items-center justify-center">

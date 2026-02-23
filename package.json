@@ -10,6 +10,7 @@
     "deploy-all": "git add . && git commit -m 'Syncing updates to GitHub and Firebase' && git push origin main && firebase deploy"
   },
   "dependencies": {
+    "canvas-confetti": "^1.9.4",
     "date-fns": "^3.3.1",
     "firebase": "^10.14.1",
     "framer-motion": "^11.0.8",
