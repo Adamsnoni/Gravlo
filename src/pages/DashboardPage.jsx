@@ -114,6 +114,7 @@ export default function DashboardPage() {
   };
 
   const occupied = (properties || []).filter(p => p && p.status === 'occupied').length;
+  const unreadCount = (notifications || []).filter(n => !n.read).length;
   const vacant = (properties || []).filter(p => p && p.status === 'vacant').length;
   const monthlyRev = (properties || []).filter(p => p && p.status === 'occupied').reduce((s, p) => s + Number(p.monthlyRent || 0), 0);
   const urgentRem = (reminders || []).filter(r => {
@@ -146,7 +147,7 @@ export default function DashboardPage() {
       ) : (
         <>
           {/* Greeting */}
-          <motion.div {...fadeUp(0)} className="flex items-start justify-between">
+          <motion.div {...fadeUp(0)} className="flex items-center justify-between">
             <div>
               <p className="font-body text-stone-400 text-sm font-medium">
                 {format(new Date(), 'EEEE, MMMM d, yyyy')}
@@ -157,6 +158,17 @@ export default function DashboardPage() {
               </h1>
             </div>
 
+            <button
+              onClick={() => document.getElementById('recent-activity')?.scrollIntoView({ behavior: 'smooth' })}
+              className="relative p-3 rounded-2xl bg-white border border-stone-100 shadow-sm hover:border-sage/30 hover:bg-stone-50 transition-all group"
+            >
+              <Bell size={20} className="text-stone-400 group-hover:text-sage transition-colors" />
+              {unreadCount > 0 && (
+                <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-sage text-cream text-[9px] font-bold flex items-center justify-center animate-pulse border-2 border-white">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
           </motion.div>
 
           {/* ── Global Pending Requests Widget ────────────────────── */}
@@ -262,7 +274,7 @@ export default function DashboardPage() {
             </motion.div>
 
             {/* Recent Activity Feed */}
-            <motion.div {...fadeUp(0.25)} className="card p-0 overflow-hidden flex flex-col">
+            <motion.div id="recent-activity" {...fadeUp(0.25)} className="card p-0 overflow-hidden flex flex-col scroll-mt-8">
               <div className="p-6 pb-4 flex items-center justify-between border-b border-stone-100">
                 <h2 className="font-display text-ink text-lg font-semibold">Recent Activity</h2>
                 <span className="badge-stone">{notifications.length}</span>
