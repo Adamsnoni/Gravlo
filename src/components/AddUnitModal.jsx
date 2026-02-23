@@ -113,12 +113,15 @@ export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUn
                     <div className="grid sm:grid-cols-2 gap-3">
                         <div>
                             <label className="label-xs">Tenant Name</label>
-                            <input
-                                className="input-base"
-                                placeholder="Skip if unknown"
-                                value={form.tenantName}
-                                onChange={set('tenantName')}
-                            />
+                            {form.tenantName ? (
+                                <div className="input-base bg-stone-50 text-stone-500 cursor-not-allowed flex items-center overflow-hidden whitespace-nowrap text-ellipsis">
+                                    {form.tenantName}
+                                </div>
+                            ) : (
+                                <div className="input-base bg-stone-50 text-stone-400 cursor-not-allowed flex items-center italic">
+                                    Not assigned
+                                </div>
+                            )}
                         </div>
                         <div>
                             <label className="label-xs">Tenant Email</label>

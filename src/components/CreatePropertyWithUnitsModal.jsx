@@ -378,8 +378,9 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
                                             >
                                                 <div className="relative">
                                                     <User size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-                                                    <input className="input-base text-sm pl-8 h-9" placeholder="Tenant name"
-                                                        value={unit.tenantName} onChange={e => setUnit(unit.id, 'tenantName', e.target.value)} />
+                                                    <div className="input-base text-sm pl-8 h-9 bg-stone-50 text-stone-400 cursor-not-allowed flex items-center italic">
+                                                        {unit.tenantName || 'Not assigned'}
+                                                    </div>
                                                 </div>
                                                 <div className="relative">
                                                     <Mail size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />

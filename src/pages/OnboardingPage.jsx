@@ -299,12 +299,9 @@ export default function OnboardingPage() {
                                                 </label>
                                                 <div className="relative">
                                                     <UserPlus size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-                                                    <input
-                                                        className="input-base pl-9"
-                                                        placeholder="Skip if unknown"
-                                                        value={unit.tenantName}
-                                                        onChange={e => updateUnit(unit.id, 'tenantName', e.target.value)}
-                                                    />
+                                                    <div className="input-base pl-9 bg-stone-50 text-stone-400 cursor-not-allowed flex items-center italic">
+                                                        {unit.tenantName || 'Not assigned'}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>

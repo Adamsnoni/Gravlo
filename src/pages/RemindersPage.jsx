@@ -10,11 +10,11 @@ import Modal from '../components/Modal';
 import toast from 'react-hot-toast';
 
 const URGENCY = {
-  overdue: { label: 'Overdue',  color: 'text-rust',      bg: 'bg-rust/10',   border: 'border-rust/20',   dot: 'bg-rust'      },
-  urgent:  { label: 'Urgent',   color: 'text-rust',      bg: 'bg-rust/8',    border: 'border-rust/15',   dot: 'bg-rust/70'   },
-  soon:    { label: 'Soon',     color: 'text-amber',     bg: 'bg-amber/10',  border: 'border-amber/20',  dot: 'bg-amber'     },
-  ok:      { label: 'Upcoming', color: 'text-sage',      bg: 'bg-sage/8',    border: 'border-sage/15',   dot: 'bg-sage'      },
-  paid:    { label: 'Paid',     color: 'text-stone-400', bg: 'bg-stone-100', border: 'border-stone-200', dot: 'bg-stone-300' },
+  overdue: { label: 'Overdue', color: 'text-rust', bg: 'bg-rust/10', border: 'border-rust/20', dot: 'bg-rust' },
+  urgent: { label: 'Urgent', color: 'text-rust', bg: 'bg-rust/8', border: 'border-rust/15', dot: 'bg-rust/70' },
+  soon: { label: 'Soon', color: 'text-amber', bg: 'bg-amber/10', border: 'border-amber/20', dot: 'bg-amber' },
+  ok: { label: 'Upcoming', color: 'text-sage', bg: 'bg-sage/8', border: 'border-sage/15', dot: 'bg-sage' },
+  paid: { label: 'Paid', color: 'text-stone-400', bg: 'bg-stone-100', border: 'border-stone-200', dot: 'bg-stone-300' },
 };
 
 function getUrgency(r) {
@@ -31,12 +31,12 @@ export default function RemindersPage() {
   const { user } = useAuth();
   const { fmt, currencySymbol } = useLocale();
 
-  const [reminders,  setReminders]  = useState([]);
+  const [reminders, setReminders] = useState([]);
   const [properties, setProperties] = useState([]);
-  const [filter,     setFilter]     = useState('all');
-  const [loading,    setLoading]    = useState(true);
-  const [showModal,  setShowModal]  = useState(false);
-  const [saving,     setSaving]     = useState(false);
+  const [filter, setFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const emptyForm = { tenantName: '', propertyId: '', amount: '', dueDate: '', recurring: false, notifyDaysBefore: 3, notes: '' };
   const [form, setForm] = useState(emptyForm);
@@ -58,7 +58,7 @@ export default function RemindersPage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!form.tenantName || !form.amount || !form.dueDate) { toast.error('Please fill all required fields.'); return; }
+    if (!form.amount || !form.dueDate) { toast.error('Please fill all required fields.'); return; }
     setSaving(true);
     try {
       const propName = properties.find(p => p.id === form.propertyId)?.name || '';
@@ -81,10 +81,10 @@ export default function RemindersPage() {
     toast.success('Reminder deleted.');
   };
 
-  const filtered  = filter === 'all' ? reminders : reminders.filter(r => getUrgency(r) === filter);
-  const counts    = { overdue: 0, urgent: 0, soon: 0, ok: 0 };
+  const filtered = filter === 'all' ? reminders : reminders.filter(r => getUrgency(r) === filter);
+  const counts = { overdue: 0, urgent: 0, soon: 0, ok: 0 };
   reminders.forEach(r => { const k = getUrgency(r); if (counts[k] !== undefined) counts[k]++; });
-  const totalDue  = reminders.filter(r => r.status !== 'paid').reduce((s, r) => s + (r.amount || 0), 0);
+  const totalDue = reminders.filter(r => r.status !== 'paid').reduce((s, r) => s + (r.amount || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -116,11 +116,11 @@ export default function RemindersPage() {
       {/* Filter tabs */}
       <div className="flex gap-2 flex-wrap">
         {[
-          { key: 'all',     label: 'All',      count: reminders.length },
-          { key: 'overdue', label: 'Overdue',  count: counts.overdue   },
-          { key: 'urgent',  label: 'Urgent',   count: counts.urgent    },
-          { key: 'soon',    label: 'Soon',     count: counts.soon      },
-          { key: 'ok',      label: 'Upcoming', count: counts.ok        },
+          { key: 'all', label: 'All', count: reminders.length },
+          { key: 'overdue', label: 'Overdue', count: counts.overdue },
+          { key: 'urgent', label: 'Urgent', count: counts.urgent },
+          { key: 'soon', label: 'Soon', count: counts.soon },
+          { key: 'ok', label: 'Upcoming', count: counts.ok },
         ].map(({ key, label, count }) => (
           <button key={key} onClick={() => setFilter(key)}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-body font-medium border transition-all
@@ -137,7 +137,7 @@ export default function RemindersPage() {
 
       {/* List */}
       {loading ? (
-        <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="card h-20 animate-pulse bg-stone-100" />)}</div>
+        <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="card h-20 animate-pulse bg-stone-100" />)}</div>
       ) : filtered.length === 0 ? (
         <div className="card p-16 flex flex-col items-center text-center border-2 border-dashed border-stone-200">
           <Bell size={40} className="text-stone-300 mb-3" />
@@ -149,9 +149,9 @@ export default function RemindersPage() {
           <AnimatePresence>
             {filtered.map((r) => {
               const urg = getUrgency(r);
-              const U   = URGENCY[urg];
-              const d   = r.dueDate?.toDate?.() ?? new Date(r.dueDate);
-              const days  = differenceInDays(d, new Date());
+              const U = URGENCY[urg];
+              const d = r.dueDate?.toDate?.() ?? new Date(r.dueDate);
+              const days = differenceInDays(d, new Date());
               const isPaid = urg === 'paid';
 
               return (
@@ -207,8 +207,10 @@ export default function RemindersPage() {
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="label-xs">Tenant Name *</label>
-              <input className="input-base" placeholder="Full name" value={form.tenantName} onChange={set('tenantName')} required />
+              <label className="label-xs">Tenant Name</label>
+              <div className="input-base bg-stone-50 text-stone-400 cursor-not-allowed flex items-center overflow-hidden whitespace-nowrap text-ellipsis">
+                {form.tenantName || 'Select a property'}
+              </div>
             </div>
             <div>
               <label className="label-xs">Amount ({currencySymbol}) *</label>
