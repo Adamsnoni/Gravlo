@@ -125,13 +125,15 @@ export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUn
                         </div>
                         <div>
                             <label className="label-xs">Tenant Email</label>
-                            <input
-                                className="input-base"
-                                type="email"
-                                placeholder="tenant@email.com"
-                                value={form.tenantEmail}
-                                onChange={set('tenantEmail')}
-                            />
+                            {form.tenantEmail ? (
+                                <div className="input-base bg-stone-50 text-stone-500 cursor-not-allowed flex items-center overflow-hidden whitespace-nowrap text-ellipsis">
+                                    {form.tenantEmail}
+                                </div>
+                            ) : (
+                                <div className="input-base bg-stone-50 text-stone-400 cursor-not-allowed flex items-center italic">
+                                    Not assigned
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
