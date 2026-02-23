@@ -47,7 +47,7 @@ export async function createCheckoutSession({
     metadata,
   };
 
-  const res = await fetch(`${API_BASE}/checkout`, {
+  const res = await fetch(`${API_BASE}/createCheckoutSession`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -59,9 +59,9 @@ export async function createCheckoutSession({
     throw new Error(data.error || 'Unable to start payment. Please try again.');
   }
 
-  if (data.checkoutUrl) {
-    window.location.href = data.checkoutUrl;
-    return;
+  if (data.url || data.checkoutUrl || data.redirectUrl) {
+    window.location.href = data.url || data.checkoutUrl || data.redirectUrl;
+    return data;
   }
 
   if (data.redirectUrl) {

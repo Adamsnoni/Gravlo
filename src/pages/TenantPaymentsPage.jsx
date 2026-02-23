@@ -71,9 +71,14 @@ export default function TenantPaymentsPage() {
       return;
     }
 
+    const paymentCurrency = tenancy.currency || currency || 'NGN';
+    const paystackCurrencies = ['NGN', 'GHS', 'ZAR', 'KES'];
+    const gateway = paystackCurrencies.includes(paymentCurrency.toUpperCase()) ? 'paystack' : 'stripe';
+
     setCreating(true);
     try {
-      await createCheckoutSession({
+      const res = await createCheckoutSession({
+        gateway,
         landlordId: tenancy.landlordId,
         propertyId: tenancy.propertyId,
         propertyName: tenancy.propertyName,
@@ -84,8 +89,12 @@ export default function TenantPaymentsPage() {
         tenantEmail: user.email,
         tenantName: user.displayName || '',
         amount,
-        currency: tenancy.currency || currency,
+        currency: paymentCurrency,
       });
+
+      if (res && res.url) {
+        window.location.href = res.url;
+      }
     } catch (err) {
       toast.error(err.message || 'Unable to start payment.');
     } finally {

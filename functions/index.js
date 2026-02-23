@@ -195,7 +195,76 @@ exports.scheduleReminders = onSchedule('every day 08:00', async (event) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// 4. STRIPE WEBHOOK
+// 4. CREATE CHECKOUT SESSION
+//    Unified endpoint to generate Stripe or Paystack checkout URLs.
+// ════════════════════════════════════════════════════════════════════════════
+const cors = require('cors')({ origin: true });
+
+exports.createCheckoutSession = onRequest(async (req, res) => {
+    cors(req, res, async () => {
+        if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+        try {
+            const {
+                gateway, landlordId, propertyId, tenantEmail, amount, currency,
+                successUrl, cancelUrl, metadata
+            } = req.body;
+
+            const safeAmount = Number(amount);
+            if (!safeAmount || safeAmount <= 0) return res.status(400).json({ error: 'Invalid amount' });
+
+            if (gateway === 'stripe') {
+                const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || '');
+                const session = await stripe.checkout.sessions.create({
+                    payment_method_types: ['card'],
+                    line_items: [{
+                        price_data: {
+                            currency: currency.toLowerCase(),
+                            product_data: { name: 'Rent Payment' },
+                            unit_amount: Math.round(safeAmount * 100), // Stripe expects cents
+                        },
+                        quantity: 1,
+                    }],
+                    mode: 'payment',
+                    success_url: successUrl,
+                    cancel_url: cancelUrl,
+                    customer_email: tenantEmail,
+                    metadata: { landlordId, propertyId, ...metadata },
+                });
+                return res.status(200).json({ url: session.url });
+            }
+
+            if (gateway === 'paystack') {
+                const secret = process.env.PAYSTACK_SECRET_KEY || '';
+                const response = await fetch('https://api.paystack.co/transaction/initialize', {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${secret}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: tenantEmail,
+                        amount: Math.round(safeAmount * 100), // Paystack expects kobo/cents
+                        currency: currency.toUpperCase(),
+                        callback_url: successUrl,
+                        metadata: { landlordId, propertyId, ...metadata },
+                    })
+                });
+                const data = await response.json();
+                if (!data.status) throw new Error(data.message || 'Paystack initialization failed');
+                return res.status(200).json({ url: data.data.authorization_url });
+            }
+
+            return res.status(400).json({ error: 'Unsupported gateway' });
+
+        } catch (error) {
+            console.error('Checkout error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 5. STRIPE WEBHOOK
 // ════════════════════════════════════════════════════════════════════════════
 exports.stripeWebhook = onRequest({ cors: false }, async (req, res) => {
     if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
@@ -234,7 +303,7 @@ exports.stripeWebhook = onRequest({ cors: false }, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// 5. PAYSTACK WEBHOOK
+// 6. PAYSTACK WEBHOOK
 // ════════════════════════════════════════════════════════════════════════════
 exports.paystackWebhook = onRequest({ cors: false }, async (req, res) => {
     if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
@@ -272,7 +341,7 @@ exports.paystackWebhook = onRequest({ cors: false }, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// 6. TENANCY CLOSE TRIGGER — stops future invoices when tenancy closes
+// 7. TENANCY CLOSE TRIGGER — stops future invoices when tenancy closes
 // ════════════════════════════════════════════════════════════════════════════
 exports.onTenancyClosed = onDocumentUpdated('tenancies/{tenancyId}', async (event) => {
     const before = event.data.before.data();
@@ -478,7 +547,7 @@ function generateInvoicePdfBuffer({ invoiceNumber, paymentId, amount, currency, 
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// 7. ACCEPT UNIT INVITE — Callable Function
+// 8. ACCEPT UNIT INVITE — Callable Function
 //    Called from AcceptInvitePage when the tenant clicks "Accept & Join".
 //    Validates token server-side and assigns tenant to the unit atomically.
 // ════════════════════════════════════════════════════════════════════════════
