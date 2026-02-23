@@ -22,7 +22,6 @@ const emptyUnit = () => ({
     rent: '',
     rentType: 'monthly',
     tenantName: '',
-    tenantEmail: '',
 });
 
 export default function OnboardingPage() {
@@ -80,7 +79,6 @@ export default function OnboardingPage() {
                     monthlyRent: parseInt(unit.rent) || 0,
                     rentType: unit.rentType || 'monthly',
                     tenantName: unit.tenantName || '',
-                    tenantEmail: unit.tenantEmail || '',
                     tenantPhone: '',
                     bedrooms: 0,
                     bathrooms: 0,

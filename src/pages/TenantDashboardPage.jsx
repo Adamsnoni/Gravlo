@@ -7,7 +7,8 @@ import { format, isAfter, subHours } from 'date-fns';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { subscribeTenantProperties, subscribeTenantUnits, subscribeTenantPayments, subscribeReminders } from '../services/firebase';
+import { subscribeTenantPayments, subscribeReminders } from '../services/firebase';
+import { subscribeTenantTenancies } from '../services/tenancy';
 import { formatUnitDisplay, getShortUnitId } from '../utils/unitDisplay';
 
 const fadeUp = (delay = 0) => ({
@@ -26,16 +27,19 @@ export default function TenantDashboardPage() {
   const [reminders, setReminders] = useState([]);
 
   useEffect(() => {
-    if (!user?.email) return;
-    const u1 = subscribeTenantProperties(user.email, setProperties);
-    const u2 = subscribeTenantUnits(user.email, setUnits);
-    const u3 = subscribeTenantPayments(user.email, setPayments);
+    if (!user?.uid) return;
+    // Sync active homes via tenancies (secure UID-based)
+    const u1 = subscribeTenantTenancies(user.uid, (list) => {
+      setUnits(list.map(t => ({ ...t, id: t.unitId || t.id, type: 'unit' })));
+    });
+
+    // Payments & Reminders
+    const u2 = subscribeTenantPayments(user.uid, setPayments);
     return () => {
       u1?.();
       u2?.();
-      u3?.();
     };
-  }, [user?.email]);
+  }, [user?.uid, user?.email]);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -49,14 +53,10 @@ export default function TenantDashboardPage() {
     .filter(p => p.status === 'paid')
     .reduce((sum, p) => sum + (p.amount || 0), 0);
 
-  const allHomes = [
-    ...properties.map(p => ({ ...p, type: 'property' })),
-    ...units.map(u => ({ ...u, type: 'unit' }))
-  ];
-
-  const nextDue = allHomes.map(h => h.monthlyRent || h.rentAmount || 0).reduce((s, v) => s + v, 0);
-
   const firstName = (profile?.fullName || user?.displayName || 'there').split(' ')[0];
+
+  const allHomes = units; // Now simplified to just units from tenancies
+  const nextDue = allHomes.reduce((s, h) => s + (h.rentAmount || 0), 0);
 
   // Logic for "Approved Tenant Experience"
   const newApprovals = allHomes.filter(h => {
@@ -273,10 +273,10 @@ export default function TenantDashboardPage() {
           <div className="flex flex-col items-center text-center py-10">
             <Home size={32} className="text-stone-300 mb-3" />
             <p className="font-body text-sm text-stone-500">
-              No homes are linked to your email yet.
+              No homes are linked to your account yet.
             </p>
             <p className="font-body text-xs text-stone-300 mt-1">
-              Ask your landlord to approve your request or add your email directly.
+              Ask your landlord for a secure invite link to claim your unit.
             </p>
           </div>
         ) : (

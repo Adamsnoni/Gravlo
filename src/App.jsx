@@ -24,7 +24,6 @@ import TenantRemindersPage from './pages/TenantRemindersPage';
 import AppShell from './components/AppShell';
 import TenantReminderAlerts from './components/TenantReminderAlerts';
 import AcceptInvitePage from './pages/AcceptInvitePage';
-import JoinPage from './pages/JoinPage';
 import NotificationsPage from './pages/NotificationsPage';
 
 // Full-page spinner used while auth/profile resolves
@@ -72,9 +71,6 @@ function AppRoutes() {
 
       {/* Public invite link — no auth required */}
       <Route path="/invite/:token" element={<AcceptInvitePage />} />
-
-      {/* Public building portal — no auth required */}
-      <Route path="/join/:landlordUid/:propertyId" element={<JoinPage />} />
 
       <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
 

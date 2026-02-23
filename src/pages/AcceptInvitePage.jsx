@@ -5,7 +5,7 @@
 // Route: /invite/:token
 //
 // Flow:
-//   token has unitId  → single-unit accept (original flow)
+//   token has unitId  → single-unit accept
 //   token has no unitId → building portal: show vacant unit grid → request approval
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useState } from 'react';
@@ -136,7 +136,6 @@ export default function AcceptInvitePage() {
         }
     };
 
-    /* ════════════════════════════════════════════════════════════════════════ */
     /* ── Done (single-unit accepted) ─────────────────────────────────────── */
     if (status === 'done') {
         return (

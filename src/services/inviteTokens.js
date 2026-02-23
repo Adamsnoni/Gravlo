@@ -27,10 +27,12 @@ export function buildInviteLink(token) {
  * Returns { token, link, expiresAt }
  */
 export async function createInviteToken({
-    landlordUid, propertyId, unitId, unitName, propertyName,
+    landlordUid, propertyId, unitId = null, unitName = '', propertyName,
 }) {
-    // Revoke existing pending tokens for this unit
-    await revokePendingTokensForUnit(propertyId, unitId);
+    // Revoke existing pending tokens for this unit (if unit-specific)
+    if (unitId) {
+        await revokePendingTokensForUnit(propertyId, unitId);
+    }
 
     const token = crypto.randomUUID();
     const now = new Date();
@@ -82,13 +84,15 @@ export async function fetchInviteToken(token) {
         return { data, valid: false, reason: 'expired' };
     }
 
-    // Guard: check if the unit is already occupied by someone else
-    const unitRef = doc(db, 'users', data.landlordUid, 'properties', data.propertyId, 'units', data.unitId);
-    const unitSnap = await getDoc(unitRef);
-    if (unitSnap.exists()) {
-        const unit = unitSnap.data();
-        if (unit.status === 'occupied' && unit.tenantId) {
-            return { data, valid: false, reason: 'unit_occupied' };
+    // Guard: check if the unit is already occupied (only for unit-specific tokens)
+    if (data.unitId) {
+        const unitRef = doc(db, 'users', data.landlordUid, 'properties', data.propertyId, 'units', data.unitId);
+        const unitSnap = await getDoc(unitRef);
+        if (unitSnap.exists()) {
+            const unit = unitSnap.data();
+            if (unit.status === 'occupied' && unit.tenantId) {
+                return { data, valid: false, reason: 'unit_occupied' };
+            }
         }
     }
 

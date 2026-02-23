@@ -86,33 +86,6 @@ export const subscribeProperties = (uid, cb) =>
   onSnapshot(query(collection(db, 'users', uid, 'properties'), orderBy('createdAt', 'desc')), (snap) =>
     cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-// For tenants: watch all properties across landlords where their email is set
-export const subscribeTenantProperties = (tenantEmail, cb) =>
-  onSnapshot(
-    query(
-      collectionGroup(db, 'properties'),
-      where('tenantEmail', '==', tenantEmail),
-      orderBy('createdAt', 'desc'),
-    ),
-    (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
-  );
-
-// For tenants: watch all individual units across landlords where their email is set
-export const subscribeTenantUnits = (tenantEmail, cb) =>
-  onSnapshot(
-    query(
-      collectionGroup(db, 'units'),
-      where('tenantEmail', '==', tenantEmail),
-      orderBy('createdAt', 'desc'),
-    ),
-    (snap) => cb(snap.docs.map(d => {
-      const pathSegments = d.ref.path.split('/');
-      const landlordId = pathSegments[1];
-      const propertyId = pathSegments[3];
-      return { id: d.id, landlordId, propertyId, ...d.data() };
-    })),
-  );
-
 // ════════════════════════════════════════════════════════════════════════════
 // PAYMENTS
 // ════════════════════════════════════════════════════════════════════════════
@@ -131,12 +104,12 @@ export const subscribePayments = (uid, propId, cb) =>
   onSnapshot(query(collection(db, 'users', uid, 'properties', propId, 'payments'), orderBy('paidDate', 'desc')), (snap) =>
     cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-// For tenants: watch all payments across landlords/properties for this tenant email
-export const subscribeTenantPayments = (tenantEmail, cb) =>
+// For tenants: watch all payments across landlords/properties for this tenant UID
+export const subscribeTenantPayments = (tenantId, cb) =>
   onSnapshot(
     query(
       collectionGroup(db, 'payments'),
-      where('tenantEmail', '==', tenantEmail),
+      where('tenantId', '==', tenantId),
       orderBy('paidDate', 'desc'),
     ),
     (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
@@ -341,16 +314,6 @@ export const addUnitsBatch = async (uid, propId, unitNamesArray, baseData = {}) 
   return refs.map(r => r.id);
 };
 
-// Search tenants by email prefix (for assign-tenant typeahead)
-export const searchTenants = async (emailPrefix) => {
-  if (!emailPrefix || emailPrefix.length < 2) return [];
-  const end = emailPrefix.slice(0, -1) + String.fromCharCode(emailPrefix.charCodeAt(emailPrefix.length - 1) + 1);
-  const snap = await getDocs(
-    query(collection(db, 'users'), where('email', '>=', emailPrefix.toLowerCase()), where('email', '<', end.toLowerCase()), where('role', '==', 'tenant'))
-  );
-  return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
-};
-
 // ════════════════════════════════════════════════════════════════════════════
 // UNIT APPROVAL FLOW  (building-portal / tenant self-selection)
 // ════════════════════════════════════════════════════════════════════════════
@@ -362,8 +325,6 @@ export const searchTenants = async (emailPrefix) => {
  * @returns {Promise<Array>}
  */
 export const getVacantUnits = async (landlordUid, propertyId) => {
-  // Single where() only — avoids composite index requirement for cross-user reads.
-  // Sort by name client-side so no Firestore index is needed.
   const snap = await getDocs(
     query(
       collection(db, 'users', landlordUid, 'properties', propertyId, 'units'),
@@ -415,6 +376,7 @@ export const requestUnitApproval = async (landlordUid, propertyId, unitId, tenan
     read: false,
   });
 };
+
 // ════════════════════════════════════════════════════════════════════════════
 // NOTIFICATIONS
 // ════════════════════════════════════════════════════════════════════════════

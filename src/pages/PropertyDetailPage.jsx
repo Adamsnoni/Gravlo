@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Bed, Bath, MapPin, User, Mail, Phone, Plus, Wrench, CreditCard, Info, ChevronDown, Hash, Building2, DoorOpen, UserMinus, Link2, Copy, Check, UserCheck, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Bed, Bath, MapPin, User, Mail, Phone, Plus, Wrench, CreditCard, Info, ChevronDown, Hash, Building2, DoorOpen, UserMinus, Link2, Copy, Check, UserCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
@@ -16,7 +16,7 @@ import PaymentRow from '../components/PaymentRow';
 import Modal from '../components/Modal';
 import UnitCard from '../components/UnitCard';
 import AddUnitModal from '../components/AddUnitModal';
-import AssignTenantModal from '../components/AssignTenantModal';
+import { createInviteToken } from '../services/inviteTokens';
 import toast from 'react-hot-toast';
 
 const TABS = [
@@ -49,15 +49,13 @@ export default function PropertyDetailPage() {
   const [editingUnit, setEditingUnit] = useState(null);   // null = add mode, object = edit mode
   const [unitSaving, setUnitSaving] = useState(false);
 
-  // Assign tenant
-  const [showAssign, setShowAssign] = useState(false);
-  const [assignUnit, setAssignUnit] = useState(null);   // the unit being assigned
-
   // Remove tenant confirm
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [removeUnit, setRemoveUnit] = useState(null);
 
-  // Portal link copy
+  // Property invite link state
+  const [propertyInviteLink, setPropertyInviteLink] = useState(null);
+  const [generatingInvite, setGeneratingInvite] = useState(false);
   const [portalLinkCopied, setPortalLinkCopied] = useState(false);
 
   // ── Subscriptions ─────────────────────────────────────────────────────
@@ -121,43 +119,27 @@ export default function PropertyDetailPage() {
     finally { setUnitSaving(false); }
   };
 
+  const handleGeneratePropertyInvite = async () => {
+    setGeneratingInvite(true);
+    try {
+      const { link } = await createInviteToken({
+        landlordUid: user.uid,
+        propertyId: id,
+        propertyName: property?.name || '',
+      });
+      setPropertyInviteLink(link);
+      toast.success('Property invite link generated!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate invite link.');
+    } finally {
+      setGeneratingInvite(false);
+    }
+  };
+
   const handleOpenEdit = (unit) => {
     setEditingUnit(unit);
     setShowAddUnit(true);
-  };
-
-  const handleOpenAssign = (unit) => {
-    setAssignUnit(unit);
-    setShowAssign(true);
-  };
-
-  const handleAssignTenant = async (tenantData) => {
-    if (!assignUnit) return;
-    setUnitSaving(true);
-    try {
-      // 1) Update unit document
-      await updateUnit(user.uid, id, assignUnit.id, tenantData);
-
-      // 2) Create tenancy (snapshots rent/billing/currency, enables recurring invoices)
-      await createTenancy({
-        tenantId: tenantData.tenantId || null,
-        landlordId: user.uid,
-        propertyId: id,
-        unitId: assignUnit.id,
-        tenantName: tenantData.tenantName || '',
-        tenantEmail: tenantData.tenantEmail || '',
-        unitName: assignUnit.unitName,
-        propertyName: property?.name || '',
-        rentAmount: assignUnit.rentAmount || 0,
-        billingCycle: assignUnit.billingCycle || 'monthly',
-        currency: country?.currency || 'NGN',
-      });
-
-      toast.success(`Tenant assigned to ${assignUnit.unitName}!`);
-      setShowAssign(false);
-      setAssignUnit(null);
-    } catch (err) { console.error(err); toast.error('Failed to assign tenant.'); }
-    finally { setUnitSaving(false); }
   };
 
   const handleOpenRemove = (unit) => {
@@ -170,11 +152,11 @@ export default function PropertyDetailPage() {
     setUnitSaving(true);
     try {
       // 1) Close active tenancy (stops invoices, preserves history)
-      const activeTenancy = await getActiveTenancy(id, removeUnit.id);
+      const activeTenancy = await getActiveTenancy(user.uid, id, removeUnit.id);
       if (activeTenancy) {
         await closeActiveTenanciesForUnit(user.uid, id, removeUnit.id);
         // Cancel any pending/sent invoices for this tenancy
-        await cancelPendingInvoices(activeTenancy.id);
+        await cancelPendingInvoices(user.uid, activeTenancy.id);
       }
 
       // 2) Update unit document
@@ -213,9 +195,12 @@ export default function PropertyDetailPage() {
         tenantEmail: unit.pendingTenantEmail || '',
         unitName: unit.name || '',
         propertyName: property?.name || '',
+        address: property?.address || '',
         rentAmount: unit.rentAmount || 0,
         billingCycle: unit.billingCycle || 'monthly',
         currency: country?.currency || 'NGN',
+        welcomeMessageSent: true,
+        welcomeMessageDate: new Date(),
       });
       toast.success(`${unit.pendingTenantName || 'Tenant'} approved for ${unit.name}!`);
     } catch (err) { console.error(err); toast.error('Failed to approve request.'); }
@@ -288,256 +273,261 @@ export default function PropertyDetailPage() {
                 <Stat label="Bedrooms" value={property.bedrooms || '—'} />
                 <Stat label="Total Collected" value={fmt(totalPaid)} />
               </div>
-
-              {/* ── Quick Actions bar ─────────────────────────────────── */}
-              <div className="rounded-2xl bg-white/8 border border-white/12 backdrop-blur-sm p-4">
-                <p className="font-body text-xs font-semibold text-stone-400 uppercase tracking-wider mb-3">Quick Actions</p>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  {/* Tenant Onboarding / Invite Link */}
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-sage/20 flex items-center justify-center flex-shrink-0">
-                      <Link2 size={16} className="text-sage" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-body text-xs font-semibold text-cream mb-0.5">Tenant Onboarding Link</p>
-                      <p className="font-body text-xs text-stone-400">Share with tenants to let them claim their unit</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 bg-ink/50 border border-white/10 rounded-xl px-3 py-2 min-w-0 sm:max-w-xs w-full sm:w-auto">
-                    <span className="font-mono text-xs text-stone-300 truncate flex-1 select-all">
-                      {window.location.origin}/join/{user.uid}/{id}?pname={encodeURIComponent(property?.name || '')}
-                    </span>
-                    <button
-                      onClick={() => {
-                        const url = `${window.location.origin}/join/${user.uid}/${id}?pname=${encodeURIComponent(property?.name || '')}`;
-                        navigator.clipboard.writeText(url);
-                        setPortalLinkCopied(true);
-                        setTimeout(() => setPortalLinkCopied(false), 2000);
-                      }}
-                      className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-body font-medium px-2.5 py-1.5 rounded-lg transition-all ${portalLinkCopied
-                        ? 'bg-sage text-cream'
-                        : 'bg-white/10 text-stone-300 hover:bg-white/20 hover:text-cream'
-                        }`}
-                    >
-                      {portalLinkCopied ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy Link</>}
-                    </button>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
+        </div>
 
-          {/* Tabs */}
-          <div className="flex border-b border-stone-100 px-2 overflow-x-auto">
-            {TABS.map(({ id: tid, label, icon: Icon }) => (
-              <button key={tid} onClick={() => setActiveTab(tid)}
-                className={`flex items-center gap-2 px-5 py-4 text-sm font-body font-medium border-b-2 transition-all whitespace-nowrap
+        {/* Tabs */}
+        <div className="flex border-b border-stone-100 px-2 overflow-x-auto">
+          {TABS.map(({ id: tid, label, icon: Icon }) => (
+            <button key={tid} onClick={() => setActiveTab(tid)}
+              className={`flex items-center gap-2 px-5 py-4 text-sm font-body font-medium border-b-2 transition-all whitespace-nowrap
                   ${activeTab === tid ? 'border-sage text-sage' : 'border-transparent text-stone-400 hover:text-ink'}`}>
-                <Icon size={15} /> {label}
-                {tid === 'units' && units.length > 0 && (
-                  <span className="ml-1 w-5 h-5 rounded-full bg-sage/10 text-sage text-xs font-semibold flex items-center justify-center">{units.length}</span>
+              <Icon size={15} /> {label}
+              {tid === 'units' && units.length > 0 && (
+                <span className="ml-1 w-5 h-5 rounded-full bg-sage/10 text-sage text-xs font-semibold flex items-center justify-center">{units.length}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab Content */}
+        <div className="p-6">
+          {/* ── Overview ──────────────────────────────────────────── */}
+          {activeTab === 'overview' && (
+            <div className="grid sm:grid-cols-2 gap-6">
+              <InfoCard title="Property Details">
+                <InfoRow label="Type" value={property.type || '—'} />
+                <InfoRow label="Status" value={<StatusBadge status={property.status} />} />
+                {property.buildingName && (
+                  <InfoRow label="Building" value={<span className="flex items-center gap-1"><Building2 size={13} />{property.buildingName}</span>} />
                 )}
-              </button>
-            ))}
-          </div>
+                {property.unitNumber && (
+                  <InfoRow label="Unit" value={<span className="flex items-center gap-1"><Hash size={13} />{getShortUnitId(property)}</span>} />
+                )}
+                <InfoRow label="Rent" value={fmtRent(property.monthlyRent, property.rentType)} />
+                <InfoRow label="Added" value={property.createdAt ? format(property.createdAt.toDate?.() ?? new Date(property.createdAt), 'MMM d, yyyy') : '—'} />
+                {property.description && <InfoRow label="Notes" value={property.description} />}
+              </InfoCard>
+              <InfoCard title="Tenant Information">
+                {property.tenantName ? (
+                  <>
+                    <InfoRow label="Name" value={<span className="flex items-center gap-1"><User size={13} />{property.tenantName}</span>} />
+                    <InfoRow label="Email" value={<span className="flex items-center gap-1"><Mail size={13} />{property.tenantEmail || '—'}</span>} />
+                    <InfoRow label="Phone" value={<span className="flex items-center gap-1"><Phone size={13} />{property.tenantPhone || '—'}</span>} />
+                  </>
+                ) : (
+                  <p className="font-body text-sm text-stone-400 italic">No tenant — property is {property.status}.</p>
+                )}
+              </InfoCard>
 
-          {/* Tab Content */}
-          <div className="p-6">
-            {/* ── Overview ──────────────────────────────────────────── */}
-            {activeTab === 'overview' && (
-              <div className="grid sm:grid-cols-2 gap-6">
-                <InfoCard title="Property Details">
-                  <InfoRow label="Type" value={property.type || '—'} />
-                  <InfoRow label="Status" value={<StatusBadge status={property.status} />} />
-                  {property.buildingName && (
-                    <InfoRow label="Building" value={<span className="flex items-center gap-1"><Building2 size={13} />{property.buildingName}</span>} />
-                  )}
-                  {property.unitNumber && (
-                    <InfoRow label="Unit" value={<span className="flex items-center gap-1"><Hash size={13} />{getShortUnitId(property)}</span>} />
-                  )}
-                  <InfoRow label="Rent" value={fmtRent(property.monthlyRent, property.rentType)} />
-                  <InfoRow label="Added" value={property.createdAt ? format(property.createdAt.toDate?.() ?? new Date(property.createdAt), 'MMM d, yyyy') : '—'} />
-                  {property.description && <InfoRow label="Notes" value={property.description} />}
-                </InfoCard>
-                <InfoCard title="Tenant Information">
-                  {property.tenantName ? (
-                    <>
-                      <InfoRow label="Name" value={<span className="flex items-center gap-1"><User size={13} />{property.tenantName}</span>} />
-                      <InfoRow label="Email" value={<span className="flex items-center gap-1"><Mail size={13} />{property.tenantEmail || '—'}</span>} />
-                      <InfoRow label="Phone" value={<span className="flex items-center gap-1"><Phone size={13} />{property.tenantPhone || '—'}</span>} />
-                    </>
-                  ) : (
-                    <p className="font-body text-sm text-stone-400 italic">No tenant — property is {property.status}.</p>
-                  )}
-                </InfoCard>
-
-                <div className="sm:col-span-2 flex gap-3">
-                  <button onClick={() => setActiveTab('units')} className="btn-primary">
-                    <DoorOpen size={15} /> Manage Units ({units.length})
-                  </button>
-                  <button onClick={() => setActiveTab('payments')} className="btn-secondary">
-                    <CreditCard size={15} /> View Payments
-                  </button>
-                  <button onClick={() => setShowMaintModal(true)} className="btn-secondary">
-                    <Wrench size={15} /> Log Issue
-                  </button>
-                </div>
+              <div className="sm:col-span-2 flex gap-3">
+                <button onClick={() => setActiveTab('units')} className="btn-primary">
+                  <DoorOpen size={15} /> Manage Units ({units.length})
+                </button>
+                <button onClick={() => setActiveTab('payments')} className="btn-secondary">
+                  <CreditCard size={15} /> View Payments
+                </button>
+                <button onClick={() => setShowMaintModal(true)} className="btn-secondary">
+                  <Wrench size={15} /> Log Issue
+                </button>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* ── Units ────────────────────────────────────────────── */}
-            {activeTab === 'units' && (
-              <div>
-                <div className="flex items-center justify-between mb-5">
-                  <div>
-                    <p className="font-body text-sm text-stone-400">
-                      {units.length} unit{units.length !== 1 ? 's' : ''} · {units.filter(u => u.status === 'occupied').length} occupied
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => { setEditingUnit(null); setShowAddUnit(true); }}
-                    className="btn-primary text-xs px-3 py-2"
-                  >
-                    <Plus size={13} /> Add Unit
-                  </button>
-                </div>
-
-                {/* ── Join Requests ────────────────────────────────────── */}
-                {(() => {
-                  const pending = units.filter(u => u.status === 'pending_approval' && !!u.pendingTenantId);
-                  if (pending.length === 0) return null;
-                  return (
-                    <div className="mb-5 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle size={15} className="text-amber" />
-                        <p className="font-body text-xs font-semibold text-amber uppercase tracking-wider">
-                          Action Required · {pending.length} join request{pending.length !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-                      {pending.map(unit => (
-                        <div key={unit.id} className="rounded-2xl border-2 border-amber/30 bg-amber/5 p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-xl bg-amber/15 flex items-center justify-center flex-shrink-0">
-                                <User size={16} className="text-amber" />
-                              </div>
-                              <div>
-                                <p className="font-body text-sm font-semibold text-ink">
-                                  {unit.pendingTenantName || 'Unknown Tenant'}
-                                </p>
-                                <p className="font-body text-xs text-stone-500">
-                                  {unit.pendingTenantEmail && <span className="mr-2">{unit.pendingTenantEmail}</span>}
-                                  requested <strong>{unit.name}</strong>
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <button
-                                onClick={() => handleDeclineRequest(unit)}
-                                disabled={unitSaving}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-medium bg-white border border-stone-200 text-stone-500 hover:border-rust/40 hover:text-rust transition-all disabled:opacity-50"
-                              >
-                                <UserMinus size={13} /> Decline
-                              </button>
-                              <button
-                                onClick={() => handleApproveRequest(unit)}
-                                disabled={unitSaving}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-medium bg-sage text-cream hover:bg-sage/90 transition-all disabled:opacity-50"
-                              >
-                                <UserCheck size={13} /> Approve
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+          {/* ── Units ────────────────────────────────────────────── */}
+          {activeTab === 'units' && (
+            <div className="space-y-6">
+              {/* Property Invite Link Section */}
+              <div className="p-6 rounded-3xl bg-sage/5 border-2 border-sage/10 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-sage/5 rounded-full blur-3xl -mr-16 -mt-16" />
+                <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-sage/15 flex items-center justify-center flex-shrink-0">
+                      <Link2 size={24} className="text-sage" />
                     </div>
-                  );
-                })()}
-
-                {units.length === 0 ? (
-                  <EmptyState
-                    icon={DoorOpen}
-                    title="No units yet"
-                    sub="Add apartments or units to this property to track tenants and rent."
-                  />
-                ) : (
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    {units.map(unit => (
-                      <UnitCard
-                        key={unit.id}
-                        unit={unit}
-                        fmtRent={fmtRent}
-                        landlordUid={user.uid}
-                        propertyId={id}
-                        propertyName={property?.name || ''}
-                        onAssign={handleOpenAssign}
-                        onRemove={handleOpenRemove}
-                        onEdit={handleOpenEdit}
-                      />
-                    ))}
+                    <div>
+                      <h3 className="font-display text-ink text-lg font-semibold mb-1">Building Access Link</h3>
+                      <p className="font-body text-stone-500 text-sm">Share this link to let tenants join any vacant unit in this building</p>
+                    </div>
                   </div>
-                )}
-              </div>
-            )}
 
-            {/* ── Payments ─────────────────────────────────────────── */}
-            {activeTab === 'payments' && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <p className="font-body text-sm text-stone-400">{payments.length} payments recorded</p>
-                </div>
-                {payments.length === 0 ? (
-                  <EmptyState icon={CreditCard} title="No payments yet" sub="Payments will appear here automatically after tenants pay online." />
-                ) : (
-                  <div className="card overflow-hidden">
-                    {payments.map((p, i) => (
-                      <PaymentRow key={p.id} payment={p} isLast={i === payments.length - 1} onDownloadInvoice={generateInvoicePdf} />
-                    ))}
+                  <div className="w-full md:w-auto flex items-center gap-2">
+                    {propertyInviteLink ? (
+                      <div className="flex-1 md:flex-initial flex items-center gap-2 bg-white/80 backdrop-blur-sm border border-sage/20 rounded-2xl p-1.5 pl-4 shadow-sm">
+                        <span className="font-mono text-xs text-stone-500 truncate max-w-[200px]">{propertyInviteLink}</span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(propertyInviteLink);
+                            setPortalLinkCopied(true);
+                            setTimeout(() => setPortalLinkCopied(false), 2000);
+                          }}
+                          className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-body font-bold transition-all ${portalLinkCopied ? 'bg-sage text-white' : 'bg-sage/10 text-sage hover:bg-sage/20'}`}
+                        >
+                          {portalLinkCopied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleGeneratePropertyInvite}
+                        disabled={generatingInvite}
+                        className="btn-primary w-full md:w-auto px-6 py-3 justify-center shadow-lg shadow-sage/10"
+                      >
+                        {generatingInvite ? <><Loader2 size={16} className="animate-spin" /> Generating…</> : <><Plus size={16} /> Generate Portal Link</>}
+                      </button>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
-
-            {/* ── Maintenance ──────────────────────────────────────── */}
-            {activeTab === 'maintenance' && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <p className="font-body text-sm text-stone-400">{maintenance.filter(m => m.status !== 'resolved').length} open issues</p>
-                  <button onClick={() => setShowMaintModal(true)} className="btn-primary text-xs px-3 py-2"><Plus size={13} /> Log Issue</button>
                 </div>
-                {maintenance.length === 0 ? (
-                  <EmptyState icon={Wrench} title="No issues logged" sub="All clear — no maintenance tickets for this property." />
-                ) : (
-                  <div className="space-y-3">
-                    {maintenance.map(m => (
-                      <div key={m.id} className="flex items-start gap-4 p-4 card hover:shadow-deep transition-shadow">
-                        <div className={`mt-0.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${m.status === 'resolved' ? 'bg-sage' : m.status === 'in-progress' ? 'bg-amber' : 'bg-rust'}`} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="font-body font-semibold text-sm text-ink">{m.title}</p>
-                            <span className={`badge text-xs ${m.priority === 'high' ? 'badge-rust' : m.priority === 'medium' ? 'badge-amber' : 'badge-stone'}`}>
-                              {m.priority}
-                            </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-body text-sm text-stone-400">
+                    {units.length} unit{units.length !== 1 ? 's' : ''} · {units.filter(u => u.status === 'occupied').length} occupied
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setEditingUnit(null); setShowAddUnit(true); }}
+                  className="btn-primary text-xs px-3 py-2"
+                >
+                  <Plus size={13} /> Add Unit
+                </button>
+              </div>
+
+              {/* ── Join Requests ────────────────────────────────────── */}
+              {(() => {
+                const pending = units.filter(u => u.status === 'pending_approval' && !!u.pendingTenantId);
+                if (pending.length === 0) return null;
+                return (
+                  <div className="mb-5 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle size={15} className="text-amber" />
+                      <p className="font-body text-xs font-semibold text-amber uppercase tracking-wider">
+                        Action Required · {pending.length} join request{pending.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    {pending.map(unit => (
+                      <div key={unit.id} className="rounded-2xl border-2 border-amber/30 bg-amber/5 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-amber/15 flex items-center justify-center flex-shrink-0">
+                              <User size={16} className="text-amber" />
+                            </div>
+                            <div>
+                              <p className="font-body text-sm font-semibold text-ink">
+                                {unit.pendingTenantName || 'Unknown Tenant'}
+                              </p>
+                              <p className="font-body text-xs text-stone-500">
+                                {unit.pendingTenantEmail && <span className="mr-2">{unit.pendingTenantEmail}</span>}
+                                requested <strong>{unit.name}</strong>
+                              </p>
+                            </div>
                           </div>
-                          {m.description && <p className="font-body text-xs text-stone-400 mt-1 line-clamp-2">{m.description}</p>}
-                          <div className="flex items-center gap-3 mt-2">
-                            <button onClick={() => cycleStatus(m)}
-                              className={`inline-flex items-center gap-1.5 text-xs font-body font-medium px-2.5 py-1 rounded-lg border transition-all
-                                ${m.status === 'resolved' ? 'bg-sage/10 text-sage border-sage/20' : m.status === 'in-progress' ? 'bg-amber/10 text-amber border-amber/20' : 'bg-rust/10 text-rust border-rust/20'}`}>
-                              <ChevronDown size={11} /> {m.status === 'open' ? 'Open' : m.status === 'in-progress' ? 'In Progress' : 'Resolved'}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => handleDeclineRequest(unit)}
+                              disabled={unitSaving}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-medium bg-white border border-stone-200 text-stone-500 hover:border-rust/40 hover:text-rust transition-all disabled:opacity-50"
+                            >
+                              <UserMinus size={13} /> Decline
                             </button>
-                            <span className="font-body text-xs text-stone-300">
-                              {m.createdAt ? format(m.createdAt.toDate?.() ?? new Date(m.createdAt), 'MMM d') : ''}
-                            </span>
+                            <button
+                              onClick={() => handleApproveRequest(unit)}
+                              disabled={unitSaving}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-medium bg-sage text-cream hover:bg-sage/90 transition-all disabled:opacity-50"
+                            >
+                              <UserCheck size={13} /> Approve
+                            </button>
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
-                )}
+                );
+              })()}
+
+              {units.length === 0 ? (
+                <EmptyState
+                  icon={DoorOpen}
+                  title="No units yet"
+                  sub="Add apartments or units to this property to track tenants and rent."
+                />
+              ) : (
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {units.map(unit => (
+                    <UnitCard
+                      key={unit.id}
+                      unit={unit}
+                      fmtRent={fmtRent}
+                      landlordUid={user.uid}
+                      propertyId={id}
+                      propertyName={property?.name || ''}
+                      onRemove={handleOpenRemove}
+                      onEdit={handleOpenEdit}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Payments ─────────────────────────────────────────── */}
+          {activeTab === 'payments' && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-body text-sm text-stone-400">{payments.length} payments recorded</p>
               </div>
-            )}
-          </div>
+              {payments.length === 0 ? (
+                <EmptyState icon={CreditCard} title="No payments yet" sub="Payments will appear here automatically after tenants pay online." />
+              ) : (
+                <div className="card overflow-hidden">
+                  {payments.map((p, i) => (
+                    <PaymentRow key={p.id} payment={p} isLast={i === payments.length - 1} onDownloadInvoice={generateInvoicePdf} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Maintenance ──────────────────────────────────────── */}
+          {activeTab === 'maintenance' && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-body text-sm text-stone-400">{maintenance.filter(m => m.status !== 'resolved').length} open issues</p>
+                <button onClick={() => setShowMaintModal(true)} className="btn-primary text-xs px-3 py-2"><Plus size={13} /> Log Issue</button>
+              </div>
+              {maintenance.length === 0 ? (
+                <EmptyState icon={Wrench} title="No issues logged" sub="All clear — no maintenance tickets for this property." />
+              ) : (
+                <div className="space-y-3">
+                  {maintenance.map(m => (
+                    <div key={m.id} className="flex items-start gap-4 p-4 card hover:shadow-deep transition-shadow">
+                      <div className={`mt-0.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${m.status === 'resolved' ? 'bg-sage' : m.status === 'in-progress' ? 'bg-amber' : 'bg-rust'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-body font-semibold text-sm text-ink">{m.title}</p>
+                          <span className={`badge text-xs ${m.priority === 'high' ? 'badge-rust' : m.priority === 'medium' ? 'badge-amber' : 'badge-stone'}`}>
+                            {m.priority}
+                          </span>
+                        </div>
+                        {m.description && <p className="font-body text-xs text-stone-400 mt-1 line-clamp-2">{m.description}</p>}
+                        <div className="flex items-center gap-3 mt-2">
+                          <button onClick={() => cycleStatus(m)}
+                            className={`inline-flex items-center gap-1.5 text-xs font-body font-medium px-2.5 py-1 rounded-lg border transition-all
+                                ${m.status === 'resolved' ? 'bg-sage/10 text-sage border-sage/20' : m.status === 'in-progress' ? 'bg-amber/10 text-amber border-amber/20' : 'bg-rust/10 text-rust border-rust/20'}`}>
+                            <ChevronDown size={11} /> {m.status === 'open' ? 'Open' : m.status === 'in-progress' ? 'In Progress' : 'Resolved'}
+                          </button>
+                          <span className="font-body text-xs text-stone-300">
+                            {m.createdAt ? format(m.createdAt.toDate?.() ?? new Date(m.createdAt), 'MMM d') : ''}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -583,15 +573,6 @@ export default function PropertyDetailPage() {
         saving={unitSaving}
         editUnit={editingUnit}
         currencySymbol={currencySymbol}
-      />
-
-      {/* ── Assign Tenant Modal ────────────────────────────────────────── */}
-      <AssignTenantModal
-        isOpen={showAssign}
-        onClose={() => { setShowAssign(false); setAssignUnit(null); }}
-        onAssign={handleAssignTenant}
-        saving={unitSaving}
-        unitName={assignUnit?.unitName}
       />
 
       {/* ── Remove Tenant Confirmation ─────────────────────────────────── */}

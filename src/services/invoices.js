@@ -121,10 +121,11 @@ export async function cancelInvoice(invoiceId) {
  * Cancel all pending/sent invoices for a tenancy.
  * Called during tenant move-out to stop future invoices.
  */
-export async function cancelPendingInvoices(tenancyId) {
+export async function cancelPendingInvoices(landlordId, tenancyId) {
     const snap = await getDocs(
         query(
             collection(db, 'invoices'),
+            where('landlordId', '==', landlordId),
             where('tenancyId', '==', tenancyId),
             where('status', 'in', ['draft', 'sent']),
         )

@@ -102,10 +102,11 @@ export async function closeActiveTenanciesForUnit(landlordId, propertyId, unitId
 // ════════════════════════════════════════════════════════════════════════════
 
 /** Get the active tenancy for a unit (if any). */
-export async function getActiveTenancy(propertyId, unitId) {
+export async function getActiveTenancy(landlordId, propertyId, unitId) {
     const snap = await getDocs(
         query(
             collection(db, 'tenancies'),
+            where('landlordId', '==', landlordId),
             where('propertyId', '==', propertyId),
             where('unitId', '==', unitId),
             where('status', '==', 'active'),
