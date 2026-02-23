@@ -71,7 +71,7 @@ function AppRoutes() {
       <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
 
       {/* Public invite link — no auth required */}
-      <Route path="/invite/:token" element={<AcceptInvitePage />} />
+      <Route path="/join/:token" element={<AcceptInvitePage />} />
 
       <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
 

@@ -12,8 +12,8 @@ import {
   addReminder,
   updateReminder,
   deleteReminder,
-  subscribeTenantProperties,
 } from '../services/firebase';
+import { subscribeTenantTenancies } from '../services/tenancy';
 import {
   LEAD_TIME_OPTIONS,
   getLeadTimeLabel,
@@ -25,11 +25,11 @@ import Modal from '../components/Modal';
 import toast from 'react-hot-toast';
 
 const URGENCY = {
-  overdue: { label: 'Overdue',  color: 'text-rust',      bg: 'bg-rust/10',   dot: 'bg-rust' },
-  urgent:  { label: 'Urgent',   color: 'text-rust',      bg: 'bg-rust/8',    dot: 'bg-rust/70' },
-  soon:   { label: 'Soon',     color: 'text-amber',     bg: 'bg-amber/10',  dot: 'bg-amber' },
-  ok:     { label: 'Upcoming', color: 'text-sage',      bg: 'bg-sage/8',    dot: 'bg-sage' },
-  paid:   { label: 'Paid',     color: 'text-stone-400', bg: 'bg-stone-100', dot: 'bg-stone-300' },
+  overdue: { label: 'Overdue', color: 'text-rust', bg: 'bg-rust/10', dot: 'bg-rust' },
+  urgent: { label: 'Urgent', color: 'text-rust', bg: 'bg-rust/8', dot: 'bg-rust/70' },
+  soon: { label: 'Soon', color: 'text-amber', bg: 'bg-amber/10', dot: 'bg-amber' },
+  ok: { label: 'Upcoming', color: 'text-sage', bg: 'bg-sage/8', dot: 'bg-sage' },
+  paid: { label: 'Paid', color: 'text-stone-400', bg: 'bg-stone-100', dot: 'bg-stone-300' },
 };
 
 function getUrgency(r) {
@@ -59,7 +59,7 @@ export default function TenantRemindersPage() {
   const { fmt, currencySymbol } = useLocale();
 
   const [reminders, setReminders] = useState([]);
-  const [properties, setProperties] = useState([]);
+  const [tenancies, setTenancies] = useState([]);
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -73,12 +73,17 @@ export default function TenantRemindersPage() {
       setReminders(d.filter((r) => r.createdBy === 'tenant'));
       setLoading(false);
     });
-    const u2 = user.email ? subscribeTenantProperties(user.email, setProperties) : undefined;
+
+    // Use UID to fetch active tenancies
+    const u2 = user.uid ? subscribeTenantTenancies(user.uid, (data) => {
+      setTenancies(data.filter(t => t.status === 'active'));
+    }) : undefined;
+
     return () => {
       u1?.();
       u2?.();
     };
-  }, [user?.uid, user?.email]);
+  }, [user?.uid]);
 
   const set = (k) => (e) =>
     setForm((f) => ({
@@ -88,15 +93,15 @@ export default function TenantRemindersPage() {
 
   const handlePropertySelect = (e) => {
     const pid = e.target.value;
-    const p = properties.find((x) => x.id === pid);
+    const p = tenancies.find((x) => x.id === pid);
     setForm((f) => ({
       ...f,
-      propertyId: pid,
-      propertyName: p?.name ?? '',
-      propertyUnitNumber: p?.unitNumber ?? '',
-      propertyBuildingName: p?.buildingName ?? '',
-      propertyFloor: p?.floor ?? '',
-      amount: p?.monthlyRent != null ? String(p.monthlyRent) : f.amount,
+      propertyId: pid, // Using Tenancy ID here as the unique key for the dropdown
+      propertyName: p?.propertyName ?? '',
+      propertyUnitNumber: p?.unitName ?? '',
+      propertyBuildingName: '',
+      propertyFloor: '',
+      amount: p?.rentAmount != null ? String(p.rentAmount) : f.amount,
     }));
   };
 
@@ -107,9 +112,9 @@ export default function TenantRemindersPage() {
     setForm({
       ...emptyForm,
       dueDate: format(nextDue, 'yyyy-MM-dd'),
-      propertyId: properties[0]?.id ?? '',
-      propertyName: properties[0]?.name ?? '',
-      amount: properties[0]?.monthlyRent != null ? String(properties[0].monthlyRent) : '',
+      propertyId: tenancies[0]?.id ?? '',
+      propertyName: tenancies[0]?.propertyName ?? '',
+      amount: tenancies[0]?.rentAmount != null ? String(tenancies[0].rentAmount) : '',
     });
     setShowModal(true);
   };
@@ -143,13 +148,13 @@ export default function TenantRemindersPage() {
     }
     setSaving(true);
     try {
-      const prop = properties.find((p) => p.id === form.propertyId);
+      const prop = tenancies.find((p) => p.id === form.propertyId);
       const payload = {
-        propertyId: form.propertyId,
-        propertyName: form.propertyName || prop?.name,
-        propertyUnitNumber: form.propertyUnitNumber || prop?.unitNumber || '',
-        propertyBuildingName: form.propertyBuildingName || prop?.buildingName || '',
-        propertyFloor: form.propertyFloor || prop?.floor || '',
+        propertyId: form.propertyId, // This is actually the tenancy ID in this context for unique tracking
+        propertyName: form.propertyName || prop?.propertyName,
+        propertyUnitNumber: form.propertyUnitNumber || prop?.unitName || '',
+        propertyBuildingName: form.propertyBuildingName || '',
+        propertyFloor: form.propertyFloor || '',
         amount: parseInt(form.amount, 10) || 0,
         dueDate: new Date(form.dueDate),
         leadTimeDays: parseInt(form.leadTimeDays, 10) || 7,
@@ -218,14 +223,14 @@ export default function TenantRemindersPage() {
         <button
           type="button"
           onClick={openCreate}
-          disabled={properties.length === 0}
+          disabled={tenancies.length === 0}
           className="btn-primary"
         >
           <Plus size={16} /> New reminder
         </button>
       </motion.div>
 
-      {properties.length === 0 && (
+      {tenancies.length === 0 && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -251,18 +256,16 @@ export default function TenantRemindersPage() {
             key={key}
             type="button"
             onClick={() => setFilter(key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-body font-medium border transition-all ${
-              filter === key
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-body font-medium border transition-all ${filter === key
                 ? 'bg-ink text-cream border-ink'
                 : 'bg-white text-stone-500 border-stone-200 hover:border-stone-300'
-            }`}
+              }`}
           >
             {label}
             {count > 0 && (
               <span
-                className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
-                  filter === key ? 'bg-white/15 text-cream' : 'bg-stone-100 text-stone-500'
-                }`}
+                className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${filter === key ? 'bg-white/15 text-cream' : 'bg-stone-100 text-stone-500'
+                  }`}
               >
                 {count}
               </span>
@@ -286,7 +289,7 @@ export default function TenantRemindersPage() {
           <p className="font-body text-xs text-stone-300 mt-1">
             {filter === 'all' && 'Create a reminder to get email, SMS, or in-app alerts before rent is due.'}
           </p>
-          {properties.length > 0 && filter === 'all' && (
+          {tenancies.length > 0 && filter === 'all' && (
             <button type="button" onClick={openCreate} className="btn-primary mt-4">
               <Plus size={15} /> New reminder
             </button>
@@ -418,12 +421,11 @@ export default function TenantRemindersPage() {
               required
             >
               <option value="">— Select home —</option>
-            {properties.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.unitNumber ? ` - ${getShortUnitId(p)}` : ''} — {fmt(p.monthlyRent || 0)}/month
-              </option>
-            ))}
+              {tenancies.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.propertyName}{p.unitName ? ` - ${p.unitName}` : ''} — {fmt(p.rentAmount || 0)}/month
+                </option>
+              ))}
             </select>
           </div>
           <div className="grid sm:grid-cols-2 gap-4">

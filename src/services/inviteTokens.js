@@ -14,9 +14,17 @@ import { createTenancy, terminateActiveLeasesForUnit } from './tenancy';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** Generate a URL-friendly slug from text */
+function generateSlug(text) {
+    return (text || 'invite')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-') // replace non-alphanumerics with hyphens
+        .replace(/^-+|-+$/g, '');    // trim leading/trailing hyphens
+}
+
 /** Build the full invite URL from a token */
 export function buildInviteLink(token) {
-    return `${window.location.origin}/invite/${token}`;
+    return `${window.location.origin}/join/${token}`;
 }
 
 // ── Create ────────────────────────────────────────────────────────────────────
@@ -34,7 +42,11 @@ export async function createInviteToken({
         await revokePendingTokensForUnit(propertyId, unitId);
     }
 
-    const token = crypto.randomUUID();
+    // Generate a unique slug: property-name-random6
+    const slugBase = generateSlug(propertyName);
+    const shortRandom = crypto.randomUUID().split('-')[0].substring(0, 6); // 6-char random
+    const token = `${slugBase}-${shortRandom}`;
+
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // +24h
 

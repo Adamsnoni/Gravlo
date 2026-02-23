@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 import { CreditCard, ArrowRight, Hash } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { subscribeTenantPayments, subscribeTenantProperties } from '../services/firebase';
+import { subscribeTenantPayments } from '../services/firebase';
+import { subscribeTenantTenancies } from '../services/tenancy';
 import { createCheckoutSession } from '../services/payments';
 import PaymentRow from '../components/PaymentRow';
 import { generateInvoicePdf } from '../utils/invoicePdf';
@@ -22,23 +23,31 @@ export default function TenantPaymentsPage() {
   const { fmt, currency, currencySymbol } = useLocale();
 
   const [payments, setPayments] = useState([]);
-  const [properties, setProperties] = useState([]);
+  const [tenancies, setTenancies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [selectedPropertyId, setSelectedPropertyId] = useState('');
+  const [selectedTenancyId, setSelectedTenancyId] = useState('');
 
   useEffect(() => {
-    if (!user?.email) return;
-    const u1 = subscribeTenantPayments(user.email, (d) => {
+    if (!user?.uid) return;
+
+    // Payments query still uses email (for now) or uid based on your db structure
+    const u1 = subscribeTenantPayments(user.uid, (d) => {
       setPayments(d);
       setLoading(false);
     });
-    const u2 = subscribeTenantProperties(user.email, setProperties);
+
+    // Tenancy query definitely uses UID
+    const u2 = subscribeTenantTenancies(user.uid, (data) => {
+      // Only show active tenancies for payment dropdown
+      setTenancies(data.filter(t => t.status === 'active'));
+    });
+
     return () => {
       u1?.();
       u2?.();
     };
-  }, [user?.email]);
+  }, [user?.uid]);
 
   const totalPaid = payments
     .filter(p => p.status === 'paid')
@@ -49,14 +58,14 @@ export default function TenantPaymentsPage() {
   };
 
   const handleCreatePayment = async () => {
-    if (!selectedPropertyId) {
+    if (!selectedTenancyId) {
       toast.error('Select a home to pay for.');
       return;
     }
-    const prop = properties.find(p => p.id === selectedPropertyId);
-    if (!prop) return;
+    const tenancy = tenancies.find(t => t.id === selectedTenancyId);
+    if (!tenancy) return;
 
-    const amount = prop.monthlyRent || 0;
+    const amount = tenancy.rentAmount || 0;
     if (!amount) {
       toast.error('This home has no rent amount configured yet.');
       return;
@@ -65,17 +74,17 @@ export default function TenantPaymentsPage() {
     setCreating(true);
     try {
       await createCheckoutSession({
-        landlordId: prop.ownerId,
-        propertyId: prop.id,
-        propertyName: prop.name,
-        propertyAddress: prop.address || '',
-        propertyBuildingName: prop.buildingName || '',
-        propertyUnitNumber: prop.unitNumber || '',
-        propertyFloor: prop.floor || '',
+        landlordId: tenancy.landlordId,
+        propertyId: tenancy.propertyId,
+        propertyName: tenancy.propertyName,
+        propertyAddress: tenancy.address || '',
+        propertyBuildingName: '',
+        propertyUnitNumber: tenancy.unitName || '',
+        propertyFloor: '',
         tenantEmail: user.email,
         tenantName: user.displayName || '',
         amount,
-        currency,
+        currency: tenancy.currency || currency,
       });
     } catch (err) {
       toast.error(err.message || 'Unable to start payment.');
@@ -84,7 +93,7 @@ export default function TenantPaymentsPage() {
     }
   };
 
-  const hasHomes = properties.length > 0;
+  const hasHomes = tenancies.length > 0;
 
   return (
     <div className="space-y-6">
@@ -112,17 +121,16 @@ export default function TenantPaymentsPage() {
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
           <select
             className="input-base text-sm"
-            value={selectedPropertyId}
-            onChange={e => setSelectedPropertyId(e.target.value)}
+            value={selectedTenancyId}
+            onChange={e => setSelectedTenancyId(e.target.value)}
             disabled={!hasHomes}
           >
             <option value="">
               {hasHomes ? 'Select home' : 'No homes linked yet'}
             </option>
-            {properties.map(p => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.unitNumber ? ` - ${getShortUnitId(p)}` : ''} — {fmt(p.monthlyRent || 0)}
+            {tenancies.map(t => (
+              <option key={t.id} value={t.id}>
+                {t.propertyName}{t.unitName ? ` - ${t.unitName}` : ''} — {fmt(t.rentAmount || 0)}
               </option>
             ))}
           </select>
