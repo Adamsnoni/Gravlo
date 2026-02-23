@@ -7,7 +7,7 @@ import { format, isAfter, subHours } from 'date-fns';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { subscribeTenantProperties, subscribeTenantPayments, subscribeReminders } from '../services/firebase';
+import { subscribeTenantProperties, subscribeTenantUnits, subscribeTenantPayments, subscribeReminders } from '../services/firebase';
 import { formatUnitDisplay, getShortUnitId } from '../utils/unitDisplay';
 
 const fadeUp = (delay = 0) => ({
@@ -21,16 +21,19 @@ export default function TenantDashboardPage() {
   const { fmt, fmtRent, country } = useLocale();
 
   const [properties, setProperties] = useState([]);
+  const [units, setUnits] = useState([]);
   const [payments, setPayments] = useState([]);
   const [reminders, setReminders] = useState([]);
 
   useEffect(() => {
     if (!user?.email) return;
     const u1 = subscribeTenantProperties(user.email, setProperties);
-    const u2 = subscribeTenantPayments(user.email, setPayments);
+    const u2 = subscribeTenantUnits(user.email, setUnits);
+    const u3 = subscribeTenantPayments(user.email, setPayments);
     return () => {
       u1?.();
       u2?.();
+      u3?.();
     };
   }, [user?.email]);
 
@@ -46,14 +49,19 @@ export default function TenantDashboardPage() {
     .filter(p => p.status === 'paid')
     .reduce((sum, p) => sum + (p.amount || 0), 0);
 
-  const nextDue = properties.map(p => p.monthlyRent || 0).reduce((s, v) => s + v, 0);
+  const allHomes = [
+    ...properties.map(p => ({ ...p, type: 'property' })),
+    ...units.map(u => ({ ...u, type: 'unit' }))
+  ];
+
+  const nextDue = allHomes.map(h => h.monthlyRent || h.rentAmount || 0).reduce((s, v) => s + v, 0);
 
   const firstName = (profile?.fullName || user?.displayName || 'there').split(' ')[0];
 
   // Logic for "Approved Tenant Experience"
-  const newApprovals = properties.filter(p => {
-    if (!p.welcomeMessageSent) return false;
-    const welcomeDate = p.welcomeMessageDate?.toDate?.() || new Date(p.welcomeMessageDate);
+  const newApprovals = allHomes.filter(h => {
+    if (!h.welcomeMessageSent) return false;
+    const welcomeDate = h.welcomeMessageDate?.toDate?.() || new Date(h.welcomeMessageDate);
     // Show celebration if approved in the last 48 hours
     return isAfter(welcomeDate, subHours(new Date(), 48));
   });
@@ -102,7 +110,7 @@ export default function TenantDashboardPage() {
           </div>
           <div>
             <div className="font-display text-ink text-2xl font-semibold">
-              {properties.length}
+              {allHomes.length}
             </div>
             <div className="font-body text-stone-400 text-xs mt-0.5">Active homes</div>
           </div>
@@ -261,38 +269,38 @@ export default function TenantDashboardPage() {
           </div>
         </div>
 
-        {properties.length === 0 ? (
+        {allHomes.length === 0 ? (
           <div className="flex flex-col items-center text-center py-10">
             <Home size={32} className="text-stone-300 mb-3" />
             <p className="font-body text-sm text-stone-500">
               No homes are linked to your email yet.
             </p>
             <p className="font-body text-xs text-stone-300 mt-1">
-              Ask your landlord to add your email on the property in LeaseEase.
+              Ask your landlord to approve your request or add your email directly.
             </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {properties.map(p => (
+            {allHomes.map(h => (
               <div
-                key={p.id}
+                key={h.id}
                 className="flex items-center justify-between gap-3 p-4 rounded-xl border border-stone-100 bg-stone-50 hover:bg-stone-100 transition-colors"
               >
                 <div>
-                  <p className="font-body font-semibold text-sm text-ink">{p.name}</p>
-                  {p.unitNumber && (
+                  <p className="font-body font-semibold text-sm text-ink">{h.unitName || h.propertyName || h.name}</p>
+                  {(h.unitNumber || h.type === 'unit') && (
                     <p className="font-body text-xs text-sage font-medium flex items-center gap-1 mt-0.5">
-                      <Hash size={10} /> {getShortUnitId(p)}
+                      <Hash size={10} /> {h.unitNumber || h.name || 'Unit'}
                     </p>
                   )}
-                  <p className="font-body text-xs text-stone-400 mt-0.5">{p.address}</p>
+                  <p className="font-body text-xs text-stone-400 mt-0.5">{h.address || 'Managed Property'}</p>
                 </div>
                 <div className="text-right">
                   <p className="font-display text-sm font-semibold text-ink">
-                    {fmtRent(p.monthlyRent || 0, p.rentType || 'monthly')}
+                    {fmtRent(h.monthlyRent || h.rentAmount || 0, h.rentType || h.billingCycle || 'monthly')}
                   </p>
                   <p className="font-body text-[11px] text-stone-400 mt-0.5">
-                    {p.status === 'occupied' ? 'Active lease' : p.status}
+                    {h.status === 'occupied' ? 'Active lease' : h.status}
                   </p>
                 </div>
               </div>

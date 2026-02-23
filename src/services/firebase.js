@@ -97,6 +97,22 @@ export const subscribeTenantProperties = (tenantEmail, cb) =>
     (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
   );
 
+// For tenants: watch all individual units across landlords where their email is set
+export const subscribeTenantUnits = (tenantEmail, cb) =>
+  onSnapshot(
+    query(
+      collectionGroup(db, 'units'),
+      where('tenantEmail', '==', tenantEmail),
+      orderBy('createdAt', 'desc'),
+    ),
+    (snap) => cb(snap.docs.map(d => {
+      const pathSegments = d.ref.path.split('/');
+      const landlordId = pathSegments[1];
+      const propertyId = pathSegments[3];
+      return { id: d.id, landlordId, propertyId, ...d.data() };
+    })),
+  );
+
 // ════════════════════════════════════════════════════════════════════════════
 // PAYMENTS
 // ════════════════════════════════════════════════════════════════════════════
