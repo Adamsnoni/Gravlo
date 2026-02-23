@@ -30,16 +30,25 @@ export default function RegisterPage() {
     changeCountry(code);
   };
 
-  // --- Real-time password match validation ---
+  // --- Real-time password validation ---
+  const passwordStrong = /[A-Z]/.test(form.password) && /[0-9]/.test(form.password);
   const passwordsMatch = form.confirm === '' || form.password === form.confirm;
-  const canSubmit = !loading && form.password.length >= 8 && form.confirm.length >= 8 && form.password === form.confirm;
+  const canSubmit =
+    !loading &&
+    form.password.length >= 8 &&
+    passwordStrong &&
+    form.confirm.length >= 8 &&
+    form.password === form.confirm;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const { fullName, email, password, confirm, countryCode, accountType } = form;
     if (!fullName || !email || !password) { setError('All required fields must be filled.'); return; }
     if (!countryCode) { setError('Please select your country.'); return; }
-    if (password.length < 8) { setError('Password must be at least 8 characters.'); return; }
+    if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+      setError('Password must be at least 8 characters and include an uppercase letter and a number.');
+      return;
+    }
     if (password !== confirm) { setError('Passwords do not match.'); return; }
 
     setLoading(true); setError('');
@@ -71,11 +80,13 @@ export default function RegisterPage() {
       // Landlords → onboarding wizard; tenants → My Homes
       navigate(accountType === 'tenant' ? '/tenant' : '/onboarding');
     } catch (err) {
+      console.error('Registration error:', err);
       const msg =
         err.code === 'auth/email-already-in-use' ? 'This email is already registered.' :
           err.code === 'auth/invalid-email' ? 'Please enter a valid email.' :
-            err.code === 'auth/weak-password' ? 'Password is too weak.' :
-              'Registration failed. Please try again.';
+            err.code === 'auth/weak-password' ? 'Password must be at least 8 characters and include an uppercase letter and a number.' :
+              err.code === 'auth/operation-not-allowed' ? 'Email/password sign-up is not enabled. Contact support.' :
+                err.message || 'Registration failed. Please try again.';
       setError(msg);
     } finally {
       setLoading(false);
@@ -181,6 +192,12 @@ export default function RegisterPage() {
             </div>
 
             <PasswordInput id="reg-password" label="Password *" value={form.password} onChange={set('password')} placeholder="Min. 8 characters" autoComplete="new-password" required />
+            {form.password.length > 0 && !passwordStrong && (
+              <p className="mt-1.5 font-body text-xs text-rust flex items-center gap-1">
+                <span className="w-1 h-1 rounded-full bg-rust inline-block flex-shrink-0" />
+                Password must be at least 8 characters and include an uppercase letter and a number.
+              </p>
+            )}
 
             {/* Confirm password with inline match error */}
             <div>
