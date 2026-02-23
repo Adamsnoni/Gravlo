@@ -1,7 +1,7 @@
 // src/pages/ArchivedTenantsPage.jsx
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Archive, Search, Hash, MapPin, Calendar, ExternalLink } from 'lucide-react';
+import { Archive, Search, Hash, MapPin, Calendar, ExternalLink, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
@@ -19,15 +19,27 @@ export default function ArchivedTenantsPage() {
     const { fmtRent } = useLocale();
     const [tenancies, setTenancies] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         if (!user) return;
-        const unsub = subscribeTenancies(user.uid, (data) => {
-            // Only show former tenancies
-            setTenancies(data.filter(t => t.status === 'former'));
-            setLoading(false);
-        });
+        setLoading(true);
+        setError(null);
+
+        const unsub = subscribeTenancies(
+            user.uid,
+            (data) => {
+                // Only show former tenancies
+                setTenancies(data.filter(t => t.status === 'former'));
+                setLoading(false);
+            },
+            (err) => {
+                console.error("Archive fetch error:", err);
+                setError(err);
+                setLoading(false);
+            }
+        );
         return () => unsub();
     }, [user]);
 
@@ -44,6 +56,22 @@ export default function ArchivedTenantsPage() {
         return (
             <div className="flex items-center justify-center h-64">
                 <div className="w-8 h-8 border-2 border-sage border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="space-y-6 max-w-5xl mx-auto">
+                <div className="card p-12 flex flex-col items-center justify-center text-center">
+                    <div className="w-16 h-16 rounded-full bg-rust/10 flex items-center justify-center mb-4 text-rust">
+                        <AlertCircle size={32} />
+                    </div>
+                    <h2 className="font-display text-ink text-xl font-semibold mb-2">Something went wrong</h2>
+                    <p className="font-body text-stone-500 max-w-md">
+                        We couldn't load your archived records. This is likely due to a database indexing update. Check the console for details, or try again later.
+                    </p>
+                </div>
             </div>
         );
     }

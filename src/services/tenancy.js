@@ -120,10 +120,14 @@ export async function getActiveTenancy(landlordId, propertyId, unitId) {
 }
 
 /** Subscribe to all tenancies for a landlord. */
-export function subscribeTenancies(landlordId, cb) {
+export function subscribeTenancies(landlordId, cb, onError) {
     return onSnapshot(
         query(collection(db, 'tenancies'), where('landlordId', '==', landlordId), orderBy('createdAt', 'desc')),
         (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+        (error) => {
+            console.error("Error in subscribeTenancies:", error);
+            if (onError) onError(error);
+        }
     );
 }
 
