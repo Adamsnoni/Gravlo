@@ -431,11 +431,12 @@ export default function PropertyDetailPage() {
                       </p>
                       <div className="flex items-center gap-2 bg-white border border-stone-200 rounded-xl px-3 py-2 max-w-sm">
                         <span className="font-mono text-xs text-stone-600 truncate flex-1 select-all">
-                          {window.location.origin}/join/{user.uid}/{id}
+                          {window.location.origin}/join/{user.uid}/{id}?pname={encodeURIComponent(property?.name || '')}
                         </span>
                         <button
                           onClick={() => {
-                            navigator.clipboard.writeText(`${window.location.origin}/join/${user.uid}/${id}`);
+                            const url = `${window.location.origin}/join/${user.uid}/${id}?pname=${encodeURIComponent(property?.name || '')}`;
+                            navigator.clipboard.writeText(url);
                             setPortalLinkCopied(true);
                             setTimeout(() => setPortalLinkCopied(false), 2000);
                           }}
