@@ -334,14 +334,17 @@ export const searchTenants = async (emailPrefix) => {
  * @returns {Promise<Array>}
  */
 export const getVacantUnits = async (landlordUid, propertyId) => {
+  // Single where() only — avoids composite index requirement for cross-user reads.
+  // Sort by name client-side so no Firestore index is needed.
   const snap = await getDocs(
     query(
       collection(db, 'users', landlordUid, 'properties', propertyId, 'units'),
       where('status', '==', 'vacant'),
-      orderBy('name'),
     )
   );
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 };
 
 /**
