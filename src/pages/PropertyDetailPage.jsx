@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Bed, Bath, MapPin, User, Mail, Phone, Plus, Wrench, CreditCard, Info, ChevronDown, Hash, Building2, DoorOpen, UserMinus } from 'lucide-react';
+import { ArrowLeft, Bed, Bath, MapPin, User, Mail, Phone, Plus, Wrench, CreditCard, Info, ChevronDown, Hash, Building2, DoorOpen, UserMinus, Link2, Copy, Check, UserCheck, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
@@ -56,6 +56,9 @@ export default function PropertyDetailPage() {
   // Remove tenant confirm
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [removeUnit, setRemoveUnit] = useState(null);
+
+  // Portal link copy
+  const [portalLinkCopied, setPortalLinkCopied] = useState(false);
 
   // ── Subscriptions ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -187,6 +190,53 @@ export default function PropertyDetailPage() {
     finally { setUnitSaving(false); }
   };
 
+  // ── Join request handlers ─────────────────────────────────────────────
+  const handleApproveRequest = async (unit) => {
+    setUnitSaving(true);
+    try {
+      await updateUnit(user.uid, id, unit.id, {
+        status: 'occupied',
+        tenantId: unit.pendingTenantId,
+        tenantName: unit.pendingTenantName || '',
+        tenantEmail: unit.pendingTenantEmail || '',
+        pendingTenantId: null,
+        pendingTenantName: null,
+        pendingTenantEmail: null,
+        pendingRequestedAt: null,
+      });
+      await createTenancy({
+        tenantId: unit.pendingTenantId,
+        landlordId: user.uid,
+        propertyId: id,
+        unitId: unit.id,
+        tenantName: unit.pendingTenantName || '',
+        tenantEmail: unit.pendingTenantEmail || '',
+        unitName: unit.name || '',
+        propertyName: property?.name || '',
+        rentAmount: unit.rentAmount || 0,
+        billingCycle: unit.billingCycle || 'monthly',
+        currency: country?.currency || 'NGN',
+      });
+      toast.success(`${unit.pendingTenantName || 'Tenant'} approved for ${unit.name}!`);
+    } catch (err) { console.error(err); toast.error('Failed to approve request.'); }
+    finally { setUnitSaving(false); }
+  };
+
+  const handleDeclineRequest = async (unit) => {
+    setUnitSaving(true);
+    try {
+      await updateUnit(user.uid, id, unit.id, {
+        status: 'vacant',
+        pendingTenantId: null,
+        pendingTenantName: null,
+        pendingTenantEmail: null,
+        pendingRequestedAt: null,
+      });
+      toast.success(`Request from ${unit.pendingTenantName || 'tenant'} declined.`);
+    } catch (err) { console.error(err); toast.error('Failed to decline request.'); }
+    finally { setUnitSaving(false); }
+  };
+
   // ── Loading / Not found ───────────────────────────────────────────────
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -315,6 +365,89 @@ export default function PropertyDetailPage() {
                     <Plus size={13} /> Add Unit
                   </button>
                 </div>
+
+                {/* ── Join Requests ────────────────────────────────────── */}
+                {(() => {
+                  const pending = units.filter(u => u.status === 'pending_approval');
+                  if (pending.length === 0) return null;
+                  return (
+                    <div className="mb-5 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle size={15} className="text-amber" />
+                        <p className="font-body text-xs font-semibold text-amber uppercase tracking-wider">
+                          Action Required · {pending.length} join request{pending.length !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      {pending.map(unit => (
+                        <div key={unit.id} className="rounded-2xl border-2 border-amber/30 bg-amber/5 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-xl bg-amber/15 flex items-center justify-center flex-shrink-0">
+                                <User size={16} className="text-amber" />
+                              </div>
+                              <div>
+                                <p className="font-body text-sm font-semibold text-ink">
+                                  {unit.pendingTenantName || 'Unknown Tenant'}
+                                </p>
+                                <p className="font-body text-xs text-stone-500">
+                                  {unit.pendingTenantEmail && <span className="mr-2">{unit.pendingTenantEmail}</span>}
+                                  requested <strong>{unit.name}</strong>
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <button
+                                onClick={() => handleDeclineRequest(unit)}
+                                disabled={unitSaving}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-medium bg-white border border-stone-200 text-stone-500 hover:border-rust/40 hover:text-rust transition-all disabled:opacity-50"
+                              >
+                                <UserMinus size={13} /> Decline
+                              </button>
+                              <button
+                                onClick={() => handleApproveRequest(unit)}
+                                disabled={unitSaving}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-medium bg-sage text-cream hover:bg-sage/90 transition-all disabled:opacity-50"
+                              >
+                                <UserCheck size={13} /> Approve
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* ── Tenant Onboarding Card ─────────────────────────────── */}
+                {units.length > 0 && (
+                  <div className="mb-5 rounded-2xl border border-sage/25 bg-sage/5 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-sage/15 flex items-center justify-center flex-shrink-0">
+                      <Link2 size={18} className="text-sage" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-body text-sm font-semibold text-ink mb-0.5">Tenant Onboarding</p>
+                      <p className="font-body text-xs text-stone-500 mb-2">
+                        Share this building portal with your tenants to let them claim their units.
+                      </p>
+                      <div className="flex items-center gap-2 bg-white border border-stone-200 rounded-xl px-3 py-2 max-w-sm">
+                        <span className="font-mono text-xs text-stone-600 truncate flex-1 select-all">
+                          {window.location.origin}/join/{user.uid}/{id}
+                        </span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}/join/${user.uid}/${id}`);
+                            setPortalLinkCopied(true);
+                            setTimeout(() => setPortalLinkCopied(false), 2000);
+                          }}
+                          className={`flex-shrink-0 flex items-center gap-1 text-xs font-body font-medium transition-colors ${portalLinkCopied ? 'text-sage' : 'text-stone-400 hover:text-ink'
+                            }`}
+                        >
+                          {portalLinkCopied ? <><Check size={13} /> Copied!</> : <><Copy size={13} /> Copy</>}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {units.length === 0 ? (
                   <EmptyState
