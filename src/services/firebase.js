@@ -415,6 +415,22 @@ export const markNotificationRead = (uid, notifId) =>
 export const deleteNotification = (uid, notifId) =>
   deleteDoc(doc(db, 'users', uid, 'notifications', notifId));
 
+export const clearUnitRequestNotifications = async (landlordId, propertyId, unitId, tenantId) => {
+  if (!landlordId || !propertyId || !unitId || !tenantId) return;
+  const q = query(
+    collection(db, 'users', landlordId, 'notifications'),
+    where('type', '==', 'unit_request'),
+    where('propertyId', '==', propertyId),
+    where('unitId', '==', unitId),
+    where('tenantId', '==', tenantId)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return;
+  const batchOp = writeBatch(db);
+  snap.forEach(d => batchOp.delete(d.ref));
+  await batchOp.commit();
+};
+
 export const subscribeUnreadNotificationsCount = (uid, cb) =>
   onSnapshot(
     query(collection(db, 'users', uid, 'notifications'), where('read', '==', false)),

@@ -6,7 +6,7 @@ import { ArrowLeft, Bed, Bath, MapPin, User, Mail, Phone, Plus, Wrench, CreditCa
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { subscribeProperties, subscribePayments, subscribeMaintenance, addMaintenance, updateMaintenance, subscribeUnits, addUnit, updateUnit, deleteUnit } from '../services/firebase';
+import { subscribeProperties, subscribePayments, subscribeMaintenance, addMaintenance, updateMaintenance, subscribeUnits, addUnit, updateUnit, deleteUnit, clearUnitRequestNotifications } from '../services/firebase';
 import { createTenancy, terminateActiveLeasesForUnit, getActiveTenancy } from '../services/tenancy';
 import { cancelPendingInvoices } from '../services/invoices';
 import { generateInvoicePdf } from '../utils/invoicePdf';
@@ -201,6 +201,7 @@ export default function PropertyDetailPage() {
         welcomeMessageSent: true,
         welcomeMessageDate: new Date(),
       });
+      await clearUnitRequestNotifications(user.uid, id, unit.id, unit.pendingTenantId);
       toast.success(`${unit.pendingTenantName || 'Tenant'} approved for ${unit.name}!`);
     } catch (err) { console.error(err); toast.error('Failed to approve request.'); }
     finally { setUnitSaving(false); }
@@ -216,6 +217,7 @@ export default function PropertyDetailPage() {
         pendingTenantEmail: null,
         pendingRequestedAt: null,
       });
+      await clearUnitRequestNotifications(user.uid, id, unit.id, unit.pendingTenantId);
       toast.success(`Request from ${unit.pendingTenantName || 'tenant'} declined.`);
     } catch (err) { console.error(err); toast.error('Failed to decline request.'); }
     finally { setUnitSaving(false); }

@@ -165,8 +165,8 @@ export default function NotificationsPage() {
                                 className={`p-5 flex items-start gap-4 transition-colors hover:bg-stone-50/50 ${!item.read && item.feedType === 'notification' ? 'bg-sage/5' : ''}`}
                             >
                                 <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center ${item.feedType === 'notification'
-                                        ? item.type === 'unit_request' ? 'bg-amber/10 text-amber' : 'bg-sage/10 text-sage'
-                                        : item.overdue ? 'bg-rust/10 text-rust' : 'bg-amber/10 text-amber'
+                                    ? item.type === 'unit_request' ? 'bg-amber/10 text-amber' : 'bg-sage/10 text-sage'
+                                    : item.overdue ? 'bg-rust/10 text-rust' : 'bg-amber/10 text-amber'
                                     }`}>
                                     {item.feedType === 'notification'
                                         ? item.type === 'unit_request' ? <User size={18} /> : <Bell size={18} />
@@ -234,6 +234,12 @@ export default function NotificationsPage() {
                                             <Link
                                                 to={`/properties/${item.propertyId}?tab=units`}
                                                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sage text-cream font-body text-xs font-semibold hover:bg-sage/90 transition-all shadow-sm"
+                                                onClick={() => {
+                                                    if (!item.read) {
+                                                        setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
+                                                        markNotificationRead(user.uid, item.id);
+                                                    }
+                                                }}
                                             >
                                                 Review Request <ChevronRight size={14} />
                                             </Link>

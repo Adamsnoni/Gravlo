@@ -12,7 +12,7 @@ import {
 import { format, differenceInDays, isPast, subMonths } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { subscribeProperties, subscribeReminders, subscribePendingUnits, subscribeNotifications, markNotificationRead, updateUnit, serverTimestamp } from '../services/firebase';
+import { subscribeProperties, subscribeReminders, subscribePendingUnits, subscribeNotifications, markNotificationRead, clearUnitRequestNotifications, updateUnit, serverTimestamp } from '../services/firebase';
 import { createTenancy } from '../services/tenancy';
 import StatusBadge from '../components/StatusBadge';
 import PropertyCard from '../components/PropertyCard';
@@ -110,6 +110,10 @@ export default function DashboardPage() {
         welcomeMessageSent: true,
         welcomeMessageDate: new Date(),
       });
+      // Clear associated notifications
+      setNotifications(prev => prev.filter(n => !(n.type === 'unit_request' && n.unitId === unit.id && n.tenantId === unit.pendingTenantId)));
+      await clearUnitRequestNotifications(user.uid, unit.propertyId, unit.id, unit.pendingTenantId);
+
       toast.success(`${unit.pendingTenantName || 'Tenant'} approved!`);
     } catch (err) { console.error(err); toast.error('Failed to approve request.'); }
     finally { setApprovingSaving(false); }
@@ -349,7 +353,16 @@ export default function DashboardPage() {
                                   }
                                 </span>
                                 {item.feedType === 'notification' && (
-                                  <Link to={`/properties/${item.propertyId}?tab=units`} className="text-[11px] font-semibold text-sage hover:underline">
+                                  <Link
+                                    to={`/properties/${item.propertyId}?tab=units`}
+                                    className="text-[11px] font-semibold text-sage hover:underline"
+                                    onClick={() => {
+                                      if (!item.read) {
+                                        setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
+                                        markNotificationRead(user.uid, item.id);
+                                      }
+                                    }}
+                                  >
                                     View Request
                                   </Link>
                                 )}
