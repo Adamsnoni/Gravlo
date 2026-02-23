@@ -43,6 +43,7 @@ export default function PropertySuccessPage() {
     const [prefix, setPrefix] = useState('1');
     const [generating, setGenerating] = useState(false);
     const [unitsCreated, setUnitsCreated] = useState(0); // 0 = not yet, >0 = count created
+    const [billingCycle, setBillingCycle] = useState('monthly');
 
     // Safety: if someone lands here directly without state, redirect
     if (!propertyId || !propertyName) {
@@ -91,7 +92,11 @@ export default function PropertySuccessPage() {
         if (previewNames.length === 0) return;
         setGenerating(true);
         try {
-            await addUnitsBatch(user.uid, propertyId, previewNames);
+            await addUnitsBatch(user.uid, propertyId, previewNames, {
+                rentAmount: monthlyRent || 0,
+                billingCycle,
+                payment_frequency: billingCycle // Saving both to accommodate standard naming and specific request
+            });
             setUnitsCreated(previewNames.length);
             toast.success(`${previewNames.length} units created!`);
         } catch (err) {
@@ -326,6 +331,38 @@ export default function PropertySuccessPage() {
                                     </div>
                                     <p className="font-body text-xs text-stone-400 mt-1.5">
                                         Numeric prefix counts up from that number. Text prefix appends 1, 2, 3…
+                                    </p>
+                                </div>
+
+                                {/* Payment Frequency */}
+                                <div>
+                                    <label className="block font-body text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2">
+                                        Payment Frequency
+                                    </label>
+                                    <div className="flex bg-stone-100 p-1 rounded-xl">
+                                        <button
+                                            type="button"
+                                            onClick={() => setBillingCycle('monthly')}
+                                            className={`flex-1 py-2 text-sm font-body font-medium rounded-lg transition-all ${billingCycle === 'monthly'
+                                                    ? 'bg-white text-ink shadow-sm'
+                                                    : 'text-stone-500 hover:text-ink hover:bg-white/50'
+                                                }`}
+                                        >
+                                            Monthly
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setBillingCycle('yearly')}
+                                            className={`flex-1 py-2 text-sm font-body font-medium rounded-lg transition-all ${billingCycle === 'yearly'
+                                                    ? 'bg-white text-ink shadow-sm'
+                                                    : 'text-stone-500 hover:text-ink hover:bg-white/50'
+                                                }`}
+                                        >
+                                            Yearly
+                                        </button>
+                                    </div>
+                                    <p className="font-body text-xs text-stone-400 mt-2">
+                                        This applies to all units generated below.
                                     </p>
                                 </div>
 
