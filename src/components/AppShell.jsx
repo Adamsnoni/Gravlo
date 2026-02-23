@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutGrid, Building2, Bell, CreditCard, Settings, LogOut, Menu, X, KeyRound, ChevronRight, Crown, User, AlertTriangle } from 'lucide-react';
+import { LayoutGrid, Building2, Bell, CreditCard, Settings, LogOut, Menu, X, KeyRound, ChevronRight, Crown, User, AlertTriangle, Archive } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { db, subscribeUnreadNotificationsCount, subscribePendingUnitsCount } from '../services/firebase';
@@ -14,6 +14,7 @@ const LANDLORD_NAV = [
   { to: '/dashboard', icon: LayoutGrid, label: 'Dashboard' },
   { to: '/notifications', icon: Bell, label: 'Activity' },
   { to: '/properties', icon: Building2, label: 'Properties' },
+  { to: '/archive', icon: Archive, label: 'Archive' },
   { to: '/reminders', icon: AlertTriangle, label: 'Reminders' },
   { to: '/payments', icon: CreditCard, label: 'Payments' },
   { to: '/profile', icon: User, label: 'Profile' },

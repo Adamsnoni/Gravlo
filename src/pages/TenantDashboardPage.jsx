@@ -56,10 +56,12 @@ export default function TenantDashboardPage() {
   const firstName = (profile?.fullName || user?.displayName || 'there').split(' ')[0];
 
   const allHomes = units; // Now simplified to just units from tenancies
-  const nextDue = allHomes.reduce((s, h) => s + (h.rentAmount || 0), 0);
+  const activeHomes = allHomes.filter(h => h.status === 'active');
+  const pastHomes = allHomes.filter(h => h.status === 'former');
+  const nextDue = activeHomes.reduce((s, h) => s + (h.rentAmount || 0), 0);
 
   // Logic for "Approved Tenant Experience"
-  const newApprovals = allHomes.filter(h => {
+  const newApprovals = activeHomes.filter(h => {
     if (!h.welcomeMessageSent) return false;
     const welcomeDate = h.welcomeMessageDate?.toDate?.() || new Date(h.welcomeMessageDate);
     // Show celebration if approved in the last 48 hours
@@ -110,7 +112,7 @@ export default function TenantDashboardPage() {
           </div>
           <div>
             <div className="font-display text-ink text-2xl font-semibold">
-              {allHomes.length}
+              {activeHomes.length}
             </div>
             <div className="font-body text-stone-400 text-xs mt-0.5">Active homes</div>
           </div>
@@ -256,9 +258,24 @@ export default function TenantDashboardPage() {
         </motion.div>
       )}
 
+      {activeHomes.length === 0 && pastHomes.length > 0 && (
+        <motion.div {...fadeUp(0.18)} className="p-4 rounded-xl bg-stone-100 border border-stone-200">
+          <div className="flex items-start gap-3">
+            <Home size={20} className="text-stone-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-body font-semibold text-ink text-sm">Read-Only Mode</p>
+              <p className="font-body text-sm text-stone-500 mt-1">
+                You do not have any active leases. You can still access your past homes and download payment receipts for your records.
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Active Homes */}
       <motion.div {...fadeUp(0.2)} className="card p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display text-ink text-lg font-semibold">Your homes</h2>
+          <h2 className="font-display text-ink text-lg font-semibold">Active homes</h2>
           <div className="flex items-center gap-2">
             <Link to="/tenant/reminders" className="btn-ghost text-xs">
               Reminders
@@ -269,45 +286,65 @@ export default function TenantDashboardPage() {
           </div>
         </div>
 
-        {allHomes.length === 0 ? (
-          <div className="flex flex-col items-center text-center py-10">
-            <Home size={32} className="text-stone-300 mb-3" />
-            <p className="font-body text-sm text-stone-500">
-              No homes are linked to your account yet.
-            </p>
-            <p className="font-body text-xs text-stone-300 mt-1">
-              Ask your landlord for a secure invite link to claim your unit.
-            </p>
+        {activeHomes.length === 0 ? (
+          <div className="flex flex-col items-center text-center py-8">
+            <Home size={28} className="text-stone-300 mb-3" />
+            <p className="font-body text-sm text-stone-500">No active homes.</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {allHomes.map(h => (
-              <div
-                key={h.id}
-                className="flex items-center justify-between gap-3 p-4 rounded-xl border border-stone-100 bg-stone-50 hover:bg-stone-100 transition-colors"
-              >
+            {activeHomes.map(h => (
+              <div key={h.id} className="flex items-center justify-between gap-3 p-4 rounded-xl border border-sage/20 bg-sage/5 transition-colors">
                 <div>
                   <p className="font-body font-semibold text-sm text-ink">{h.unitName || h.propertyName || h.name}</p>
-                  {(h.unitNumber || h.type === 'unit') && (
-                    <p className="font-body text-xs text-sage font-medium flex items-center gap-1 mt-0.5">
-                      <Hash size={10} /> {h.unitNumber || h.name || 'Unit'}
-                    </p>
-                  )}
+                  <p className="font-body text-xs text-sage font-medium flex items-center gap-1 mt-0.5">
+                    <Hash size={10} /> {h.unitNumber || h.name || 'Unit'}
+                  </p>
                   <p className="font-body text-xs text-stone-400 mt-0.5">{h.address || 'Managed Property'}</p>
                 </div>
                 <div className="text-right">
                   <p className="font-display text-sm font-semibold text-ink">
                     {fmtRent(h.monthlyRent || h.rentAmount || 0, h.rentType || h.billingCycle || 'monthly')}
                   </p>
-                  <p className="font-body text-[11px] text-stone-400 mt-0.5">
-                    {h.status === 'occupied' ? 'Active lease' : h.status}
-                  </p>
+                  <p className="font-body text-[11px] text-sage font-medium mt-0.5">Active lease</p>
                 </div>
               </div>
             ))}
           </div>
         )}
       </motion.div>
+
+      {/* Past Homes */}
+      {pastHomes.length > 0 && (
+        <motion.div {...fadeUp(0.25)} className="card p-6 bg-stone-50/50">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display text-stone-500 text-lg font-semibold">Past homes</h2>
+          </div>
+          <div className="space-y-3">
+            {pastHomes.map(h => (
+              <div key={h.id} className="flex items-center justify-between gap-3 p-4 rounded-xl border border-stone-200 bg-white opacity-70 grayscale hover:grayscale-0 transition-all">
+                <div>
+                  <p className="font-body font-semibold text-sm text-stone-600">{h.unitName || h.propertyName || h.name}</p>
+                  <p className="font-body text-xs text-stone-500 flex items-center gap-1 mt-0.5">
+                    <Hash size={10} /> {h.unitNumber || h.name || 'Unit'}
+                  </p>
+                  <p className="font-body text-xs text-stone-400 mt-0.5">{h.address || 'Managed Property'}</p>
+                </div>
+                <div className="text-right flex flex-col items-end">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-stone-200 text-stone-500 uppercase tracking-widest">
+                    Archived
+                  </span>
+                  {h.closedAt && (
+                    <p className="font-body text-[11px] text-stone-400 mt-1.5">
+                      Moved out: {format(h.closedAt?.toDate?.() || new Date(h.closedAt), 'MMM yyyy')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

@@ -127,13 +127,12 @@ export function subscribeTenancies(landlordId, cb) {
     );
 }
 
-/** Subscribe to all active tenancies for a specific tenant. */
+/** Subscribe to all tenancies for a specific tenant (active + former). */
 export function subscribeTenantTenancies(tenantId, cb) {
     return onSnapshot(
         query(collection(db, 'tenancies'), where('tenantId', '==', tenantId)),
         (snap) => {
-            const activeDocs = snap.docs.filter(d => d.data().status === 'active');
-            cb(activeDocs.map(d => ({ id: d.id, ...d.data() })));
+            cb(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         },
         (error) => console.error("Error in subscribeTenantTenancies:", error)
     );
