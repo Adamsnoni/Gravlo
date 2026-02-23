@@ -309,7 +309,21 @@ export default function PropertySuccessPage() {
                                             max="100"
                                             className="input-base pl-10"
                                             value={unitCount}
-                                            onChange={e => setUnitCount(Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                // Allow empty string or parse to number, max 100
+                                                if (val === '') {
+                                                    setUnitCount('');
+                                                } else {
+                                                    setUnitCount(Math.min(100, Number(val)));
+                                                }
+                                            }}
+                                            onBlur={() => {
+                                                // On blur, if empty or invalid, fallback to 1
+                                                if (unitCount === '' || Number(unitCount) < 1) {
+                                                    setUnitCount(1);
+                                                }
+                                            }}
                                         />
                                     </div>
                                 </div>
@@ -344,8 +358,8 @@ export default function PropertySuccessPage() {
                                             type="button"
                                             onClick={() => setBillingCycle('monthly')}
                                             className={`flex-1 py-2 text-sm font-body font-medium rounded-lg transition-all ${billingCycle === 'monthly'
-                                                    ? 'bg-white text-ink shadow-sm'
-                                                    : 'text-stone-500 hover:text-ink hover:bg-white/50'
+                                                ? 'bg-white text-ink shadow-sm'
+                                                : 'text-stone-500 hover:text-ink hover:bg-white/50'
                                                 }`}
                                         >
                                             Monthly
@@ -354,8 +368,8 @@ export default function PropertySuccessPage() {
                                             type="button"
                                             onClick={() => setBillingCycle('yearly')}
                                             className={`flex-1 py-2 text-sm font-body font-medium rounded-lg transition-all ${billingCycle === 'yearly'
-                                                    ? 'bg-white text-ink shadow-sm'
-                                                    : 'text-stone-500 hover:text-ink hover:bg-white/50'
+                                                ? 'bg-white text-ink shadow-sm'
+                                                : 'text-stone-500 hover:text-ink hover:bg-white/50'
                                                 }`}
                                         >
                                             Yearly
