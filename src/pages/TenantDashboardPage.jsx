@@ -60,7 +60,19 @@ export default function TenantDashboardPage() {
   const pastHomes = allHomes.filter(h => h.status === 'former');
   const nextDue = activeHomes.reduce((s, h) => s + (h.rentAmount || 0), 0);
 
-  const [dismissedWelcome, setDismissedWelcome] = useState(false);
+  const [dismissedWelcome, setDismissedWelcome] = useState(() => {
+    // Initialize from localStorage if it exists
+    if (!user?.uid) return false;
+    return localStorage.getItem(`leaseease_welcome_dismissed_${user.uid}`) === 'true';
+  });
+
+  const handleDismissWelcome = () => {
+    setDismissedWelcome(true);
+    if (user?.uid) {
+      localStorage.setItem(`leaseease_welcome_dismissed_${user.uid}`, 'true');
+    }
+  };
+
   const canvasRef = useRef(null);
 
   // Logic for "Approved Tenant Experience"
@@ -288,7 +300,7 @@ export default function TenantDashboardPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm pointer-events-auto"
-              onClick={() => setDismissedWelcome(true)}
+              onClick={handleDismissWelcome}
             />
 
             {/* Confetti Canvas */}
@@ -311,7 +323,7 @@ export default function TenantDashboardPage() {
 
               {/* Close Button */}
               <button
-                onClick={() => setDismissedWelcome(true)}
+                onClick={handleDismissWelcome}
                 className="absolute top-4 right-4 text-stone-400 hover:text-stone-700 hover:bg-stone-100 p-2 rounded-full transition-colors z-20"
                 aria-label="Close welcome banner"
               >
@@ -379,14 +391,14 @@ export default function TenantDashboardPage() {
                           <Link
                             to="/tenant/payments"
                             className="btn-primary flex-1 py-3 text-sm justify-center shadow-lg shadow-sage/10 min-w-0 whitespace-nowrap"
-                            onClick={() => setDismissedWelcome(true)}
+                            onClick={handleDismissWelcome}
                           >
                             <CreditCard size={16} /> Pay Your Rent
                           </Link>
                           <a
                             href={`mailto:${prop.landlordEmail || ''}?subject=Question regarding ${prop.name}`}
                             className="btn-secondary flex-1 py-3 text-sm justify-center min-w-0 whitespace-nowrap"
-                            onClick={() => setDismissedWelcome(true)}
+                            onClick={handleDismissWelcome}
                           >
                             <Mail size={16} /> Contact Management
                           </a>
