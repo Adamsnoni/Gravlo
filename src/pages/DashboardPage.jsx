@@ -360,7 +360,7 @@ export default function DashboardPage() {
                 )}
               </div>
               <div className="p-4 bg-stone-50 border-t border-stone-100">
-                <Link to="/reminders" className="w-full btn-ghost text-xs justify-center py-2">
+                <Link to="/notifications" className="w-full btn-ghost text-xs justify-center py-2">
                   View full history <ArrowRight size={13} className="ml-1" />
                 </Link>
               </div>

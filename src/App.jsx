@@ -25,6 +25,7 @@ import AppShell from './components/AppShell';
 import TenantReminderAlerts from './components/TenantReminderAlerts';
 import AcceptInvitePage from './pages/AcceptInvitePage';
 import JoinPage from './pages/JoinPage';
+import NotificationsPage from './pages/NotificationsPage';
 
 // Full-page spinner used while auth/profile resolves
 function LoadingSpinner() {
@@ -88,6 +89,7 @@ function AppRoutes() {
         <Route path="/properties/:id" element={<PropertyDetailPage />} />
         <Route path="/properties/:id/success" element={<PropertySuccessPage />} />
         <Route path="/reminders" element={<RemindersPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/payments" element={<PaymentsPage />} />
         <Route path="/tenant/payments" element={<TenantPaymentsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
