@@ -56,7 +56,7 @@ export default function UnitCard({ unit, fmtRent, onRemove, onEdit }) {
             {isOccupied && (
                 <div className="flex gap-2">
                     <button onClick={() => onRemove(unit)} className="flex-1 btn-ghost text-xs text-rust hover:bg-rust/8 hover:text-rust">
-                        <UserMinus size={14} /> Remove Tenant
+                        <UserMinus size={14} /> Move-out
                     </button>
                 </div>
             )}

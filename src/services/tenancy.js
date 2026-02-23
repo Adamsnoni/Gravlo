@@ -38,7 +38,7 @@ export async function createTenancy({
     ...rest
 }) {
     // Close any existing active tenancy for this unit first
-    await closeActiveTenanciesForUnit(landlordId, propertyId, unitId);
+    await terminateActiveLeasesForUnit(landlordId, propertyId, unitId);
 
     const tenancyData = {
         tenantId: tenantId || null,
@@ -68,11 +68,11 @@ export async function createTenancy({
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// CLOSE TENANCY — called when landlord removes a tenant (move-out)
+// CLOSE TENANCY — called when landlord terminates a lease (move-out)
 // ════════════════════════════════════════════════════════════════════════════
-export async function closeTenancy(tenancyId) {
+export async function terminateLease(tenancyId) {
     await updateDoc(doc(db, 'tenancies', tenancyId), {
-        status: 'closed',
+        status: 'former',
         endDate: serverTimestamp(),
         closedAt: serverTimestamp(),
         invoiceSchedulingEnabled: false,
@@ -84,7 +84,7 @@ export async function closeTenancy(tenancyId) {
  * Close all active tenancies for a specific unit.
  * Called before creating a new tenancy to avoid duplicates.
  */
-export async function closeActiveTenanciesForUnit(landlordId, propertyId, unitId) {
+export async function terminateActiveLeasesForUnit(landlordId, propertyId, unitId) {
     const snap = await getDocs(
         query(
             collection(db, 'tenancies'),
@@ -95,7 +95,7 @@ export async function closeActiveTenanciesForUnit(landlordId, propertyId, unitId
     );
     for (const d of snap.docs) {
         if (d.data().status === 'active') {
-            await closeTenancy(d.id);
+            await terminateLease(d.id);
         }
     }
 }

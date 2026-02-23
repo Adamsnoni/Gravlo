@@ -7,7 +7,7 @@ import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { subscribeProperties, subscribePayments, subscribeMaintenance, addMaintenance, updateMaintenance, subscribeUnits, addUnit, updateUnit, deleteUnit } from '../services/firebase';
-import { createTenancy, closeActiveTenanciesForUnit, getActiveTenancy } from '../services/tenancy';
+import { createTenancy, terminateActiveLeasesForUnit, getActiveTenancy } from '../services/tenancy';
 import { cancelPendingInvoices } from '../services/invoices';
 import { generateInvoicePdf } from '../utils/invoicePdf';
 import { formatUnitDisplay, getShortUnitId } from '../utils/unitDisplay';
@@ -20,7 +20,6 @@ import { createInviteToken } from '../services/inviteTokens';
 import toast from 'react-hot-toast';
 
 const TABS = [
-  { id: 'overview', label: 'Overview', icon: Info },
   { id: 'units', label: 'Units', icon: DoorOpen },
   { id: 'payments', label: 'Payments', icon: CreditCard },
   { id: 'maintenance', label: 'Maintenance', icon: Wrench },
@@ -36,7 +35,7 @@ export default function PropertyDetailPage() {
   const [maintenance, setMaintenance] = useState([]);
   const [units, setUnits] = useState([]);
   const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'overview');
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'units');
   const [loading, setLoading] = useState(true);
 
   // Maintenance modal
@@ -147,14 +146,14 @@ export default function PropertyDetailPage() {
     setShowRemoveConfirm(true);
   };
 
-  const handleRemoveTenant = async () => {
+  const handleMoveOutTenant = async () => {
     if (!removeUnit) return;
     setUnitSaving(true);
     try {
-      // 1) Close active tenancy (stops invoices, preserves history)
+      // 1) Terminate active lease (stops invoices, preserves history as FORMER)
       const activeTenancy = await getActiveTenancy(user.uid, id, removeUnit.id);
       if (activeTenancy) {
-        await closeActiveTenanciesForUnit(user.uid, id, removeUnit.id);
+        await terminateActiveLeasesForUnit(user.uid, id, removeUnit.id);
         // Cancel any pending/sent invoices for this tenancy
         await cancelPendingInvoices(user.uid, activeTenancy.id);
       }
@@ -165,10 +164,10 @@ export default function PropertyDetailPage() {
         rentStatus: null,
       });
 
-      toast.success(`Tenant removed from ${removeUnit.unitName}.`);
+      toast.success(`Lease terminated. ${removeUnit.unitName || 'Unit'} is now vacant.`);
       setShowRemoveConfirm(false);
       setRemoveUnit(null);
-    } catch (err) { console.error(err); toast.error('Failed to remove tenant.'); }
+    } catch (err) { console.error(err); toast.error('Failed to move out tenant.'); }
     finally { setUnitSaving(false); }
   };
 
@@ -293,48 +292,6 @@ export default function PropertyDetailPage() {
 
         {/* Tab Content */}
         <div className="p-6">
-          {/* ── Overview ──────────────────────────────────────────── */}
-          {activeTab === 'overview' && (
-            <div className="grid sm:grid-cols-2 gap-6">
-              <InfoCard title="Property Details">
-                <InfoRow label="Type" value={property.type || '—'} />
-                <InfoRow label="Status" value={<StatusBadge status={property.status} />} />
-                {property.buildingName && (
-                  <InfoRow label="Building" value={<span className="flex items-center gap-1"><Building2 size={13} />{property.buildingName}</span>} />
-                )}
-                {property.unitNumber && (
-                  <InfoRow label="Unit" value={<span className="flex items-center gap-1"><Hash size={13} />{getShortUnitId(property)}</span>} />
-                )}
-                <InfoRow label="Rent" value={fmtRent(property.monthlyRent, property.rentType)} />
-                <InfoRow label="Added" value={property.createdAt ? format(property.createdAt.toDate?.() ?? new Date(property.createdAt), 'MMM d, yyyy') : '—'} />
-                {property.description && <InfoRow label="Notes" value={property.description} />}
-              </InfoCard>
-              <InfoCard title="Tenant Information">
-                {property.tenantName ? (
-                  <>
-                    <InfoRow label="Name" value={<span className="flex items-center gap-1"><User size={13} />{property.tenantName}</span>} />
-                    <InfoRow label="Email" value={<span className="flex items-center gap-1"><Mail size={13} />{property.tenantEmail || '—'}</span>} />
-                    <InfoRow label="Phone" value={<span className="flex items-center gap-1"><Phone size={13} />{property.tenantPhone || '—'}</span>} />
-                  </>
-                ) : (
-                  <p className="font-body text-sm text-stone-400 italic">No tenant — property is {property.status}.</p>
-                )}
-              </InfoCard>
-
-              <div className="sm:col-span-2 flex gap-3">
-                <button onClick={() => setActiveTab('units')} className="btn-primary">
-                  <DoorOpen size={15} /> Manage Units ({units.length})
-                </button>
-                <button onClick={() => setActiveTab('payments')} className="btn-secondary">
-                  <CreditCard size={15} /> View Payments
-                </button>
-                <button onClick={() => setShowMaintModal(true)} className="btn-secondary">
-                  <Wrench size={15} /> Log Issue
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* ── Units ────────────────────────────────────────────── */}
           {activeTab === 'units' && (
             <div className="space-y-6">
@@ -575,20 +532,20 @@ export default function PropertyDetailPage() {
         currencySymbol={currencySymbol}
       />
 
-      {/* ── Remove Tenant Confirmation ─────────────────────────────────── */}
-      <Modal isOpen={showRemoveConfirm} onClose={() => setShowRemoveConfirm(false)} title="Remove Tenant" size="sm">
+      {/* ── Move-out Confirmation ─────────────────────────────────── */}
+      <Modal isOpen={showRemoveConfirm} onClose={() => setShowRemoveConfirm(false)} title="Terminate Lease" size="sm">
         <div className="space-y-4">
           <div className="flex items-center gap-3 p-3 bg-rust/8 rounded-xl border border-rust/20">
             <UserMinus size={18} className="text-rust flex-shrink-0" />
             <p className="font-body text-sm text-rust">
-              Remove <strong>{removeUnit?.tenantName || 'tenant'}</strong> from <strong>{removeUnit?.unitName}</strong>?
-              Payment history will be kept.
+              Move out <strong>{removeUnit?.tenantName || 'tenant'}</strong> from <strong>{removeUnit?.unitName || removeUnit?.name}</strong>?
+              Payment history will be kept, and their status will change to <strong>FORMER</strong>.
             </p>
           </div>
           <div className="flex gap-3 justify-end">
             <button onClick={() => setShowRemoveConfirm(false)} className="btn-secondary">Cancel</button>
-            <button onClick={handleRemoveTenant} disabled={unitSaving} className="btn-danger">
-              {unitSaving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Remove Tenant'}
+            <button onClick={handleMoveOutTenant} disabled={unitSaving} className="btn-danger">
+              {unitSaving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Confirm Move-out'}
             </button>
           </div>
         </div>

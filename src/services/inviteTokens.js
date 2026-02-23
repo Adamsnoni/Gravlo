@@ -10,7 +10,7 @@ import {
     query, where, getDocs, Timestamp,
 } from 'firebase/firestore';
 import { updateUnit } from './firebase';
-import { createTenancy, closeActiveTenanciesForUnit } from './tenancy';
+import { createTenancy, terminateActiveLeasesForUnit } from './tenancy';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -124,7 +124,7 @@ export async function acceptInviteToken(token, tenantUser) {
     const unitData = unitSnap.exists() ? unitSnap.data() : {};
 
     // Safety: close any lingering active tenancy for the unit
-    await closeActiveTenanciesForUnit(landlordUid, propertyId, unitId);
+    await terminateActiveLeasesForUnit(landlordUid, propertyId, unitId);
 
     // Update the unit document
     await updateUnit(landlordUid, propertyId, unitId, {
