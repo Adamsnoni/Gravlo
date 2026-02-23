@@ -368,7 +368,7 @@ export default function PropertyDetailPage() {
 
                 {/* ── Join Requests ────────────────────────────────────── */}
                 {(() => {
-                  const pending = units.filter(u => u.status === 'pending_approval');
+                  const pending = units.filter(u => u.status === 'pending_approval' && !!u.pendingTenantId);
                   if (pending.length === 0) return null;
                   return (
                     <div className="mb-5 space-y-3">

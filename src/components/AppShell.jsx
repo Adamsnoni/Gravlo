@@ -36,6 +36,11 @@ export default function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
+  const role = profile?.role || 'landlord';
+  const isTenant = role === 'tenant';
+  const NAV = isTenant ? TENANT_NAV : LANDLORD_NAV;
+  const userPlan = PLANS[profile?.subscription?.planId || 'free'] || PLANS.free;
+
   // Real-time listener for pending unit join requests (landlords only)
   useEffect(() => {
     if (isTenant || !user?.uid) return;
@@ -47,11 +52,6 @@ export default function AppShell() {
     const unsub = onSnapshot(q, snap => setPendingCount(snap.size), () => { });
     return unsub;
   }, [user?.uid, isTenant]);
-
-  const role = profile?.role || 'landlord';
-  const isTenant = role === 'tenant';
-  const NAV = isTenant ? TENANT_NAV : LANDLORD_NAV;
-  const userPlan = PLANS[profile?.subscription?.planId || 'free'] || PLANS.free;
 
   const handleLogout = async () => {
     await logout();
