@@ -258,6 +258,20 @@ export const subscribeUnits = (uid, propId, cb) =>
     (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
   );
 
+export const subscribeTenantProperties = (email, cb) =>
+  onSnapshot(
+    query(collectionGroup(db, 'units'), where('tenantEmail', '==', email)),
+    (snap) => cb(snap.docs.map(d => {
+      const segments = d.ref.path.split('/');
+      return {
+        id: d.id,
+        propertyId: segments.length > 3 ? segments[3] : '',
+        ...d.data()
+      };
+    })),
+    (err) => console.error(err)
+  );
+
 export const subscribePendingUnitsCount = (uid, cb) =>
   onSnapshot(
     query(
