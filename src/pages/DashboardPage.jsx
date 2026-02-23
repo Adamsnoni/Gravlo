@@ -107,6 +107,8 @@ export default function DashboardPage() {
         rentAmount: unit.rentAmount || 0,
         billingCycle: unit.billingCycle || 'monthly',
         currency: country?.currency || 'NGN',
+        welcomeMessageSent: true,
+        welcomeMessageDate: new Date(),
       });
       toast.success(`${unit.pendingTenantName || 'Tenant'} approved!`);
     } catch (err) { console.error(err); toast.error('Failed to approve request.'); }

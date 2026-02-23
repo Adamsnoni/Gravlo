@@ -109,10 +109,14 @@ export const subscribeTenantPayments = (tenantId, cb) =>
   onSnapshot(
     query(
       collectionGroup(db, 'payments'),
-      where('tenantId', '==', tenantId),
-      orderBy('paidDate', 'desc'),
+      where('tenantId', '==', tenantId)
     ),
-    (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    (snap) => {
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.paidDate?.toMillis?.() || 0) - (a.paidDate?.toMillis?.() || 0));
+      cb(docs);
+    },
+    (error) => console.error("Error subscribing to payments:", error)
   );
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -190,8 +194,13 @@ export const getInvoice = async (invoiceId) => {
  */
 export const subscribeInvoicesByTenant = (tenantId, cb) =>
   onSnapshot(
-    query(collection(db, 'invoices'), where('tenantId', '==', tenantId), orderBy('timestamp', 'desc')),
-    (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    query(collection(db, 'invoices'), where('tenantId', '==', tenantId)),
+    (snap) => {
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0));
+      cb(docs);
+    },
+    (error) => console.error("Error subscribing to invoices:", error)
   );
 
 // ════════════════════════════════════════════════════════════════════════════

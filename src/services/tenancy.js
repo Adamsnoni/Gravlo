@@ -35,6 +35,7 @@ export async function createTenancy({
     rentAmount,
     billingCycle = 'monthly',
     currency = 'NGN',
+    ...rest
 }) {
     // Close any existing active tenancy for this unit first
     await closeActiveTenanciesForUnit(landlordId, propertyId, unitId);
@@ -59,6 +60,7 @@ export async function createTenancy({
         nextInvoiceDate: calculateNextInvoiceDate(billingCycle),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        ...rest
     };
 
     const docRef = await addDoc(collection(db, 'tenancies'), tenancyData);
@@ -88,12 +90,13 @@ export async function closeActiveTenanciesForUnit(landlordId, propertyId, unitId
             collection(db, 'tenancies'),
             where('landlordId', '==', landlordId),
             where('propertyId', '==', propertyId),
-            where('unitId', '==', unitId),
-            where('status', '==', 'active'),
+            where('unitId', '==', unitId)
         )
     );
     for (const d of snap.docs) {
-        await closeTenancy(d.id);
+        if (d.data().status === 'active') {
+            await closeTenancy(d.id);
+        }
     }
 }
 
@@ -108,13 +111,12 @@ export async function getActiveTenancy(landlordId, propertyId, unitId) {
             collection(db, 'tenancies'),
             where('landlordId', '==', landlordId),
             where('propertyId', '==', propertyId),
-            where('unitId', '==', unitId),
-            where('status', '==', 'active'),
+            where('unitId', '==', unitId)
         )
     );
-    if (snap.empty) return null;
-    const d = snap.docs[0];
-    return { id: d.id, ...d.data() };
+    const activeDoc = snap.docs.find(d => d.data().status === 'active');
+    if (!activeDoc) return null;
+    return { id: activeDoc.id, ...activeDoc.data() };
 }
 
 /** Subscribe to all tenancies for a landlord. */
@@ -128,8 +130,12 @@ export function subscribeTenancies(landlordId, cb) {
 /** Subscribe to all active tenancies for a specific tenant. */
 export function subscribeTenantTenancies(tenantId, cb) {
     return onSnapshot(
-        query(collection(db, 'tenancies'), where('tenantId', '==', tenantId), where('status', '==', 'active')),
-        (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+        query(collection(db, 'tenancies'), where('tenantId', '==', tenantId)),
+        (snap) => {
+            const activeDocs = snap.docs.filter(d => d.data().status === 'active');
+            cb(activeDocs.map(d => ({ id: d.id, ...d.data() })));
+        },
+        (error) => console.error("Error in subscribeTenantTenancies:", error)
     );
 }
 
