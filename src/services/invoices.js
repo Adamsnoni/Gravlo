@@ -126,13 +126,13 @@ export async function cancelPendingInvoices(landlordId, tenancyId) {
         query(
             collection(db, 'invoices'),
             where('landlordId', '==', landlordId),
-            where('tenancyId', '==', tenancyId),
-            where('status', 'in', ['draft', 'sent']),
+            where('tenancyId', '==', tenancyId)
         )
     );
-    const cancels = snap.docs.map(d => cancelInvoice(d.id));
+    const toCancel = snap.docs.filter(d => ['draft', 'sent'].includes(d.data().status));
+    const cancels = toCancel.map(d => cancelInvoice(d.id));
     await Promise.all(cancels);
-    return snap.docs.length;
+    return toCancel.length;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -142,32 +142,48 @@ export async function cancelPendingInvoices(landlordId, tenancyId) {
 /** Subscribe to all invoices for a landlord (all properties). */
 export function subscribeLandlordInvoices(landlordId, cb) {
     return onSnapshot(
-        query(collection(db, 'invoices'), where('landlordId', '==', landlordId), orderBy('createdAt', 'desc')),
-        (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+        query(collection(db, 'invoices'), where('landlordId', '==', landlordId)),
+        (snap) => {
+            const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            docs.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+            cb(docs);
+        }
     );
 }
 
 /** Subscribe to all invoices for a specific tenant. */
 export function subscribeTenantInvoices(tenantId, cb) {
     return onSnapshot(
-        query(collection(db, 'invoices'), where('tenantId', '==', tenantId), orderBy('createdAt', 'desc')),
-        (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+        query(collection(db, 'invoices'), where('tenantId', '==', tenantId)),
+        (snap) => {
+            const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            docs.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+            cb(docs);
+        }
     );
 }
 
 /** Subscribe to invoices for a specific property. */
 export function subscribePropertyInvoices(propertyId, cb) {
     return onSnapshot(
-        query(collection(db, 'invoices'), where('propertyId', '==', propertyId), orderBy('createdAt', 'desc')),
-        (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+        query(collection(db, 'invoices'), where('propertyId', '==', propertyId)),
+        (snap) => {
+            const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            docs.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+            cb(docs);
+        }
     );
 }
 
 /** Subscribe to invoices for a specific unit. */
 export function subscribeUnitInvoices(unitId, cb) {
     return onSnapshot(
-        query(collection(db, 'invoices'), where('unitId', '==', unitId), orderBy('createdAt', 'desc')),
-        (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+        query(collection(db, 'invoices'), where('unitId', '==', unitId)),
+        (snap) => {
+            const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            docs.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+            cb(docs);
+        }
     );
 }
 
@@ -182,10 +198,16 @@ export async function getUnpaidInvoices(tenantId) {
     const snap = await getDocs(
         query(
             collection(db, 'invoices'),
-            where('tenantId', '==', tenantId),
-            where('status', 'in', ['sent', 'overdue']),
-            orderBy('dueDate', 'asc'),
+            where('tenantId', '==', tenantId)
         )
     );
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const unpaid = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(d => ['sent', 'overdue'].includes(d.status));
+
+    return unpaid.sort((a, b) => {
+        const ad = a.dueDate?.toMillis?.() || 0;
+        const bd = b.dueDate?.toMillis?.() || 0;
+        return ad - bd;
+    });
 }
