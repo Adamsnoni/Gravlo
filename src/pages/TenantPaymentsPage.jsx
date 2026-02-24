@@ -72,13 +72,11 @@ export default function TenantPaymentsPage() {
     }
 
     const paymentCurrency = tenancy.currency || currency || 'NGN';
-    const paystackCurrencies = ['NGN', 'GHS', 'ZAR', 'KES'];
-    const gateway = paystackCurrencies.includes(paymentCurrency.toUpperCase()) ? 'paystack' : 'stripe';
 
     setCreating(true);
     try {
       const res = await createCheckoutSession({
-        gateway,
+        gateway: 'paystack',
         landlordId: tenancy.landlordId,
         propertyId: tenancy.propertyId,
         propertyName: tenancy.propertyName,

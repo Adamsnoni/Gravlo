@@ -1,5 +1,5 @@
 // src/services/payments.js
-// Thin client to call your secure payment backend (Stripe, Paystack, etc.).
+// Thin client to call your secure payment backend (Paystack).
 // The backend should:
 //  - Create the actual payment/checkout session with the gateway
 //  - Verify webhooks
@@ -9,7 +9,7 @@
 const API_BASE = import.meta.env.VITE_PAYMENTS_API_BASE;
 
 export async function createCheckoutSession({
-  gateway = 'stripe',
+  gateway = 'paystack',
   landlordId,
   propertyId,
   propertyName,
