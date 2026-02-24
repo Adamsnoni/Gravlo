@@ -20,9 +20,9 @@ const storage = admin.storage();
 
 // ════════════════════════════════════════════════════════════════════════════
 // 1. RECURRING INVOICE SCHEDULER
-//    Runs daily at 6am UTC — creates invoices for tenancies due today.
+//    Runs daily at 12pm UTC — creates invoices for tenancies due today.
 // ════════════════════════════════════════════════════════════════════════════
-exports.generateRecurringInvoices = onSchedule('every day 06:00', async (event) => {
+exports.generateRecurringInvoices = onSchedule('every day 12:00', async (event) => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart.getTime() + 86400000);
@@ -642,8 +642,11 @@ exports.acceptUnitInvite = onCall({ enforceAppCheck: false }, async (request) =>
         .where('status', '==', 'active')
         .get();
 
+    // Atomic batch: token + unit + tenancy + stale cleanups
+    const batch = db.batch();
+
     for (const staleDoc of staleTenancies.docs) {
-        await staleDoc.ref.update({
+        batch.update(staleDoc.ref, {
             status: 'closed',
             endDate: admin.firestore.FieldValue.serverTimestamp(),
             closedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -653,8 +656,11 @@ exports.acceptUnitInvite = onCall({ enforceAppCheck: false }, async (request) =>
     }
 
     const unitData = unitSnap.exists ? unitSnap.data() : {};
-    const rentAmount = unitData.rentAmount || 0;
-    const billingCycle = unitData.billingCycle || 'monthly';
+
+    // Security: Use rentAmount and billingCycle directly from the token payload (`data`)
+    // rather than the live unit database to prevent bait-and-switch pricing
+    const rentAmount = data.rentAmount || unitData.rentAmount || 0;
+    const billingCycle = data.billingCycle || unitData.billingCycle || 'monthly';
 
     // Calculate nextInvoiceDate
     const now = new Date();
@@ -665,9 +671,6 @@ exports.acceptUnitInvite = onCall({ enforceAppCheck: false }, async (request) =>
         case 'daily': nextInvoiceDate = new Date(now.getTime() + 86400000); break;
         default: nextInvoiceDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     }
-
-    // Atomic batch: token + unit + tenancy
-    const batch = db.batch();
 
     batch.update(tokenRef, {
         status: 'accepted',
