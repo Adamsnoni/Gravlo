@@ -29,13 +29,23 @@ export default function SettingsPage() {
   const handleSaveLocale = async () => {
     setSavingLocale(true);
     try {
+      // 1. Always update local state immediately
       changeCountry(selectedCountry);
+
+      // 2. Attempt to save to Firestore (if user is logged in)
       if (user?.uid) {
-        await updateUserProfile(user.uid, { countryCode: selectedCountry });
+        try {
+          await updateUserProfile(user.uid, { countryCode: selectedCountry });
+        } catch (err) {
+          console.warn('Failed to sync country to cloud, but local state updated.', err);
+          // We don't throw here; the local app state is updated and functional.
+        }
       }
+
       toast.success('Country & currency updated!');
-    } catch {
-      toast.error('Failed to save settings.');
+    } catch (criticalErr) {
+      console.error(criticalErr);
+      toast.error('Failed to change settings locally.');
     } finally {
       setSavingLocale(false);
     }
