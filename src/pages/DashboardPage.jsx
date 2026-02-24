@@ -354,7 +354,7 @@ export default function DashboardPage() {
                                 </span>
                                 {item.feedType === 'notification' && (
                                   <Link
-                                    to={`/properties/${item.propertyId}?tab=units`}
+                                    to={item.type === 'unit_request' ? `/requests/${item.propertyId}/${item.unitId}` : `/properties/${item.propertyId}`}
                                     className="text-[11px] font-semibold text-sage hover:underline"
                                     onClick={() => {
                                       if (!item.read) {
@@ -363,7 +363,7 @@ export default function DashboardPage() {
                                       }
                                     }}
                                   >
-                                    View Request
+                                    {item.type === 'unit_request' ? 'View Request' : 'View Property'}
                                   </Link>
                                 )}
                               </div>

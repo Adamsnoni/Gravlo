@@ -70,8 +70,8 @@ export default function PropertyDetailPage() {
       setProperty(p || null);
       if (p) {
         setRentSetting(p.RentPrice?.toString() || '');
-        setLoading(false);
       }
+      setLoading(false);
     });
     const u2 = subscribePayments(user.uid, id, setPayments);
     const u3 = subscribeMaintenance(user.uid, id, setMaintenance);
