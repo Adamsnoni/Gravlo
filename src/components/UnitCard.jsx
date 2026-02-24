@@ -1,10 +1,25 @@
 // src/components/UnitCard.jsx
 import React from 'react';
 import { motion } from 'framer-motion';
-import { DoorOpen, UserMinus, Pencil, DollarSign, CalendarClock, User } from 'lucide-react';
+import { DoorOpen, UserMinus, Pencil, DollarSign, CalendarClock, User, Send } from 'lucide-react';
 
 export default function UnitCard({ unit, fmtRent, onRemove, onEdit, currencySymbol = '$' }) {
     const isOccupied = unit.status === 'occupied' && unit.tenantId;
+
+    const handleShareVancancy = () => {
+        // Build the direct portal link for this specific unit
+        const portalUrl = `${window.location.origin}/apply/${propertyId}/${unit.id}`;
+
+        const subject = encodeURIComponent(`Invitation to apply for ${unit.name} at ${propertyName}`);
+        const body = encodeURIComponent(
+            `Hi there,\n\nI'd like to invite you to apply for ${unit.name} at ${propertyName}. ` +
+            `You can view the details and submit your application securely using the link below:\n\n` +
+            `${portalUrl}\n\n` +
+            `Best regards,\nYour Property Manager`
+        );
+
+        window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    };
 
     return (
         <motion.div
@@ -53,13 +68,17 @@ export default function UnitCard({ unit, fmtRent, onRemove, onEdit, currencySymb
             </div>
 
             {/* Actions */}
-            {isOccupied && (
-                <div className="flex gap-2">
-                    <button onClick={() => onRemove(unit)} className="flex-1 btn-ghost text-xs text-rust hover:bg-rust/8 hover:text-rust">
+            <div className="flex gap-2">
+                {isOccupied ? (
+                    <button onClick={() => onRemove(unit)} className="flex-1 btn-ghost text-xs text-rust hover:bg-rust/8 hover:text-rust py-2">
                         <UserMinus size={14} /> Move-out
                     </button>
-                </div>
-            )}
+                ) : (
+                    <button onClick={handleShareVancancy} className="flex-1 btn-ghost text-xs text-sage hover:bg-sage/10 hover:text-sage py-2 border border-sage/20">
+                        <Send size={13} /> Email Invite
+                    </button>
+                )}
+            </div>
         </motion.div>
     );
 }

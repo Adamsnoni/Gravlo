@@ -27,11 +27,11 @@ const BILLING = [
     { value: 'yearly', label: 'Yearly' },
 ];
 
-const makeUnit = (idx, defaultRent, defaultBilling) => ({
+const makeUnit = (idx, prefix = 'Unit') => ({
     id: crypto.randomUUID(),
-    unitName: `Unit ${idx + 1}`,
-    rentAmount: defaultRent || '',
-    billingCycle: defaultBilling || 'monthly',
+    unitName: `${prefix} ${idx + 1}`,
+    rentAmount: '',
+    billingCycle: 'monthly',
     tenantName: '',
     tenantEmail: '',
     showTenant: false,
@@ -60,8 +60,9 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
         name: '', address: '', type: 'Apartment', status: 'vacant',
     });
 
-    // Step 2 — Unit count
+    // Step 2 — Unit count & prefix
     const [unitCount, setUnitCount] = useState('');
+    const [unitPrefix, setUnitPrefix] = useState('Unit');
     const countRef = useRef(null);
 
     // Step 3 — Unit forms (generated)
@@ -110,8 +111,11 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
     const handleConfirmCount = (e) => {
         e.preventDefault();
         const n = Math.max(1, Math.min(50, parseInt(unitCount) || 1));
+        const prefixStr = unitPrefix.trim() || 'Unit';
+
         setUnitCount(n);
-        setUnits(Array.from({ length: n }, (_, i) => makeUnit(i)));
+        setUnitPrefix(prefixStr);
+        setUnits(Array.from({ length: n }, (_, i) => makeUnit(i, prefixStr)));
         setStep(3);
     };
 
@@ -145,6 +149,7 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
         setStep(1);
         setPropForm({ name: '', address: '', type: 'Apartment', status: 'vacant' });
         setUnitCount('');
+        setUnitPrefix('Unit');
         setUnits([]);
         setCreatedPropertyId(null);
         onClose();
@@ -275,7 +280,18 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
                                 </button>
                             </div>
 
-                            <p className="font-body text-xs text-stone-400 mt-3 flex items-center justify-center gap-1">
+                            <div className="mt-6 max-w-[200px] mx-auto text-left">
+                                <Field label="Unit Prefix (e.g. Unit, Apt, Room)">
+                                    <input
+                                        className="input-base text-center"
+                                        placeholder="Unit"
+                                        value={unitPrefix}
+                                        onChange={e => setUnitPrefix(e.target.value)}
+                                    />
+                                </Field>
+                            </div>
+
+                            <p className="font-body text-xs text-stone-400 mt-6 flex items-center justify-center gap-1">
                                 <Info size={11} /> You can add or remove units anytime from the property page
                             </p>
                         </div>

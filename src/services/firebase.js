@@ -445,3 +445,26 @@ export const subscribeUnreadNotificationsCount = (uid, cb) =>
     query(collection(db, 'users', uid, 'notifications'), where('read', '==', false)),
     (snap) => cb(snap.size)
   );
+
+/**
+ * Bulk actions for notifications pane
+ */
+export const markAllNotificationsRead = async (uid) => {
+  const snap = await getDocs(
+    query(collection(db, 'users', uid, 'notifications'), where('read', '==', false))
+  );
+  if (snap.empty) return;
+  const batchOp = writeBatch(db);
+  snap.docs.forEach(d => batchOp.update(d.ref, { read: true }));
+  await batchOp.commit();
+};
+
+export const clearAllNotifications = async (uid) => {
+  const snap = await getDocs(collection(db, 'users', uid, 'notifications'));
+  if (snap.empty) return;
+  const batchOp = writeBatch(db);
+  // Note: Firestore limits batches to 500 ops. In reality we cap UI fetch at 50, 
+  // but if many exist, we take the top 500.
+  snap.docs.slice(0, 500).forEach(d => batchOp.delete(d.ref));
+  await batchOp.commit();
+};

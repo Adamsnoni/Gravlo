@@ -5,8 +5,9 @@ import { Bell, User, AlertTriangle, CheckCircle, Trash2, Search, Filter, Clock, 
 import { format, differenceInDays, isPast } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { subscribeNotifications, subscribeReminders, markNotificationRead, deleteNotification } from '../services/firebase';
+import { subscribeNotifications, subscribeReminders, markNotificationRead, deleteNotification, markAllNotificationsRead, clearAllNotifications } from '../services/firebase';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 const safeToDate = (d) => {
     if (!d) return null;
@@ -93,11 +94,38 @@ export default function NotificationsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={() => notifications.filter(n => !n.read).forEach(n => markNotificationRead(user.uid, n.id))}
-                        className="btn-ghost text-xs"
-                        disabled={counts.unread === 0}
+                        onClick={async () => {
+                            if (counts.unread === 0) return;
+                            try {
+                                setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                                await markAllNotificationsRead(user.uid);
+                                toast.success('All marked as read');
+                            } catch (e) {
+                                toast.error('Failed to update');
+                            }
+                        }}
+                        className="btn-ghost text-xs hidden sm:flex"
+                        disabled={counts.unread === 0 || notifications.length === 0}
                     >
                         Mark all as read
+                    </button>
+                    <button
+                        onClick={async () => {
+                            if (notifications.length === 0) return;
+                            if (window.confirm("Are you sure you want to clear all notification history? Reminders will not be deleted.")) {
+                                try {
+                                    setNotifications([]);
+                                    await clearAllNotifications(user.uid);
+                                    toast.success('Inbox cleared');
+                                } catch (e) {
+                                    toast.error('Failed to clear inbox');
+                                }
+                            }
+                        }}
+                        className="btn-ghost text-xs text-rust hover:bg-rust/10"
+                        disabled={notifications.length === 0}
+                    >
+                        Clear all
                     </button>
                 </div>
             </motion.div>
