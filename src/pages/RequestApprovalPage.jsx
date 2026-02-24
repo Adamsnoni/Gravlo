@@ -20,7 +20,14 @@ export default function RequestApprovalPage() {
     const [processing, setProcessing] = useState(false);
 
     useEffect(() => {
-        if (!user || !propertyId || !unitId) return;
+        // Wait for user to be populated since useAuth might take a split second
+        if (!user) return;
+
+        // If params are missing, stop loading and show error state
+        if (!propertyId || !unitId) {
+            setLoading(false);
+            return;
+        }
 
         const fetchData = async () => {
             try {
