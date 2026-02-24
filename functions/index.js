@@ -388,6 +388,18 @@ async function handleSuccessfulPayment({
     invoiceId, tenantId, landlordId, propertyId, unitId,
     amount, currency, gatewayReference, gateway,
 }) {
+    // 0) Idempotency Check — protect against duplicate webhooks
+    if (gatewayReference) {
+        const existingPayments = await db.collection('payments')
+            .where('gatewayReference', '==', gatewayReference)
+            .limit(1).get();
+
+        if (!existingPayments.empty) {
+            console.log(`Payment with reference ${gatewayReference} already processed. Skipping.`);
+            return existingPayments.docs[0].id;
+        }
+    }
+
     const paymentId = `PAY-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 
     // 1) Mark invoice as paid
@@ -396,6 +408,11 @@ async function handleSuccessfulPayment({
         const invoiceSnap = await invoiceRef.get();
         if (invoiceSnap.exists) {
             const inv = invoiceSnap.data();
+
+            if (inv.status === 'paid') {
+                console.log(`Invoice ${invoiceId} is already marked paid. Proceeding to just log payment if not exists.`);
+            }
+
             landlordId = landlordId || inv.landlordId;
             tenantId = tenantId || inv.tenantId;
             propertyId = propertyId || inv.propertyId;
