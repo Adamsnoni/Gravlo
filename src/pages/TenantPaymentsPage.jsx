@@ -108,7 +108,7 @@ export default function TenantPaymentsPage() {
         <div>
           <h1 className="font-display text-ink text-3xl font-semibold">Payments</h1>
           <p className="font-body text-stone-400 text-sm mt-0.5">
-            {payments.length} records · {fmt(totalPaid)} paid via LeaseEase
+            {payments.length} records · {fmt(totalPaid)} paid via Gravlo
           </p>
         </div>
       </motion.div>
@@ -169,7 +169,7 @@ export default function TenantPaymentsPage() {
           <CreditCard size={40} className="text-stone-300 mb-3" />
           <p className="font-body font-medium text-stone-500">No payments yet</p>
           <p className="font-body text-xs text-stone-300 mt-1">
-            When you pay through LeaseEase, your receipts will appear here.
+            When you pay through Gravlo, your receipts will appear here.
           </p>
         </div>
       ) : (

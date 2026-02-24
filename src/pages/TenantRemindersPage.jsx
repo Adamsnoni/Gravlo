@@ -257,8 +257,8 @@ export default function TenantRemindersPage() {
             type="button"
             onClick={() => setFilter(key)}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-body font-medium border transition-all ${filter === key
-                ? 'bg-ink text-cream border-ink'
-                : 'bg-white text-stone-500 border-stone-200 hover:border-stone-300'
+              ? 'bg-ink text-cream border-ink'
+              : 'bg-white text-stone-500 border-stone-200 hover:border-stone-300'
               }`}
           >
             {label}
@@ -503,7 +503,7 @@ export default function TenantRemindersPage() {
               </label>
             </div>
             <p className="font-body text-xs text-stone-400 mt-1">
-              In-app alerts show when you open LeaseEase. Email and SMS require your landlord to enable notifications.
+              In-app alerts show when you open Gravlo. Email and SMS require your landlord to enable notifications.
             </p>
           </div>
           <div className="flex items-center gap-3">

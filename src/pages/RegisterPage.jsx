@@ -76,7 +76,7 @@ export default function RegisterPage() {
         }
       }
 
-      toast.success('Account created! Welcome to LeaseEase.');
+      toast.success('Account created! Welcome to Gravlo.');
       // Landlords → onboarding wizard; tenants → My Homes
       navigate(accountType === 'tenant' ? '/tenant' : '/onboarding');
     } catch (err) {

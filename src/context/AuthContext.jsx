@@ -5,7 +5,7 @@ import { listenAuth, getProfile, logoutUser } from '../services/firebase';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user,    setUser]    = useState(null);
+  const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -18,7 +18,7 @@ export function AuthProvider({ children }) {
         // Restore saved country to localStorage so LocaleContext picks it up on next render
         if (prof?.countryCode) {
           try {
-            localStorage.setItem('leaseease_locale', JSON.stringify({ countryCode: prof.countryCode }));
+            localStorage.setItem('gravlo_locale', JSON.stringify({ countryCode: prof.countryCode }));
           } catch { /* ignore */ }
         }
       } else {

@@ -63,13 +63,13 @@ export default function TenantDashboardPage() {
   const [dismissedWelcome, setDismissedWelcome] = useState(() => {
     // Initialize from localStorage if it exists
     if (!user?.uid) return false;
-    return localStorage.getItem(`leaseease_welcome_dismissed_${user.uid}`) === 'true';
+    return localStorage.getItem(`gravlo_welcome_dismissed_${user.uid}`) === 'true';
   });
 
   const handleDismissWelcome = () => {
     setDismissedWelcome(true);
     if (user?.uid) {
-      localStorage.setItem(`leaseease_welcome_dismissed_${user.uid}`, 'true');
+      localStorage.setItem(`gravlo_welcome_dismissed_${user.uid}`, 'true');
     }
   };
 

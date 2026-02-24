@@ -21,7 +21,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { format, formatDistanceToNow } from 'date-fns';
 
-const INVITE_TOKEN_KEY = 'leaseease_pending_invite';
+const INVITE_TOKEN_KEY = 'gravlo_pending_invite';
 
 /** Store token so it survives the register/login redirect */
 export function savePendingInvite(token) {
@@ -443,7 +443,7 @@ function PageShell({ children }) {
                 <div className="w-9 h-9 rounded-xl bg-sage flex items-center justify-center shadow-sm">
                     <KeyRound size={17} className="text-cream" />
                 </div>
-                <span className="font-display font-semibold text-ink text-xl">LeaseEase</span>
+                <span className="font-display font-semibold text-ink text-xl">Gravlo</span>
             </div>
             {children}
         </div>

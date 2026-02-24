@@ -1,6 +1,6 @@
 // functions/index.js
 // ─────────────────────────────────────────────────────────────────────────────
-// LeaseEase Cloud Functions — Automation Engine
+// Gravlo Cloud Functions — Automation Engine
 //
 // 1. Recurring Invoice Scheduler (runs daily)
 // 2. Stripe + Paystack Webhook Handlers
@@ -466,7 +466,7 @@ function generateInvoicePdfBuffer({ invoiceNumber, paymentId, amount, currency, 
 
     let y = 20;
     doc.setFontSize(18);
-    doc.text('LeaseEase Rent Invoice', 20, y); y += 10;
+    doc.text('Gravlo Rent Invoice', 20, y); y += 10;
 
     doc.setFontSize(11);
     doc.text(`Invoice #: ${invoiceNumber || 'N/A'}`, 20, y); y += 6;

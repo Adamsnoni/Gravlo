@@ -1,6 +1,6 @@
 {
-    "name": "leaseease-functions",
-    "description": "LeaseEase Cloud Functions — automation engine",
+    "name": "gravlo-functions",
+    "description": "Gravlo Cloud Functions — automation engine",
     "main": "index.js",
     "engines": {
         "node": "22"

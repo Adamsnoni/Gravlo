@@ -7,13 +7,13 @@ import { formatCurrency, getCountry, COUNTRIES } from '../utils/countries';
 
 const LocaleContext = createContext(null);
 
-const STORAGE_KEY = 'leaseease_locale';
+const STORAGE_KEY = 'gravlo_locale';
 
 // Default locale — Nigeria (most common user base, easy to change)
 const DEFAULT = {
   countryCode: 'NG',
-  currency:    'NGN',
-  locale:      'en-NG',
+  currency: 'NGN',
+  locale: 'en-NG',
 };
 
 export function LocaleProvider({ children }) {
@@ -57,10 +57,10 @@ export function LocaleProvider({ children }) {
     <LocaleContext.Provider value={{
       countryCode,
       country,
-      currency:      country.currency,
-      currencyName:  country.currencyName,
-      currencySymbol:country.symbol,
-      locale:        country.locale,
+      currency: country.currency,
+      currencyName: country.currencyName,
+      currencySymbol: country.symbol,
+      locale: country.locale,
       fmt,
       fmtRent,
       changeCountry,

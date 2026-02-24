@@ -8,7 +8,7 @@ import { shouldNotifyToday } from '../utils/reminderLeadTimes';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
-const STORAGE_PREFIX = 'leaseease_reminder_alert_';
+const STORAGE_PREFIX = 'gravlo_reminder_alert_';
 
 function todayKey() {
   return format(new Date(), 'yyyy-MM-dd');

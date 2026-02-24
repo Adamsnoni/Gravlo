@@ -1,4 +1,4 @@
-# 🏠 LeaseEase Web — React + Firebase Property Management
+# 🏠 Gravlo Web — React + Firebase Property Management
 
 A full-featured, production-grade **web application** for real estate management. Built with **React 18 + Vite**, **Tailwind CSS**, **Firebase** (Auth + Firestore), **Framer Motion** animations, and **Recharts** analytics.
 
@@ -20,7 +20,7 @@ A full-featured, production-grade **web application** for real estate management
 ## 📁 Project Structure
 
 ```
-LeaseEaseWeb/
+GravloWeb/
 ├── index.html
 ├── vite.config.js
 ├── tailwind.config.js
@@ -211,4 +211,4 @@ firebase deploy
 
 ---
 
-MIT © 2024 LeaseEase
+MIT © 2024 Gravlo

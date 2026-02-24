@@ -127,7 +127,7 @@ export default function SettingsPage() {
               <KeyRound size={14} className="text-cream" />
             </div>
             <div>
-              <p className="font-body font-semibold text-ink text-sm">LeaseEase</p>
+              <p className="font-body font-semibold text-ink text-sm">Gravlo</p>
               <p className="font-body text-xs text-stone-300">Version 1.0.0 · Global</p>
             </div>
           </div>

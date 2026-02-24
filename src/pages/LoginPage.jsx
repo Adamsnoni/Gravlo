@@ -73,7 +73,7 @@ export default function LoginPage() {
           <div className="w-10 h-10 rounded-xl bg-sage flex items-center justify-center">
             <KeyRound size={18} className="text-cream" />
           </div>
-          <span className="font-display font-semibold text-cream text-xl">LeaseEase</span>
+          <span className="font-display font-semibold text-cream text-xl">Gravlo</span>
         </div>
 
         {/* Headline */}
@@ -101,7 +101,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="relative font-body text-xs text-stone-600">
-          © 2026 LeaseEase · Trusted by property managers
+          © 2026 Gravlo · Trusted by property managers
         </div>
       </div>
 
@@ -118,7 +118,7 @@ export default function LoginPage() {
             <div className="w-9 h-9 rounded-xl bg-sage flex items-center justify-center">
               <KeyRound size={16} className="text-cream" />
             </div>
-            <span className="font-display font-semibold text-ink text-xl">LeaseEase</span>
+            <span className="font-display font-semibold text-ink text-xl">Gravlo</span>
           </div>
 
           <h2 className="font-display text-ink text-3xl font-semibold mb-1">Welcome back</h2>

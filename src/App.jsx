@@ -33,7 +33,7 @@ function LoadingSpinner() {
     <div className="min-h-screen bg-cream flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
         <div className="w-8 h-8 border-2 border-sage border-t-transparent rounded-full animate-spin" />
-        <span className="font-body text-sm text-stone-400">Loading LeaseEase…</span>
+        <span className="font-body text-sm text-stone-400">Loading Gravlo…</span>
       </div>
     </div>
   );

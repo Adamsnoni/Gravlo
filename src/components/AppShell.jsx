@@ -83,7 +83,7 @@ export default function AppShell() {
             <KeyRound size={17} className="text-cream" />
           </div>
           <div>
-            <div className="font-display font-semibold text-ink text-lg leading-none">LeaseEase</div>
+            <div className="font-display font-semibold text-ink text-lg leading-none">Gravlo</div>
             <div className="text-xs text-stone-400 font-body mt-0.5 tracking-wide">Property Manager</div>
           </div>
         </div>
@@ -190,7 +190,7 @@ export default function AppShell() {
           <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600 transition-colors">
             <Menu size={20} />
           </button>
-          <div className="font-display font-semibold text-ink text-lg">LeaseEase</div>
+          <div className="font-display font-semibold text-ink text-lg">Gravlo</div>
           {country && (
             <span className="ml-auto text-sm flex items-center gap-1 font-body text-xs text-stone-400">
               {getFlag(country.code)} {country.currency}

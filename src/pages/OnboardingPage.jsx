@@ -117,7 +117,7 @@ export default function OnboardingPage() {
                         <KeyRound size={18} className="text-cream" />
                     </div>
                     <div>
-                        <p className="font-display text-ink text-lg font-semibold leading-tight">LeaseEase</p>
+                        <p className="font-display text-ink text-lg font-semibold leading-tight">Gravlo</p>
                         <p className="font-body text-xs text-stone-400">Set up your first property</p>
                     </div>
                 </motion.div>

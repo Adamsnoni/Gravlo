@@ -42,7 +42,7 @@ export function generateInvoicePdf(payment) {
   let y = 20;
 
   doc.setFontSize(18);
-  doc.text('LeaseEase Rent Invoice', 20, y);
+  doc.text('Gravlo Rent Invoice', 20, y);
   y += 8;
 
   doc.setFontSize(11);
@@ -131,7 +131,7 @@ export function generateInvoicePdf(payment) {
     285 - 10,
   );
 
-  const filename = `LeaseEase_Invoice_${invoiceNumber}.pdf`;
+  const filename = `Gravlo_Invoice_${invoiceNumber}.pdf`;
   doc.save(filename);
 }
 
