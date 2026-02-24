@@ -153,7 +153,7 @@ export default function TenantDashboardPage() {
               {fmt(nextDue)}
             </div>
             <div className="font-body text-stone-400 text-xs mt-0.5">
-              Typical monthly rent
+              Yearly rent
             </div>
           </div>
         </motion.div>
