@@ -17,13 +17,13 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { regenerateInviteCode } from '../services/inviteCodes';
-import { addUnitsBatch } from '../services/firebase';
+import { addUnitsBatch, updateProperty } from '../services/firebase';
 
 export default function PropertySuccessPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const { user } = useAuth();
-    const { fmt } = useLocale();
+    const { fmt, currencySymbol } = useLocale();
 
     // Data passed via navigate state from PropertiesPage
     const { propertyId, propertyName, inviteCode, monthlyRent = 0, rentType = 'monthly' } = location.state || {};
@@ -44,6 +44,7 @@ export default function PropertySuccessPage() {
     const [generating, setGenerating] = useState(false);
     const [unitsCreated, setUnitsCreated] = useState(0); // 0 = not yet, >0 = count created
     const [billingCycle, setBillingCycle] = useState('monthly');
+    const [rentPrice, setRentPrice] = useState('');
 
     // Safety: if someone lands here directly without state, redirect
     if (!propertyId || !propertyName) {
@@ -93,10 +94,14 @@ export default function PropertySuccessPage() {
         setGenerating(true);
         try {
             await addUnitsBatch(user.uid, propertyId, previewNames, {
-                rentAmount: monthlyRent || 0,
+                rentAmount: rentPrice ? Number(rentPrice) : (monthlyRent || 0),
+                RentPrice: rentPrice ? Number(rentPrice) : null,
                 billingCycle,
                 payment_frequency: billingCycle // Saving both to accommodate standard naming and specific request
             });
+            if (rentPrice) {
+                await updateProperty(user.uid, propertyId, { RentPrice: Number(rentPrice) });
+            }
             setUnitsCreated(previewNames.length);
             toast.success(`${previewNames.length} units created!`);
         } catch (err) {
@@ -326,6 +331,30 @@ export default function PropertySuccessPage() {
                                             }}
                                         />
                                     </div>
+                                </div>
+
+                                {/* Rent Price */}
+                                <div>
+                                    <label className="block font-body text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1.5">
+                                        Rent Price
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 font-body text-xs font-semibold pointer-events-none">
+                                            {currencySymbol}
+                                        </div>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            className="input-base pl-10"
+                                            placeholder="Enter default rent amount"
+                                            value={rentPrice}
+                                            onChange={e => setRentPrice(e.target.value)}
+                                        />
+                                    </div>
+                                    <p className="font-body text-xs text-stone-400 mt-1.5">
+                                        Optional. Set a default rent amount for all generated units.
+                                    </p>
                                 </div>
 
                                 {/* Starting number / prefix */}

@@ -116,7 +116,7 @@ export default function ProfilePage() {
                                 </span>
                             </div>
                             <p className="font-body text-xs text-stone-400">
-                                {userPlan.price === 0 ? 'Free forever' : `$${userPlan.price}/${userPlan.period}`}
+                                {userPlan.price === 0 ? 'Free forever' : `${currencySymbol}${userPlan.price}/${userPlan.period}`}
                                 {' · '}
                                 {userPlan.maxProperties === Infinity ? 'Unlimited' : `Up to ${userPlan.maxProperties}`} properties
                             </p>

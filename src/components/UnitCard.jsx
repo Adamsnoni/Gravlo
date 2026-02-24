@@ -3,7 +3,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { DoorOpen, UserMinus, Pencil, DollarSign, CalendarClock, User } from 'lucide-react';
 
-export default function UnitCard({ unit, fmtRent, onRemove, onEdit }) {
+export default function UnitCard({ unit, fmtRent, onRemove, onEdit, currencySymbol = '$' }) {
     const isOccupied = unit.status === 'occupied' && unit.tenantId;
 
     return (
@@ -35,7 +35,7 @@ export default function UnitCard({ unit, fmtRent, onRemove, onEdit }) {
                 <div className="flex items-center gap-2">
                     <DollarSign size={13} className="text-stone-400" />
                     <span className="font-body text-sm text-ink font-medium">
-                        {fmtRent ? fmtRent(unit.rentAmount, unit.billingCycle) : `$${unit.rentAmount || 0}`}
+                        {fmtRent ? fmtRent(unit.rentAmount, unit.billingCycle) : `${currencySymbol}${unit.rentAmount || 0}`}
                     </span>
                 </div>
                 <div className="flex items-center gap-2">

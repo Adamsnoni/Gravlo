@@ -8,7 +8,7 @@ import { DoorOpen, DollarSign, CalendarClock, UserPlus } from 'lucide-react';
 import Modal from './Modal';
 import toast from 'react-hot-toast';
 
-export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUnit = null, currencySymbol = '$' }) {
+export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUnit = null, currencySymbol = '$', defaultRent = '' }) {
     const [form, setForm] = useState({
         unitName: '',
         rentAmount: '',
@@ -28,9 +28,9 @@ export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUn
                 tenantEmail: editUnit.tenantEmail || '',
             });
         } else {
-            setForm({ unitName: '', rentAmount: '', billingCycle: 'monthly', tenantName: '', tenantEmail: '' });
+            setForm({ unitName: '', rentAmount: defaultRent ? defaultRent.toString() : '', billingCycle: 'monthly', tenantName: '', tenantEmail: '' });
         }
-    }, [editUnit, isOpen]);
+    }, [editUnit, isOpen, defaultRent]);
 
     const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -54,20 +54,22 @@ export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUn
         <Modal isOpen={isOpen} onClose={onClose} title={editUnit ? 'Edit Unit' : 'Add Apartment / Unit'}>
             <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Unit Name */}
-                <div>
-                    <label className="label-xs">Apartment Number / Name *</label>
-                    <div className="relative">
-                        <DoorOpen size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-                        <input
-                            className="input-base pl-10"
-                            placeholder="e.g. Unit 4B, Apt 12, Room 3"
-                            value={form.unitName}
-                            onChange={set('unitName')}
-                            autoFocus
-                            required
-                        />
+                {!editUnit && (
+                    <div>
+                        <label className="label-xs">Apartment Number / Name *</label>
+                        <div className="relative">
+                            <DoorOpen size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+                            <input
+                                className="input-base pl-10"
+                                placeholder="e.g. Unit 4B, Apt 12, Room 3"
+                                value={form.unitName}
+                                onChange={set('unitName')}
+                                autoFocus
+                                required
+                            />
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Rent */}
                 <div>
@@ -80,6 +82,7 @@ export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUn
                             placeholder="e.g. 250000"
                             value={form.rentAmount}
                             onChange={set('rentAmount')}
+                            autoFocus={!!editUnit}
                             required
                         />
                     </div>

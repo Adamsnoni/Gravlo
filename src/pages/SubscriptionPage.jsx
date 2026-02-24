@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Check, X, Crown, Zap, Building2, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLocale } from '../context/LocaleContext';
 import { PLANS, PLAN_ORDER, getUserPlan, updateUserPlan } from '../services/subscription';
 import toast from 'react-hot-toast';
 
@@ -20,6 +21,7 @@ const fadeUp = (delay = 0) => ({
 
 export default function SubscriptionPage() {
     const { user } = useAuth();
+    const { currencySymbol } = useLocale();
     const [currentPlan, setCurrentPlan] = useState(null);
     const [loading, setLoading] = useState(true);
     const [switching, setSwitching] = useState(null); // planId being switched to
@@ -83,10 +85,10 @@ export default function SubscriptionPage() {
                             key={planId}
                             {...fadeUp(0.1 + i * 0.08)}
                             className={`relative card flex flex-col overflow-hidden transition-all ${plan.popular
-                                    ? 'border-2 border-sage shadow-deep'
-                                    : isCurrent
-                                        ? 'border-2 border-sage/30'
-                                        : 'border border-stone-200 hover:border-stone-300'
+                                ? 'border-2 border-sage shadow-deep'
+                                : isCurrent
+                                    ? 'border-2 border-sage/30'
+                                    : 'border border-stone-200 hover:border-stone-300'
                                 }`}
                         >
                             {/* Popular badge */}
@@ -119,12 +121,12 @@ export default function SubscriptionPage() {
                                 <div className="mb-4">
                                     {plan.price === 0 ? (
                                         <div className="flex items-baseline gap-1">
-                                            <span className="font-display text-ink text-4xl font-bold">$0</span>
+                                            <span className="font-display text-ink text-4xl font-bold">{currencySymbol}0</span>
                                             <span className="font-body text-stone-400 text-sm">/ forever</span>
                                         </div>
                                     ) : (
                                         <div className="flex items-baseline gap-1">
-                                            <span className="font-display text-ink text-4xl font-bold">${plan.price}</span>
+                                            <span className="font-display text-ink text-4xl font-bold">{currencySymbol}{plan.price}</span>
                                             <span className="font-body text-stone-400 text-sm">/ {plan.period}</span>
                                         </div>
                                     )}
@@ -156,10 +158,10 @@ export default function SubscriptionPage() {
                                     onClick={() => handleSelectPlan(planId)}
                                     disabled={isCurrent || switching !== null}
                                     className={`w-full py-3 rounded-xl text-sm font-body font-semibold transition-all ${isCurrent
-                                            ? 'bg-sage/10 text-sage border border-sage/20 cursor-default'
-                                            : plan.popular
-                                                ? 'bg-sage text-cream hover:bg-sage/90 shadow-sm'
-                                                : 'bg-white text-ink border border-stone-200 hover:border-sage hover:text-sage'
+                                        ? 'bg-sage/10 text-sage border border-sage/20 cursor-default'
+                                        : plan.popular
+                                            ? 'bg-sage text-cream hover:bg-sage/90 shadow-sm'
+                                            : 'bg-white text-ink border border-stone-200 hover:border-sage hover:text-sage'
                                         } disabled:opacity-60`}
                                 >
                                     {switching === planId ? (

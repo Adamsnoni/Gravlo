@@ -2,11 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Bed, Bath, MapPin, User, Mail, Phone, Plus, Wrench, CreditCard, Info, ChevronDown, Hash, Building2, DoorOpen, UserMinus, Link2, Copy, Check, UserCheck, AlertCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Bed, Bath, MapPin, User, Mail, Phone, Plus, Wrench, CreditCard, Info, ChevronDown, Hash, Building2, DoorOpen, UserMinus, Link2, Copy, Check, UserCheck, AlertCircle, Loader2, Settings } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { subscribeProperties, subscribePayments, subscribeMaintenance, addMaintenance, updateMaintenance, subscribeUnits, addUnit, updateUnit, deleteUnit, clearUnitRequestNotifications } from '../services/firebase';
+import { subscribeProperties, subscribePayments, subscribeMaintenance, addMaintenance, updateMaintenance, subscribeUnits, addUnit, updateUnit, deleteUnit, clearUnitRequestNotifications, updateProperty } from '../services/firebase';
 import { createTenancy, terminateActiveLeasesForUnit, getActiveTenancy } from '../services/tenancy';
 import { cancelPendingInvoices } from '../services/invoices';
 import { generateInvoicePdf } from '../utils/invoicePdf';
@@ -23,6 +23,7 @@ const TABS = [
   { id: 'units', label: 'Units', icon: DoorOpen },
   { id: 'payments', label: 'Payments', icon: CreditCard },
   { id: 'maintenance', label: 'Maintenance', icon: Wrench },
+  { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
 export default function PropertyDetailPage() {
@@ -57,13 +58,20 @@ export default function PropertyDetailPage() {
   const [generatingInvite, setGeneratingInvite] = useState(false);
   const [portalLinkCopied, setPortalLinkCopied] = useState(false);
 
+  // Settings tab state
+  const [rentSetting, setRentSetting] = useState('');
+  const [settingsSaving, setSettingsSaving] = useState(false);
+
   // ── Subscriptions ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
     const u1 = subscribeProperties(user.uid, props => {
       const p = props.find(x => x.id === id);
       setProperty(p || null);
-      if (p) setLoading(false);
+      if (p) {
+        setRentSetting(p.RentPrice?.toString() || '');
+        setLoading(false);
+      }
     });
     const u2 = subscribePayments(user.uid, id, setPayments);
     const u3 = subscribeMaintenance(user.uid, id, setMaintenance);
@@ -133,6 +141,19 @@ export default function PropertyDetailPage() {
       toast.error('Failed to generate invite link.');
     } finally {
       setGeneratingInvite(false);
+    }
+  };
+
+  // ── Settings handlers ───────────────────────────────────────────────────
+  const handleUpdateRentPrice = async () => {
+    setSettingsSaving(true);
+    try {
+      await updateProperty(user.uid, id, { RentPrice: rentSetting ? Number(rentSetting) : null });
+      toast.success('Default rent updated!');
+    } catch {
+      toast.error('Failed to update default rent.');
+    } finally {
+      setSettingsSaving(false);
     }
   };
 
@@ -487,6 +508,44 @@ export default function PropertyDetailPage() {
               )}
             </div>
           )}
+
+          {/* ── Settings ─────────────────────────────────────────── */}
+          {activeTab === 'settings' && (
+            <div className="max-w-2xl">
+              <h3 className="font-display text-lg font-semibold text-ink mb-4">Property Settings</h3>
+
+              <div className="card p-6">
+                <h4 className="font-body text-sm font-semibold text-ink mb-1">Default Rent Price</h4>
+                <p className="font-body text-xs text-stone-400 mb-4">
+                  Set the default rent for new units created in this property. Existing units will not be affected.
+                </p>
+
+                <div className="flex gap-3">
+                  <div className="relative flex-1 max-w-xs">
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 font-body text-xs font-semibold pointer-events-none">
+                      {currencySymbol}
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="input-base pl-10"
+                      placeholder="e.g. 1500"
+                      value={rentSetting}
+                      onChange={e => setRentSetting(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    onClick={handleUpdateRentPrice}
+                    disabled={settingsSaving}
+                    className="btn-primary"
+                  >
+                    {settingsSaving ? <Loader2 size={16} className="animate-spin" /> : 'Save Default Rent'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -532,6 +591,7 @@ export default function PropertyDetailPage() {
         saving={unitSaving}
         editUnit={editingUnit}
         currencySymbol={currencySymbol}
+        defaultRent={property?.RentPrice || ''}
       />
 
       {/* ── Move-out Confirmation ─────────────────────────────────── */}
