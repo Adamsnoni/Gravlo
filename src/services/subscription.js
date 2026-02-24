@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { db } from './firebase';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { getSubscriptionPrices } from '../utils/pricing';
 
 // ════════════════════════════════════════════════════════════════════════════
 // PLAN DEFINITIONS
@@ -13,7 +14,7 @@ export const PLANS = {
     free: {
         id: 'free',
         name: 'Free',
-        price: 0,
+        basePrice: 0,
         period: null,
         maxProperties: 2,
         badge: 'FREE',
@@ -40,7 +41,7 @@ export const PLANS = {
     pro: {
         id: 'pro',
         name: 'Pro',
-        price: 7,
+        basePrice: 7,
         period: 'month',
         maxProperties: 20,
         badge: 'PRO',
@@ -68,7 +69,7 @@ export const PLANS = {
     business: {
         id: 'business',
         name: 'Business',
-        price: 20,
+        basePrice: 20,
         period: 'month',
         maxProperties: Infinity,
         badge: 'BIZ',
@@ -95,6 +96,19 @@ export const PLANS = {
 };
 
 export const PLAN_ORDER = ['free', 'pro', 'business'];
+
+/**
+ * Returns localized versions of the PLANS object with accurately calculated pricing.
+ */
+export const getLocalizedPlans = (countryCode, currency) => {
+    const prices = getSubscriptionPrices(countryCode, currency);
+
+    return {
+        free: { ...PLANS.free, price: prices.free },
+        pro: { ...PLANS.pro, price: prices.pro },
+        business: { ...PLANS.business, price: prices.business },
+    };
+};
 
 // ════════════════════════════════════════════════════════════════════════════
 // FIRESTORE HELPERS

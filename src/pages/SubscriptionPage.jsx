@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { Check, X, Crown, Zap, Building2, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { PLANS, PLAN_ORDER, getUserPlan, updateUserPlan } from '../services/subscription';
+import { PLANS, PLAN_ORDER, getUserPlan, updateUserPlan, getLocalizedPlans } from '../services/subscription';
 import toast from 'react-hot-toast';
 
 const PLAN_ICONS = { free: Building2, pro: Zap, business: Crown };
@@ -21,23 +21,29 @@ const fadeUp = (delay = 0) => ({
 
 export default function SubscriptionPage() {
     const { user } = useAuth();
-    const { currencySymbol } = useLocale();
+    const { currencySymbol, countryCode, currency, fmt } = useLocale();
     const [currentPlan, setCurrentPlan] = useState(null);
     const [loading, setLoading] = useState(true);
     const [switching, setSwitching] = useState(null); // planId being switched to
 
+    const localPlans = getLocalizedPlans(countryCode || 'NG', currency || 'NGN');
+
     useEffect(() => {
         if (!user) return;
-        getUserPlan(user.uid).then(p => { setCurrentPlan(p); setLoading(false); });
-    }, [user]);
+        getUserPlan(user.uid).then(p => {
+            // Map the current plan to the localized version
+            setCurrentPlan(localPlans[p.id] || localPlans.free);
+            setLoading(false);
+        });
+    }, [user, countryCode, currency]);
 
     const handleSelectPlan = async (planId) => {
         if (planId === currentPlan?.id) return;
         setSwitching(planId);
         try {
             await updateUserPlan(user.uid, planId);
-            setCurrentPlan(PLANS[planId]);
-            const plan = PLANS[planId];
+            setCurrentPlan(localPlans[planId]);
+            const plan = localPlans[planId];
             toast.success(`Switched to ${plan.name} plan!`);
         } catch {
             toast.error('Failed to update plan.');
@@ -73,7 +79,7 @@ export default function SubscriptionPage() {
             {/* Plan Cards */}
             <div className="grid md:grid-cols-3 gap-5">
                 {PLAN_ORDER.map((planId, i) => {
-                    const plan = PLANS[planId];
+                    const plan = localPlans[planId];
                     const isCurrent = currentPlan?.id === planId;
                     const Icon = PLAN_ICONS[planId];
                     const currentIdx = PLAN_ORDER.indexOf(currentPlan?.id);
@@ -126,7 +132,7 @@ export default function SubscriptionPage() {
                                         </div>
                                     ) : (
                                         <div className="flex items-baseline gap-1">
-                                            <span className="font-display text-ink text-4xl font-bold">{currencySymbol}{plan.price}</span>
+                                            <span className="font-display text-ink text-4xl font-bold">{fmt(plan.price)}</span>
                                             <span className="font-body text-stone-400 text-sm">/ {plan.period}</span>
                                         </div>
                                     )}
