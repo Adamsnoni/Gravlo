@@ -232,7 +232,7 @@ export default function NotificationsPage() {
                                     {item.feedType === 'notification' && item.type === 'unit_request' && (
                                         <div className="mt-4">
                                             <Link
-                                                to={`/properties/${item.propertyId}?tab=units`}
+                                                to={`/requests/${item.propertyId}/${item.unitId}`}
                                                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sage text-cream font-body text-xs font-semibold hover:bg-sage/90 transition-all shadow-sm"
                                                 onClick={() => {
                                                     if (!item.read) {
