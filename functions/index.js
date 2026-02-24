@@ -6,7 +6,8 @@
 // 2. Stripe + Paystack Webhook Handlers
 // 3. Reminder Automation (runs daily)
 // 4. Overdue Invoice Checker (runs daily)
-// 5. Tenancy lifecycle triggers
+// 5. Automated Lease Expirations (runs daily)
+// 6. Tenancy lifecycle triggers
 // ─────────────────────────────────────────────────────────────────────────────
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onRequest } = require('firebase-functions/v2/https');
@@ -119,7 +120,74 @@ exports.checkOverdueInvoices = onSchedule('every day 07:00', async (event) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// 3. REMINDER AUTOMATION
+// 3. AUTOMATED LEASE EXPIRATIONS
+//    Runs daily at midnight UTC — terminates active leases if endDate has passed.
+// ════════════════════════════════════════════════════════════════════════════
+exports.checkExpiredLeases = onSchedule('every day 00:00', async (event) => {
+    const now = admin.firestore.Timestamp.now();
+
+    // Query active tenancies where the endDate is tightly defined and exists
+    const tenancies = await db.collection('tenancies')
+        .where('status', '==', 'active')
+        .where('endDate', '<=', now)
+        .get();
+
+    console.log(`Found ${tenancies.size} expired tenancies`);
+
+    const batch = db.batch();
+    let count = 0;
+
+    for (const docSnap of tenancies.docs) {
+        const t = docSnap.data();
+
+        // 1) Terminate the lease
+        batch.update(docSnap.ref, {
+            status: 'closed',
+            closedAt: admin.firestore.FieldValue.serverTimestamp(),
+            invoiceSchedulingEnabled: false,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // 2) Free up the unit in the landlord's subcollection
+        if (t.landlordId && t.propertyId && t.unitId) {
+            const unitRef = db.collection('users').doc(t.landlordId)
+                .collection('properties').doc(t.propertyId)
+                .collection('units').doc(t.unitId);
+
+            batch.update(unitRef, {
+                status: 'vacant',
+                tenantId: null,
+                tenantName: '',
+                tenantEmail: '',
+                rentStatus: null,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        }
+
+        // 3) Push a dashboard notification to the Landlord
+        if (t.landlordId) {
+            const notifRef = db.collection('users').doc(t.landlordId).collection('notifications').doc();
+            batch.set(notifRef, {
+                title: 'Lease Automatically Expired',
+                message: `The lease for ${t.tenantName || 'Tenant'} at ${t.unitName || t.propertyName} has ended and the unit is now vacant.`,
+                type: 'lease_end',
+                propertyId: t.propertyId,
+                unitId: t.unitId || null,
+                read: false,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        }
+        count++;
+    }
+
+    if (count > 0) {
+        await batch.commit();
+        console.log(`Terminated ${count} expired leases`);
+    }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 4. REMINDER AUTOMATION
 //    Runs daily at 8am UTC — creates reminders for invoices due in 30/7/1 days.
 // ════════════════════════════════════════════════════════════════════════════
 exports.scheduleReminders = onSchedule('every day 08:00', async (event) => {
@@ -195,7 +263,7 @@ exports.scheduleReminders = onSchedule('every day 08:00', async (event) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// 4. CREATE CHECKOUT SESSION
+// 5. CREATE CHECKOUT SESSION
 //    Unified endpoint to generate Paystack checkout URLs.
 // ════════════════════════════════════════════════════════════════════════════
 const cors = require('cors')({ origin: true });
@@ -243,7 +311,7 @@ exports.createCheckoutSession = onRequest(async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// 5. PAYSTACK WEBHOOK
+// 6. PAYSTACK WEBHOOK
 // ════════════════════════════════════════════════════════════════════════════
 exports.paystackWebhook = onRequest({ cors: false }, async (req, res) => {
     if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
@@ -281,7 +349,7 @@ exports.paystackWebhook = onRequest({ cors: false }, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// 6. TENANCY CLOSE TRIGGER — stops future invoices when tenancy closes
+// 7. TENANCY CLOSE TRIGGER — stops future invoices when tenancy closes
 // ════════════════════════════════════════════════════════════════════════════
 exports.onTenancyClosed = onDocumentUpdated('tenancies/{tenancyId}', async (event) => {
     const before = event.data.before.data();
@@ -487,7 +555,7 @@ function generateInvoicePdfBuffer({ invoiceNumber, paymentId, amount, currency, 
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// 7. ACCEPT UNIT INVITE — Callable Function
+// 8. ACCEPT UNIT INVITE — Callable Function
 //    Called from AcceptInvitePage when the tenant clicks "Accept & Join".
 //    Validates token server-side and assigns tenant to the unit atomically.
 // ════════════════════════════════════════════════════════════════════════════

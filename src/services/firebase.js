@@ -79,8 +79,21 @@ export const addProperty = (uid, data) =>
 export const updateProperty = (uid, id, data) =>
   updateDoc(doc(db, 'users', uid, 'properties', id), { ...data, updatedAt: serverTimestamp() });
 
-export const deleteProperty = (uid, id) =>
-  deleteDoc(doc(db, 'users', uid, 'properties', id));
+export const deleteProperty = async (uid, id) => {
+  // Hard constraint: Cannot delete a property if it has active tenancies
+  const activeTenancies = await getDocs(
+    query(
+      collection(db, 'tenancies'),
+      where('propertyId', '==', id),
+      where('status', '==', 'active')
+    )
+  );
+  if (!activeTenancies.empty) {
+    throw new Error('Cannot delete property: There are still active leases attached. Please move out tenants first.');
+  }
+
+  return deleteDoc(doc(db, 'users', uid, 'properties', id));
+};
 
 export const subscribeProperties = (uid, cb) =>
   onSnapshot(query(collection(db, 'users', uid, 'properties'), orderBy('createdAt', 'desc')), (snap) =>
@@ -249,8 +262,21 @@ export const updateUnit = (uid, propId, unitId, data) =>
     ...data, updatedAt: serverTimestamp(),
   });
 
-export const deleteUnit = (uid, propId, unitId) =>
-  deleteDoc(doc(db, 'users', uid, 'properties', propId, 'units', unitId));
+export const deleteUnit = async (uid, propId, unitId) => {
+  // Hard constraint: Cannot delete a unit if it has an active tenancy
+  const activeTenancies = await getDocs(
+    query(
+      collection(db, 'tenancies'),
+      where('unitId', '==', unitId),
+      where('status', '==', 'active')
+    )
+  );
+  if (!activeTenancies.empty) {
+    throw new Error('Cannot delete unit: There is an active lease attached. Please move out the tenant first.');
+  }
+
+  return deleteDoc(doc(db, 'users', uid, 'properties', propId, 'units', unitId));
+};
 
 export const subscribeUnits = (uid, propId, cb) =>
   onSnapshot(
