@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { addProperty } from '../services/firebase';
+import { addProperty, updateUserProfile } from '../services/firebase';
 import toast from 'react-hot-toast';
 
 const emptyUnit = () => ({
@@ -91,6 +91,7 @@ export default function OnboardingPage() {
             }
 
             toast.success(`${validUnits.length} unit${validUnits.length > 1 ? 's' : ''} added to ${building.name}!`);
+            await updateUserProfile(user.uid, { onboardingComplete: true });
             navigate('/dashboard');
         } catch (err) {
             console.error(err);
@@ -101,7 +102,17 @@ export default function OnboardingPage() {
     };
 
     /* ── Skip handler ───────────────────────────────────────────────────── */
-    const handleSkip = () => navigate('/dashboard');
+    const handleSkip = async () => {
+        setSaving(true);
+        try {
+            await updateUserProfile(user.uid, { onboardingComplete: true });
+            navigate('/dashboard');
+        } catch (err) {
+            toast.error('Failed to skip. Please try again.');
+        } finally {
+            setSaving(false);
+        }
+    };
 
     /* ════════════════════════════════════════════════════════════════════ */
     return (
@@ -191,7 +202,8 @@ export default function OnboardingPage() {
                                 <button
                                     type="button"
                                     onClick={handleSkip}
-                                    className="w-full text-center font-body text-xs text-stone-400 hover:text-stone-500 transition-colors pt-1"
+                                    disabled={saving}
+                                    className="w-full text-center font-body text-xs text-stone-400 hover:text-stone-500 transition-colors pt-1 disabled:opacity-50"
                                 >
                                     Skip for now → go to dashboard
                                 </button>
@@ -337,7 +349,8 @@ export default function OnboardingPage() {
 
                             <button
                                 onClick={handleSkip}
-                                className="w-full text-center font-body text-xs text-stone-400 hover:text-stone-500 transition-colors mt-3"
+                                disabled={saving}
+                                className="w-full text-center font-body text-xs text-stone-400 hover:text-stone-500 transition-colors mt-3 disabled:opacity-50"
                             >
                                 Skip for now → go to dashboard
                             </button>

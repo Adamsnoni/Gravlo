@@ -1,6 +1,6 @@
 // src/App.jsx
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LocaleProvider } from './context/LocaleContext';
@@ -42,9 +42,18 @@ function LoadingSpinner() {
 
 function ProtectedRoute({ children }) {
   const { user, profile, loading } = useAuth();
-  // Wait for both auth AND profile before proceeding
+  const location = useLocation();
+
   if (loading || (user && profile === undefined)) return <LoadingSpinner />;
-  return user ? children : <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace />;
+
+  const role = profile?.role || 'landlord';
+  // If landlord hasn't completed onboarding and isn't already on the onboarding page
+  if (role === 'landlord' && !profile?.onboardingComplete && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  return children;
 }
 
 function PublicRoute({ children }) {
