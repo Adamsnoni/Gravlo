@@ -1,15 +1,10 @@
 // src/pages/OnboardingPage.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// Post-signup onboarding wizard for landlords.
-// Step 1: Add your first property/building (name + address)
-// Step 2: Add apartments/units (name, rent, billing cycle, optional tenant)
-// ─────────────────────────────────────────────────────────────────────────────
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Building2, MapPin, Plus, Trash2, ArrowRight,
-    KeyRound, DollarSign, CalendarClock, UserPlus, Check,
+    KeyRound, DollarSign, CalendarClock, UserPlus, Check, Loader2, Home, Hash, Zap, Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
@@ -31,45 +26,34 @@ export default function OnboardingPage() {
 
     const [step, setStep] = useState(1);
     const [saving, setSaving] = useState(false);
-
-    // Step 1: Building info
     const [building, setBuilding] = useState({ name: '', address: '' });
-
-    // Step 2: Units
     const [units, setUnits] = useState([emptyUnit()]);
 
     const firstName = (profile?.fullName || user?.displayName || 'there').split(' ')[0];
 
-    /* ── Unit helpers ────────────────────────────────────────────────────── */
     const addUnit = () => setUnits(u => [...u, emptyUnit()]);
-
     const removeUnit = (id) => {
         if (units.length === 1) return;
         setUnits(u => u.filter(x => x.id !== id));
     };
-
     const updateUnit = (id, field, value) => {
         setUnits(u => u.map(x => x.id === id ? { ...x, [field]: value } : x));
     };
 
-    /* ── Step 1 → Step 2 ────────────────────────────────────────────────── */
     const handleStep1 = (e) => {
         e.preventDefault();
-        if (!building.name.trim()) { toast.error('Please enter a property/building name.'); return; }
+        if (!building.name.trim()) { toast.error('Enter a property designation.'); return; }
         setStep(2);
     };
 
-    /* ── Final submit ───────────────────────────────────────────────────── */
     const handleFinish = async () => {
-        // Validate at least one unit has a name
         const validUnits = units.filter(u => u.name.trim());
-        if (validUnits.length === 0) { toast.error('Add at least one apartment/unit.'); return; }
+        if (validUnits.length === 0) { toast.error('Initialize at least one unit vector.'); return; }
 
         setSaving(true);
         try {
-            // Create each unit as a property doc under the building
             for (const unit of validUnits) {
-                const docRef = await addProperty(user.uid, {
+                await addProperty(user.uid, {
                     name: unit.name.trim(),
                     address: building.address.trim(),
                     buildingName: building.name.trim(),
@@ -86,274 +70,162 @@ export default function OnboardingPage() {
                     floor: '',
                     description: '',
                 });
-                // Unit saved — no invite code generated here;
-                // landlord can send invite links per-unit from the property page.
             }
-
-            toast.success(`${validUnits.length} unit${validUnits.length > 1 ? 's' : ''} added to ${building.name}!`);
+            toast.success(`Infrastructure deployed to ${building.name}!`);
             await updateUserProfile(user.uid, { onboardingComplete: true });
             navigate('/dashboard');
         } catch (err) {
-            console.error(err);
-            toast.error('Failed to save. Please try again.');
+            toast.error('Deployment failure. Retry sequence.');
         } finally {
             setSaving(false);
         }
     };
 
-    /* ── Skip handler ───────────────────────────────────────────────────── */
     const handleSkip = async () => {
         setSaving(true);
         try {
             await updateUserProfile(user.uid, { onboardingComplete: true });
             navigate('/dashboard');
         } catch (err) {
-            toast.error('Failed to skip. Please try again.');
+            toast.error('Logic failure. Retry bypass.');
         } finally {
             setSaving(false);
         }
     };
 
-    /* ════════════════════════════════════════════════════════════════════ */
     return (
-        <div className="min-h-dvh bg-cream flex items-center justify-center p-4 sm:p-8">
+        <div className="min-h-screen bg-[#070b0d] flex items-center justify-center p-6 sm:p-12">
             <div className="w-full max-w-2xl">
-                {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-3 mb-8"
-                >
-                    <div className="w-10 h-10 rounded-xl bg-sage flex items-center justify-center">
-                        <KeyRound size={18} className="text-cream" />
+                {/* Brand Header */}
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-4 mb-12">
+                    <div className="w-12 h-12 rounded-[1.25rem] bg-gradient-to-br from-[#1a3c2e] to-[#2d6a4f] flex items-center justify-center shadow-xl shadow-[#1a3c2e]/20">
+                        <KeyRound size={24} className="text-[#e8e4de]" />
                     </div>
                     <div>
-                        <p className="font-display text-ink text-lg font-semibold leading-tight">Gravlo</p>
-                        <p className="font-body text-xs text-stone-400">Set up your first property</p>
+                        <h1 className="font-display text-[#e8e4de] text-2xl font-bold tracking-tight">LeaseEase</h1>
+                        <p className="font-body text-[#4a5568] text-[9px] font-black uppercase tracking-[0.2em] mt-0.5">Deployment Wizard</p>
                     </div>
                 </motion.div>
 
-                {/* Progress bar */}
-                <div className="flex items-center gap-2 mb-8">
+                {/* Evolution Progress */}
+                <div className="flex gap-2 mb-12">
                     {[1, 2].map(s => (
-                        <div key={s} className="flex-1 h-1.5 rounded-full overflow-hidden bg-stone-200">
+                        <div key={s} className="flex-1 h-1 rounded-full bg-[#141b1e] overflow-hidden">
                             <motion.div
-                                className="h-full bg-sage rounded-full"
+                                className="h-full bg-[#52b788]"
                                 initial={{ width: '0%' }}
                                 animate={{ width: step >= s ? '100%' : '0%' }}
-                                transition={{ duration: 0.4, ease: 'easeOut' }}
+                                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
                             />
                         </div>
                     ))}
                 </div>
 
                 <AnimatePresence mode="wait">
-                    {/* ══ STEP 1 — Building Info ══════════════════════════════════ */}
-                    {step === 1 && (
-                        <motion.div
-                            key="step1"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            transition={{ duration: 0.3 }}
-                        >
-                            <h1 className="font-display text-ink text-2xl sm:text-3xl font-semibold mb-2">
-                                Welcome, <em>{firstName}</em>! 👋
-                            </h1>
-                            <p className="font-body text-stone-400 text-sm mb-8">
-                                Let's add your first property or building to get started.
-                            </p>
+                    {step === 1 ? (
+                        <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-8">
+                            <div>
+                                <h2 className="font-display text-[#e8e4de] text-4xl sm:text-5xl font-bold tracking-tighter leading-none mb-4">
+                                    Initiate,<br /><span className="text-[#52b788]">{firstName}</span>.
+                                </h2>
+                                <p className="font-body text-[#8a9ba8] text-sm font-medium max-w-md">Let's define your primary property designation to calibrate your control center.</p>
+                            </div>
 
-                            <form onSubmit={handleStep1} className="card p-6 sm:p-8 space-y-5">
-                                <div>
-                                    <label className="label-xs">Property / Building Name *</label>
+                            <form onSubmit={handleStep1} className="card p-8 sm:p-10 bg-[#0d1215] border-[#1e2a2e] space-y-6 shadow-2xl relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-48 h-48 bg-[#52b788]/5 rounded-full blur-[60px] -mr-24 -mt-24 pointer-events-none" />
+
+                                <div className="space-y-2 relative">
+                                    <label className="font-body text-[10px] font-bold uppercase tracking-widest text-[#4a5568] px-1">Property Identification</label>
                                     <div className="relative">
-                                        <Building2 size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-                                        <input
-                                            className="input-base pl-10"
-                                            placeholder="e.g. Sunset Apartments"
-                                            value={building.name}
-                                            onChange={e => setBuilding(b => ({ ...b, name: e.target.value }))}
-                                            autoFocus
-                                            required
-                                        />
+                                        <Building2 size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#52b788] pointer-events-none" />
+                                        <input className="input-base pl-12 h-14 bg-[#141b1e] border-[#1e2a2e] focus:border-[#52b788] transition-all font-bold tracking-tight text-[#e8e4de]" placeholder="e.g. Neo-Marina Residences" value={building.name} onChange={e => setBuilding(b => ({ ...b, name: e.target.value }))} autoFocus required />
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="label-xs">Address</label>
+                                <div className="space-y-2 relative">
+                                    <label className="font-body text-[10px] font-bold uppercase tracking-widest text-[#4a5568] px-1">Geographic Vector</label>
                                     <div className="relative">
-                                        <MapPin size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-                                        <input
-                                            className="input-base pl-10"
-                                            placeholder="e.g. 42 Marina Road, Lagos"
-                                            value={building.address}
-                                            onChange={e => setBuilding(b => ({ ...b, address: e.target.value }))}
-                                        />
+                                        <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#52b788] pointer-events-none" />
+                                        <input className="input-base pl-12 h-14 bg-[#141b1e] border-[#1e2a2e] focus:border-[#52b788] transition-all text-[#e8e4de]" placeholder="e.g. 102 Victoria Island, Lagos" value={building.address} onChange={e => setBuilding(b => ({ ...b, address: e.target.value }))} />
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-3 pt-2">
-                                    <button type="submit" className="btn-primary flex-1">
-                                        Add Apartments / Units <ArrowRight size={15} />
-                                    </button>
-                                </div>
+                                <button type="submit" className="btn-primary w-full h-14 text-[11px] font-bold uppercase tracking-[0.2em] shadow-xl shadow-[#1a3c2e]/30 group">
+                                    Configure Unit Vectors <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                                </button>
 
-                                <button
-                                    type="button"
-                                    onClick={handleSkip}
-                                    disabled={saving}
-                                    className="w-full text-center font-body text-xs text-stone-400 hover:text-stone-500 transition-colors pt-1 disabled:opacity-50"
-                                >
-                                    Skip for now → go to dashboard
+                                <button type="button" onClick={handleSkip} disabled={saving} className="w-full text-center font-body text-[10px] font-bold text-[#4a5568] uppercase tracking-widest hover:text-[#e8e4de] transition-all pt-2">
+                                    Bypass Wizard → Portal Access
                                 </button>
                             </form>
                         </motion.div>
-                    )}
-
-                    {/* ══ STEP 2 — Add Units ═════════════════════════════════════ */}
-                    {step === 2 && (
-                        <motion.div
-                            key="step2"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            transition={{ duration: 0.3 }}
-                        >
-                            <div className="flex items-center gap-2 mb-1">
-                                <button
-                                    onClick={() => setStep(1)}
-                                    className="font-body text-xs text-stone-400 hover:text-ink transition-colors"
-                                >
-                                    ← Back
-                                </button>
+                    ) : (
+                        <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-8">
+                            <div className="flex items-center gap-4">
+                                <button onClick={() => setStep(1)} className="w-10 h-10 rounded-xl bg-[#141b1e] border border-[#1e2a2e] flex items-center justify-center text-[#4a5568] hover:text-[#e8e4de] transition-all"><ArrowLeft size={18} /></button>
+                                <div>
+                                    <h2 className="font-display text-[#e8e4de] text-3xl font-bold tracking-tighter">Unit Deployment</h2>
+                                    <p className="font-body text-[#4a5568] text-xs font-bold uppercase tracking-widest mt-0.5">Establishing infrastructure for {building.name}</p>
+                                </div>
                             </div>
 
-                            <h1 className="font-display text-ink text-2xl sm:text-3xl font-semibold mb-1">
-                                Add units to <em className="text-sage">{building.name}</em>
-                            </h1>
-                            <p className="font-body text-stone-400 text-sm mb-6">
-                                Add the apartments or units in this building. You can always add more later.
-                            </p>
-
-                            <div className="space-y-4">
+                            <div className="space-y-4 max-h-[50vh] overflow-y-auto no-scrollbar pr-1">
                                 {units.map((unit, idx) => (
-                                    <motion.div
-                                        key={unit.id}
-                                        initial={{ opacity: 0, y: 12 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -12 }}
-                                        className="card p-5"
-                                    >
-                                        <div className="flex items-center justify-between mb-4">
-                                            <span className="font-body text-xs font-semibold text-stone-400 uppercase tracking-wider">
-                                                Unit {idx + 1}
-                                            </span>
+                                    <div key={unit.id} className="card p-6 bg-[#0d1215] border-[#1e2a2e] relative overflow-hidden group">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 rounded-lg bg-[#52b788]/10 text-[#52b788]"><Hash size={14} /></div>
+                                                <span className="font-body text-[10px] font-bold text-[#4a5568] uppercase tracking-widest">Vector {idx + 1}</span>
+                                            </div>
                                             {units.length > 1 && (
-                                                <button
-                                                    onClick={() => removeUnit(unit.id)}
-                                                    className="p-1.5 rounded-lg text-stone-300 hover:text-rust hover:bg-rust/8 transition-colors"
-                                                >
-                                                    <Trash2 size={14} />
-                                                </button>
+                                                <button onClick={() => removeUnit(unit.id)} className="w-8 h-8 rounded-lg bg-[#2d1a1a]/5 text-[#4a5568] hover:text-[#e74c3c] hover:bg-[#2d1a1a]/20 transition-all flex items-center justify-center"><Trash2 size={14} /></button>
                                             )}
                                         </div>
 
-                                        <div className="grid sm:grid-cols-2 gap-3">
-                                            {/* Unit name */}
-                                            <div>
-                                                <label className="label-xs">Apartment Number / Name *</label>
-                                                <input
-                                                    className="input-base"
-                                                    placeholder="e.g. Unit 4B, Room 12"
-                                                    value={unit.name}
-                                                    onChange={e => updateUnit(unit.id, 'name', e.target.value)}
-                                                />
+                                        <div className="grid sm:grid-cols-2 gap-4">
+                                            <div className="space-y-1.5">
+                                                <label className="font-body text-[9px] font-bold uppercase tracking-widest text-[#4a5568] px-1">Designation</label>
+                                                <input className="input-base h-11 bg-[#141b1e] border-[#1e2a2e] focus:border-[#52b788] text-sm" placeholder="e.g. Suite 402" value={unit.name} onChange={e => updateUnit(unit.id, 'name', e.target.value)} />
                                             </div>
-
-                                            {/* Rent */}
-                                            <div>
-                                                <label className="label-xs">Rent Amount ({currencySymbol})</label>
+                                            <div className="space-y-1.5">
+                                                <label className="font-body text-[9px] font-bold uppercase tracking-widest text-[#4a5568] px-1">Rent ({currencySymbol})</label>
                                                 <div className="relative">
-                                                    <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-                                                    <input
-                                                        className="input-base pl-9"
-                                                        type="number"
-                                                        placeholder="e.g. 250000"
-                                                        value={unit.rent}
-                                                        onChange={e => updateUnit(unit.id, 'rent', e.target.value)}
-                                                    />
+                                                    <DollarSign size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#52b788]" />
+                                                    <input className="input-base h-11 pl-10 bg-[#141b1e] border-[#1e2a2e] focus:border-[#52b788] text-sm" type="number" placeholder="250000" value={unit.rent} onChange={e => updateUnit(unit.id, 'rent', e.target.value)} />
                                                 </div>
                                             </div>
-
-                                            {/* Billing cycle */}
-                                            <div>
-                                                <label className="label-xs">Billing Cycle</label>
+                                            <div className="space-y-1.5">
+                                                <label className="font-body text-[9px] font-bold uppercase tracking-widest text-[#4a5568] px-1">Cycle</label>
                                                 <div className="relative">
-                                                    <CalendarClock size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-                                                    <select
-                                                        className="input-base pl-9 appearance-none"
-                                                        value={unit.rentType}
-                                                        onChange={e => updateUnit(unit.id, 'rentType', e.target.value)}
-                                                    >
+                                                    <CalendarClock size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#52b788]" />
+                                                    <select className="input-base h-11 pl-10 bg-[#141b1e] border-[#1e2a2e] focus:border-[#52b788] appearance-none text-sm font-bold" value={unit.rentType} onChange={e => updateUnit(unit.id, 'rentType', e.target.value)}>
                                                         <option value="monthly">Monthly</option>
                                                         <option value="yearly">Yearly</option>
                                                         <option value="weekly">Weekly</option>
-                                                        <option value="daily">Daily</option>
                                                     </select>
                                                 </div>
                                             </div>
-
-                                            {/* Tenant name (optional) */}
-                                            <div>
-                                                <label className="label-xs">
-                                                    Tenant Name <span className="text-stone-300 normal-case">(optional)</span>
-                                                </label>
-                                                <div className="relative">
-                                                    <UserPlus size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-                                                    <div className="input-base pl-9 bg-stone-50 text-stone-400 cursor-not-allowed flex items-center italic">
-                                                        {unit.tenantName || 'Not assigned'}
-                                                    </div>
-                                                </div>
+                                            <div className="space-y-1.5">
+                                                <label className="font-body text-[9px] font-bold uppercase tracking-widest text-[#4a5568] px-1 opacity-50">Residency Status</label>
+                                                <div className="input-base h-11 bg-[#141b1e]/50 border-transparent text-[#4a5568] italic text-xs flex items-center">Auto-Vacant · Invite links enabled</div>
                                             </div>
                                         </div>
-                                    </motion.div>
+                                    </div>
                                 ))}
                             </div>
 
-                            {/* Add another unit */}
-                            <button
-                                onClick={addUnit}
-                                className="w-full mt-4 py-3 rounded-xl border-2 border-dashed border-stone-200 hover:border-sage/40 text-stone-400 hover:text-sage font-body text-sm font-medium transition-all flex items-center justify-center gap-2"
-                            >
-                                <Plus size={16} /> Add Another Unit
+                            <button onClick={addUnit} className="w-full h-14 rounded-2xl border-2 border-dashed border-[#1e2a2e] hover:border-[#1a3c2e] hover:bg-[#1a3c2e]/5 text-[#4a5568] hover:text-[#52b788] transition-all flex items-center justify-center gap-3 font-body text-[10px] font-bold uppercase tracking-widest">
+                                <Plus size={18} /> Add Parallel Vector
                             </button>
 
-                            {/* Actions */}
-                            <div className="flex items-center gap-3 mt-6">
-                                <button
-                                    onClick={handleFinish}
-                                    disabled={saving}
-                                    className="btn-primary flex-1 py-3"
-                                >
-                                    {saving ? (
-                                        <div className="w-4 h-4 border-2 border-cream border-t-transparent rounded-full animate-spin" />
-                                    ) : (
-                                        <>
-                                            <Check size={16} />
-                                            Finish Setup
-                                        </>
-                                    )}
+                            <div className="space-y-4 pt-4">
+                                <button onClick={handleFinish} disabled={saving} className="btn-primary w-full h-16 text-[11px] font-bold uppercase tracking-[0.2em] shadow-2xl shadow-[#1a3c2e]/40 group flex items-center justify-center gap-4">
+                                    {saving ? <Loader2 size={18} className="animate-spin text-[#1a3c2e]" /> : <><Sparkles size={18} /> Finalize Infrastructure</>}
+                                </button>
+                                <button onClick={handleSkip} disabled={saving} className="w-full text-center font-body text-[10px] font-bold text-[#4a5568] uppercase tracking-widest hover:text-[#e8e4de] transition-all">
+                                    Skip Deployment → Portal Home
                                 </button>
                             </div>
-
-                            <button
-                                onClick={handleSkip}
-                                disabled={saving}
-                                className="w-full text-center font-body text-xs text-stone-400 hover:text-stone-500 transition-colors mt-3 disabled:opacity-50"
-                            >
-                                Skip for now → go to dashboard
-                            </button>
                         </motion.div>
                     )}
                 </AnimatePresence>

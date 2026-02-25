@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, CreditCard, ArrowRight, Bell, Hash, PartyPopper, Sparkles, Building2, MapPin, Mail, CheckCircle2, X } from 'lucide-react';
+import { Home, CreditCard, ArrowRight, Bell, Hash, PartyPopper, Sparkles, Building2, MapPin, Mail, CheckCircle2, X, ArrowUpRight, Clock, Star } from 'lucide-react';
 import { format, isAfter, subHours } from 'date-fns';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
@@ -11,35 +11,22 @@ import { subscribeTenantPayments, subscribeReminders } from '../services/firebas
 import { subscribeTenantTenancies } from '../services/tenancy';
 import { formatUnitDisplay, getShortUnitId } from '../utils/unitDisplay';
 
-const fadeUp = (delay = 0) => ({
-  initial: { opacity: 0, y: 16 },
-  animate: { opacity: 1, y: 0 },
-  transition: { delay, duration: 0.35 },
-});
-
 export default function TenantDashboardPage() {
   const { user, profile } = useAuth();
-  const { fmt, fmtRent, country } = useLocale();
+  const { fmt, fmtRent, country, currencySymbol } = useLocale();
 
-  const [properties, setProperties] = useState([]);
   const [units, setUnits] = useState([]);
   const [payments, setPayments] = useState([]);
   const [reminders, setReminders] = useState([]);
 
   useEffect(() => {
     if (!user?.uid) return;
-    // Sync active homes via tenancies (secure UID-based)
     const u1 = subscribeTenantTenancies(user.uid, (list) => {
       setUnits(list.map(t => ({ ...t, id: t.unitId || t.id, type: 'unit' })));
     });
-
-    // Payments & Reminders
     const u2 = subscribeTenantPayments(user.uid, setPayments);
-    return () => {
-      u1?.();
-      u2?.();
-    };
-  }, [user?.uid, user?.email]);
+    return () => { u1?.(); u2?.(); };
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -54,14 +41,11 @@ export default function TenantDashboardPage() {
     .reduce((sum, p) => sum + (p.amount || 0), 0);
 
   const firstName = (profile?.fullName || user?.displayName || 'there').split(' ')[0];
-
-  const allHomes = units; // Now simplified to just units from tenancies
-  const activeHomes = allHomes.filter(h => h.status === 'active');
-  const pastHomes = allHomes.filter(h => h.status === 'former');
-  const nextDue = activeHomes.reduce((s, h) => s + (h.rentAmount || 0), 0);
+  const activeHomes = units.filter(h => h.status === 'active');
+  const pastHomes = units.filter(h => h.status === 'former');
+  const yearlyRent = activeHomes.reduce((s, h) => s + (h.rentAmount || 0), 0) * 12;
 
   const [dismissedWelcome, setDismissedWelcome] = useState(() => {
-    // Initialize from localStorage if it exists
     if (!user?.uid) return false;
     return localStorage.getItem(`gravlo_welcome_dismissed_${user.uid}`) === 'true';
   });
@@ -75,11 +59,9 @@ export default function TenantDashboardPage() {
 
   const canvasRef = useRef(null);
 
-  // Logic for "Approved Tenant Experience"
   const newApprovals = activeHomes.filter(h => {
     if (!h.welcomeMessageSent) return false;
     const welcomeDate = h.welcomeMessageDate?.toDate?.() || new Date(h.welcomeMessageDate);
-    // Show celebration if approved in the last 48 hours
     return isAfter(welcomeDate, subHours(new Date(), 48));
   });
 
@@ -87,29 +69,21 @@ export default function TenantDashboardPage() {
     if (newApprovals.length > 0 && !dismissedWelcome) {
       let interval;
       let myConfetti;
-
       const timer = setTimeout(() => {
         if (!canvasRef.current) return;
         myConfetti = confetti.create(canvasRef.current, { resize: true, useWorker: true });
-        const duration = 3 * 1000;
+        const duration = 4 * 1000;
         const animationEnd = Date.now() + duration;
         const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
-
         const randomInRange = (min, max) => Math.random() * (max - min) + min;
-
         interval = setInterval(function () {
           const timeLeft = animationEnd - Date.now();
-
-          if (timeLeft <= 0) {
-            return clearInterval(interval);
-          }
-
+          if (timeLeft <= 0) return clearInterval(interval);
           const particleCount = 50 * (timeLeft / duration);
           myConfetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
           myConfetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
         }, 250);
       }, 50);
-
       return () => {
         clearTimeout(timer);
         clearInterval(interval);
@@ -119,173 +93,176 @@ export default function TenantDashboardPage() {
   }, [newApprovals.length, dismissedWelcome]);
 
   return (
-    <div className="space-y-8">
-      <motion.div {...fadeUp(0)} className="flex items-start justify-between">
+    <div className="space-y-10 py-2 animate-in fade-in duration-500">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <p className="font-body text-stone-400 text-sm">
-            {country?.name ? `${country.name} · ${country.currency}` : 'Your tenant portal'}
-          </p>
-          <h1 className="font-display text-ink text-3xl font-semibold mt-0.5">
-            Welcome, <em>{firstName}</em>
+          <h1 className="font-display text-[#e8e4de] text-4xl font-bold tracking-tight">
+            Welcome, <span className="text-[#52b788]">{firstName}</span>
           </h1>
+          <p className="font-body text-[#4a5568] text-sm mt-1 uppercase tracking-widest font-bold">
+            {activeHomes.length === 0 ? 'Portal initialized · Standby mode' : 'Active Residency Portfolio'}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="px-5 py-2 rounded-xl bg-[#141b1e] border border-[#1e2a2e] text-[#4a5568] text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#52b788] animate-pulse" />
+            Portal Linked
+          </div>
         </div>
       </motion.div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <motion.div {...fadeUp(0.05)} className="stat-card">
-          <div className="w-10 h-10 rounded-xl bg-sage/10 flex items-center justify-center">
-            <Home size={18} className="text-sage" />
-          </div>
-          <div>
-            <div className="font-display text-ink text-2xl font-semibold">
-              {activeHomes.length}
+      {/* Primary Stats Grid */}
+      <div className="grid sm:grid-cols-3 gap-6">
+        <StatCard
+          icon={Home}
+          label="Active Homes"
+          value={activeHomes.length}
+          delay={0.05}
+          color="text-[#52b788]"
+          bg="bg-[#1a3c2e]/10"
+          border="border-[#2d6a4f]/20"
+        />
+        <StatCard
+          icon={Clock}
+          label="Next Billing (Total)"
+          value={fmt(yearlyRent / 12)}
+          delay={0.1}
+          color="text-[#f0c040]"
+          bg="bg-[#2d2510]/10"
+          border="border-[#3d3215]/20"
+        />
+        <StatCard
+          icon={CreditCard}
+          label="Total Fulfilled"
+          value={fmt(totalPaid)}
+          delay={0.15}
+          color="text-[#e8e4de]"
+          bg="bg-[#141b1e]"
+          border="border-[#1e2a2e]"
+          showTrend
+        />
+      </div>
+
+      <div className="grid xl:grid-cols-2 gap-8">
+        {/* Active Homes Section */}
+        <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="space-y-6">
+          <div className="flex items-center justify-between px-2">
+            <div>
+              <h2 className="font-display text-[#e8e4de] text-xl font-bold tracking-tight">My Residences</h2>
+              <p className="font-body text-[10px] text-[#4a5568] font-bold uppercase tracking-widest mt-1">Managed Property Details</p>
             </div>
-            <div className="font-body text-stone-400 text-xs mt-0.5">Active homes</div>
+            <Link to="/tenant/payments" className="btn-secondary text-[10px] font-bold uppercase tracking-widest py-2 px-4 group">
+              Financials <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </div>
+
+          <div className="space-y-4">
+            {activeHomes.length === 0 ? (
+              <div className="card p-12 text-center bg-[#0d1215] border-2 border-dashed border-[#1e2a2e]">
+                <Home size={32} className="text-[#1e2a2e] mx-auto mb-4" />
+                <p className="font-body font-medium text-[#4a5568]">No active residences detected.</p>
+              </div>
+            ) : (
+              activeHomes.map(h => (
+                <div key={h.id} className="card p-6 bg-[#0d1215] border-[#1e2a2e] hover:border-[#1a3c2e] transition-all group overflow-hidden relative">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-[#52b788]/5 rounded-full blur-[40px] -mr-16 -mt-16 group-hover:bg-[#52b788]/10 transition-colors" />
+                  <div className="flex items-center justify-between gap-6 relative">
+                    <div className="flex items-center gap-5">
+                      <div className="w-14 h-14 rounded-2xl bg-[#141b1e] border border-[#1e2a2e] flex items-center justify-center text-[#52b788] group-hover:scale-105 transition-transform">
+                        <Building2 size={24} />
+                      </div>
+                      <div>
+                        <p className="font-body font-bold text-[#e8e4de] text-base tracking-tight leading-tight">{h.unitName || h.propertyName}</p>
+                        <div className="flex items-center gap-3 mt-1.5">
+                          <span className="flex items-center gap-1 font-body text-[10px] text-[#52b788] font-bold bg-[#1a3c2e]/20 border border-[#2d6a4f]/20 px-2 py-0.5 rounded-md">
+                            <Hash size={10} /> {h.unitNumber || 'UNIT'}
+                          </span>
+                          <span className="font-body text-[10px] text-[#4a5568] uppercase font-bold tracking-widest">
+                            {h.address || 'Verified Residency'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right flex flex-col items-end">
+                      <p className="font-display text-[#e8e4de] font-bold text-lg tracking-tight">
+                        {fmtRent(h.monthlyRent || h.rentAmount || 0, h.rentType || h.billingCycle || 'monthly')}
+                      </p>
+                      <span className="badge-sage mt-2">Active Lease</span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </motion.div>
 
-        <motion.div {...fadeUp(0.1)} className="stat-card">
-          <div className="w-10 h-10 rounded-xl bg-amber/10 flex items-center justify-center">
-            <CreditCard size={18} className="text-amber" />
-          </div>
-          <div>
-            <div className="font-display text-ink text-2xl font-semibold">
-              {fmt(nextDue)}
-            </div>
-            <div className="font-body text-stone-400 text-xs mt-0.5">
-              Yearly rent
+        {/* Reminders & Alerts */}
+        <motion.div initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }} className="space-y-6">
+          <div className="flex items-center justify-between px-2">
+            <div>
+              <h2 className="font-display text-[#e8e4de] text-xl font-bold tracking-tight">Alert Protocol</h2>
+              <p className="font-body text-[10px] text-[#4a5568] font-bold uppercase tracking-widest mt-1">Pending Signatures & Payments</p>
             </div>
           </div>
-        </motion.div>
 
-        <motion.div {...fadeUp(0.15)} className="stat-card hidden lg:flex">
-          <div className="w-10 h-10 rounded-xl bg-sage/10 flex items-center justify-center">
-            <CreditCard size={18} className="text-sage" />
+          <div className="card p-4 bg-[#0d1215] border-[#1e2a2e] space-y-2">
+            {reminders.length === 0 ? (
+              <div className="p-8 text-center">
+                <Bell size={24} className="text-[#1e2a2e] mx-auto mb-3" />
+                <p className="font-body text-xs text-[#4a5568] font-bold uppercase tracking-widest">No active alerts</p>
+              </div>
+            ) : (
+              reminders.slice(0, 4).map(r => {
+                const due = r.dueDate?.toDate?.() ?? new Date(r.dueDate);
+                return (
+                  <div key={r.id} className="flex items-center justify-between gap-4 p-4 rounded-xl hover:bg-[#141b1e]/50 border border-transparent hover:border-[#1e2a2e] transition-all group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-[#2d2510]/10 border border-[#3d3215]/30 flex items-center justify-center text-[#f0c040]">
+                        <Bell size={18} />
+                      </div>
+                      <div>
+                        <p className="font-body text-sm font-bold text-[#e8e4de] tracking-tight">{r.propertyName || 'Financial Fulfillment'}</p>
+                        <p className="font-body text-[10px] text-[#4a5568] font-bold uppercase tracking-widest mt-0.5">Deadline: {format(due, 'MMM d, yyyy')}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-display font-bold text-[#e8e4de] text-sm tracking-tight">{fmt(r.amount || 0)}</p>
+                      <Link to="/tenant/payments" className="text-[9px] text-[#52b788] font-bold uppercase tracking-widest hover:underline">Fulfill Now</Link>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
-          <div>
-            <div className="font-display text-ink text-2xl font-semibold">
-              {fmt(totalPaid)}
+
+          {/* Ledger Summary */}
+          <div className="p-8 rounded-[32px] bg-gradient-to-br from-[#1a3c2e]/10 to-[#0d1215] border border-[#2d6a4f]/20 group overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-[#52b788]/5 rounded-full blur-[60px] -mr-24 -mt-24 group-hover:bg-[#52b788]/10 transition-colors" />
+            <div className="relative flex items-center justify-between gap-6">
+              <div>
+                <h3 className="font-display text-[#e8e4de] text-lg font-bold mb-1">Financial Integrity</h3>
+                <p className="font-body text-[11px] text-[#52b788] font-bold uppercase tracking-widest flex items-center gap-2">
+                  <CheckCircle2 size={12} /> Account in Good Standing
+                </p>
+              </div>
+              <Link to="/tenant/payments" className="btn-primary py-3 px-6 shadow-xl shadow-[#1a3c2e]/20 text-[10px] font-bold uppercase tracking-widest">
+                Access Ledger
+              </Link>
             </div>
-            <div className="font-body text-stone-400 text-xs mt-0.5">Total paid here</div>
           </div>
         </motion.div>
       </div>
 
-      {reminders.length > 0 && (
-        <motion.div {...fadeUp(0.18)} className="card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display text-ink text-lg font-semibold">Upcoming reminders</h2>
-            <Link to="/tenant/reminders" className="btn-ghost text-xs">
-              Manage <ArrowRight size={13} />
-            </Link>
-          </div>
-          <ul className="space-y-2">
-            {reminders.slice(0, 5).map((r) => {
-              const due = r.dueDate?.toDate?.() ?? new Date(r.dueDate);
-              return (
-                <li
-                  key={r.id}
-                  className="flex items-center justify-between gap-3 py-2 border-b border-stone-100 last:border-0"
-                >
-                  <div className="flex items-center gap-2">
-                    <Bell size={14} className="text-amber" />
-                    <span className="font-body text-sm text-ink">{r.propertyName || 'Rent'}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-display text-sm font-semibold text-ink">{fmt(r.amount || 0)}</span>
-                    <span className="font-body text-xs text-stone-400 block">Due {format(due, 'MMM d')}</span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </motion.div>
-      )}
-
       {activeHomes.length === 0 && pastHomes.length > 0 && (
-        <motion.div {...fadeUp(0.18)} className="p-4 rounded-xl bg-stone-100 border border-stone-200">
-          <div className="flex items-start gap-3">
-            <Home size={20} className="text-stone-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-body font-semibold text-ink text-sm">Read-Only Mode</p>
-              <p className="font-body text-sm text-stone-500 mt-1">
-                You do not have any active leases. You can still access your past homes and download payment receipts for your records.
-              </p>
-            </div>
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-8 rounded-[32px] bg-[#2d1a1a]/5 border border-[#3d2020]/20 flex items-start gap-5">
+          <div className="w-12 h-12 rounded-2xl bg-[#0d1215] border border-[#3d2020] flex items-center justify-center text-[#e74c3c] flex-shrink-0">
+            <ShieldOff size={24} />
           </div>
-        </motion.div>
-      )}
-
-      {/* Active Homes */}
-      <motion.div {...fadeUp(0.2)} className="card p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display text-ink text-lg font-semibold">Active homes</h2>
-          <div className="flex items-center gap-2">
-            <Link to="/tenant/reminders" className="btn-ghost text-xs">
-              Reminders
-            </Link>
-            <Link to="/tenant/payments" className="btn-ghost text-xs">
-              View payments <ArrowRight size={13} />
-            </Link>
-          </div>
-        </div>
-
-        {activeHomes.length === 0 ? (
-          <div className="flex flex-col items-center text-center py-8">
-            <Home size={28} className="text-stone-300 mb-3" />
-            <p className="font-body text-sm text-stone-500">No active homes.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {activeHomes.map(h => (
-              <div key={h.id} className="flex items-center justify-between gap-3 p-4 rounded-xl border border-sage/20 bg-sage/5 transition-colors">
-                <div>
-                  <p className="font-body font-semibold text-sm text-ink">{h.unitName || h.propertyName || h.name}</p>
-                  <p className="font-body text-xs text-sage font-medium flex items-center gap-1 mt-0.5">
-                    <Hash size={10} /> {h.unitNumber || h.name || 'Unit'}
-                  </p>
-                  <p className="font-body text-xs text-stone-400 mt-0.5">{h.address || 'Managed Property'}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-display text-sm font-semibold text-ink">
-                    {fmtRent(h.monthlyRent || h.rentAmount || 0, h.rentType || h.billingCycle || 'monthly')}
-                  </p>
-                  <p className="font-body text-[11px] text-sage font-medium mt-0.5">Active lease</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </motion.div>
-
-      {/* Past Homes */}
-      {pastHomes.length > 0 && (
-        <motion.div {...fadeUp(0.25)} className="card p-6 bg-stone-50/50">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display text-stone-500 text-lg font-semibold">Past homes</h2>
-          </div>
-          <div className="space-y-3">
-            {pastHomes.map(h => (
-              <div key={h.id} className="flex items-center justify-between gap-3 p-4 rounded-xl border border-stone-200 bg-white opacity-70 grayscale hover:grayscale-0 transition-all">
-                <div>
-                  <p className="font-body font-semibold text-sm text-stone-600">{h.unitName || h.propertyName || h.name}</p>
-                  <p className="font-body text-xs text-stone-500 flex items-center gap-1 mt-0.5">
-                    <Hash size={10} /> {h.unitNumber || h.name || 'Unit'}
-                  </p>
-                  <p className="font-body text-xs text-stone-400 mt-0.5">{h.address || 'Managed Property'}</p>
-                </div>
-                <div className="text-right flex flex-col items-end">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-stone-200 text-stone-500 uppercase tracking-widest">
-                    Archived
-                  </span>
-                  {h.closedAt && (
-                    <p className="font-body text-[11px] text-stone-400 mt-1.5">
-                      Moved out: {format(h.closedAt?.toDate?.() || new Date(h.closedAt), 'MMM yyyy')}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
+          <div>
+            <p className="font-display text-[#e8e4de] font-bold text-lg mb-1 tracking-tight">Post-Residency Access</p>
+            <p className="font-body text-sm text-[#4a5568] font-medium leading-relaxed max-w-2xl">
+              No active leases detected. Your account remains active in a read-only capacity allowing you to download past fulfillment receipts and maintenance records.
+            </p>
           </div>
         </motion.div>
       )}
@@ -293,118 +270,84 @@ export default function TenantDashboardPage() {
       {/* ── Approved Tenant Celebration Overlay Modal ──────────────────────── */}
       <AnimatePresence>
         {newApprovals.length > 0 && !dismissedWelcome && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 pointer-events-none">
-            {/* Backdrop */}
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-[#070b0d]/80 backdrop-blur-xl pointer-events-auto"
+              onClick={handleDismissWelcome} />
+            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-0" />
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm pointer-events-auto"
-              onClick={handleDismissWelcome}
-            />
-
-            {/* Confetti Canvas */}
-            <canvas
-              ref={canvasRef}
-              className="absolute inset-0 w-full h-full pointer-events-none z-0"
-            />
-
-            {/* Modal Content */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: -20 }}
-              transition={{ duration: 0.4, type: 'spring', bounce: 0.3 }}
-              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl flex flex-col pointer-events-auto z-10 overflow-hidden"
-              style={{ maxHeight: 'calc(100vh - 2rem)' }}
+              initial={{ opacity: 0, scale: 0.95, y: 30 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.6, type: 'spring', damping: 25 }}
+              className="relative w-full max-w-3xl bg-[#0d1215] rounded-[48px] border border-[#1e2a2e] shadow-2xl flex flex-col pointer-events-auto z-10 overflow-hidden"
+              style={{ maxHeight: '90vh' }}
             >
-              {/* Decorative top gradient */}
-              <div className="h-2 w-full bg-gradient-to-r from-sage via-amber to-sage flex-shrink-0" />
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#1a3c2e] via-[#52b788] to-[#1a3c2e]" />
+              <button onClick={handleDismissWelcome} className="absolute top-6 right-6 w-12 h-12 flex items-center justify-center rounded-2xl bg-[#141b1e] border border-[#1e2a2e] text-[#4a5568] hover:text-[#e8e4de] transition-all z-20"><X size={20} /></button>
 
-              {/* Close Button */}
-              <button
-                onClick={handleDismissWelcome}
-                className="absolute top-4 right-4 text-stone-400 hover:text-stone-700 hover:bg-stone-100 p-2 rounded-full transition-colors z-20"
-                aria-label="Close welcome banner"
-              >
-                <X size={20} />
-              </button>
-
-              <div className="p-6 md:p-8 overflow-y-auto w-full">
+              <div className="p-10 md:p-14 overflow-y-auto no-scrollbar">
                 {newApprovals.map((prop, idx) => (
-                  <div key={`welcome-${prop.id}`} className={idx > 0 ? "mt-8 pt-8 border-t border-stone-100" : ""}>
-                    <div className="flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left">
-
-                      {/* Left: Icon & Title */}
-                      <div className="flex flex-col items-center md:items-start flex-shrink-0">
-                        <div className="w-16 h-16 md:w-20 md:h-20 rounded-[1.25rem] bg-sage flex items-center justify-center mb-4 shadow-lg shadow-sage/20 relative">
-                          {/* Decorative Sparkles */}
-                          <div className="absolute -top-3 -right-3 text-amber animate-pulse">
-                            <Sparkles size={24} />
+                  <div key={prop.id} className={idx > 0 ? "mt-12 pt-12 border-t border-[#1e2a2e]" : ""}>
+                    <div className="flex flex-col lg:flex-row gap-12 items-start">
+                      {/* Left Header */}
+                      <div className="lg:w-1/3 space-y-6 text-center lg:text-left">
+                        <div className="relative inline-block">
+                          <div className="w-24 h-24 md:w-28 md:h-28 rounded-[2.5rem] bg-gradient-to-br from-[#1a3c2e] to-[#2d6a4f] flex items-center justify-center shadow-2xl shadow-[#1a3c2e]/40 relative transform rotate-3 transition-transform hover:rotate-0 duration-700">
+                            <CheckCircle2 size={40} className="text-[#e8e4de]" />
+                            <div className="absolute -top-4 -right-4 text-[#f0c040] animate-bounce"><Star size={24} fill="currentColor" /></div>
                           </div>
-                          <CheckCircle2 size={32} className="text-cream" />
                         </div>
-                        <h2 className="font-display text-ink text-2xl md:text-3xl font-bold leading-tight break-words">
-                          Welcome Home!
-                        </h2>
-                        <p className="font-body text-sage font-semibold mt-1 flex items-center gap-1.5 justify-center md:justify-start text-base md:text-lg">
-                          <PartyPopper size={18} /> Request Approved
-                        </p>
+                        <div>
+                          <h2 className="font-display text-[#e8e4de] text-4xl font-bold tracking-tighter leading-none mb-3">Welcome Home.</h2>
+                          <div className="flex items-center justify-center lg:justify-start gap-2 text-[#52b788]">
+                            <PartyPopper size={18} />
+                            <span className="font-body text-[11px] font-bold uppercase tracking-[0.2em]">Application Successful</span>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Right: Info Card */}
-                      <div className="flex-1 w-full space-y-5 min-w-0">
-                        <div className="p-4 rounded-2xl bg-stone-50 border border-stone-100 flex flex-col gap-4 overflow-hidden">
-                          <div className="flex items-start gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-sage/10 flex items-center justify-center flex-shrink-0 text-sage">
-                              <Building2 size={20} />
+                      {/* Right Detail */}
+                      <div className="flex-1 space-y-8">
+                        <div className="p-8 rounded-3xl bg-[#141b1e]/50 border border-[#1e2a2e] space-y-6">
+                          <div className="flex items-start gap-5">
+                            <div className="w-12 h-12 rounded-xl bg-[#0d1215] border border-[#1e2a2e] flex items-center justify-center text-[#52b788] flex-shrink-0">
+                              <Building2 size={24} />
                             </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="font-body text-xs text-stone-400 uppercase tracking-wider font-semibold">Address</p>
-                              <p className="font-display text-ink font-semibold truncate break-words">{prop.buildingName || prop.propertyName || prop.name}</p>
-                              <p className="font-body text-stone-500 text-sm break-words line-clamp-2">{prop.address}</p>
+                            <div>
+                              <p className="font-body text-[10px] text-[#4a5568] uppercase tracking-widest font-bold mb-1">Registered Address</p>
+                              <p className="font-display text-[#e8e4de] text-xl font-bold tracking-tight">{prop.buildingName || prop.propertyName}</p>
+                              <p className="font-body text-[#8a9ba8] text-sm mt-1 font-medium">{prop.address}</p>
                               {prop.unitNumber && (
-                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sage/10 text-sage text-xs font-bold mt-2">
-                                  <Hash size={12} /> Unit {prop.unitNumber}
-                                </div>
+                                <span className="inline-flex mt-3 px-3 py-1 rounded-lg bg-[#1a3c2e]/20 border border-[#2d6a4f]/20 text-[#52b788] text-[10px] font-bold uppercase tracking-widest">
+                                  Unit {prop.unitNumber}
+                                </span>
                               )}
                             </div>
                           </div>
 
-                          <div className="h-px bg-stone-200 w-full" />
+                          <div className="h-px bg-[#1e2a2e]/50 w-full" />
 
-                          <div className="flex items-start gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-amber/10 flex items-center justify-center flex-shrink-0 text-amber">
-                              <Mail size={20} />
+                          <div className="flex items-start gap-5">
+                            <div className="w-12 h-12 rounded-xl bg-[#0d1215] border border-[#1e2a2e] flex items-center justify-center text-[#f0c040] flex-shrink-0">
+                              <Mail size={24} />
                             </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="font-body text-xs text-stone-400 uppercase tracking-wider font-semibold">A quick note</p>
-                              <p className="font-body text-stone-600 text-sm italic leading-relaxed break-words">
-                                "We are glad to have you! Please find building rules attached. Feel free to reach out via management contact if you need anything."
+                            <div>
+                              <p className="font-body text-[10px] text-[#4a5568] uppercase tracking-widest font-bold mb-1">Manager Note</p>
+                              <p className="font-body text-[#8a9ba8] text-sm italic leading-relaxed">
+                                "We are thrilled to have you at {prop.name}. Your access is now live. Please review the digital handbook attached to your portal."
                               </p>
                             </div>
                           </div>
                         </div>
 
-                        {/* Quick Actions */}
-                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                          <Link
-                            to="/tenant/payments"
-                            className="btn-primary flex-1 py-3 text-sm justify-center shadow-lg shadow-sage/10 min-w-0 whitespace-nowrap"
-                            onClick={handleDismissWelcome}
-                          >
-                            <CreditCard size={16} /> Pay Your Rent
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          <Link to="/tenant/payments" onClick={handleDismissWelcome} className="flex-1 h-14 rounded-2xl bg-gradient-to-r from-[#1a3c2e] to-[#2d6a4f] text-[#e8e4de] flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] shadow-xl shadow-[#1a3c2e]/30 hover:scale-[1.02] transition-transform">
+                            <CreditCard size={18} /> Initialize Payout
                           </Link>
-                          <a
-                            href={`mailto:${prop.landlordEmail || ''}?subject=Question regarding ${prop.name}`}
-                            className="btn-secondary flex-1 py-3 text-sm justify-center min-w-0 whitespace-nowrap"
-                            onClick={handleDismissWelcome}
-                          >
-                            <Mail size={16} /> Contact Management
+                          <a href={`mailto:${prop.landlordEmail || ''}`} onClick={handleDismissWelcome} className="flex-1 h-14 rounded-2xl bg-[#141b1e] border border-[#1e2a2e] text-[#e8e4de] flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-widest hover:bg-[#1a3c2e]/20 transition-all">
+                            <Mail size={18} /> Contact Admin
                           </a>
                         </div>
                       </div>
-
                     </div>
                   </div>
                 ))}
@@ -417,3 +360,20 @@ export default function TenantDashboardPage() {
   );
 }
 
+function StatCard({ icon: Icon, label, value, delay, color, bg, border, showTrend }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }} className={`stat-card p-6 bg-[#0d1215] border-l-4 ${border} relative overflow-hidden group`} style={{ borderLeftColor: color === 'text-[#52b788]' ? '#52b788' : color === 'text-[#f0c040]' ? '#f0c040' : '#1a3c2e' }}>
+      <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full blur-[40px] -mr-12 -mt-12 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="flex items-center justify-between mb-4">
+        <div className={`w-10 h-10 rounded-xl ${bg} border ${border} flex items-center justify-center text-current`}>
+          <Icon size={18} className={color} />
+        </div>
+        {showTrend && <ArrowUpRight size={16} className="text-[#4a5568]" />}
+      </div>
+      <div>
+        <p className={`font-display text-2xl font-bold tracking-tight ${color}`}>{value}</p>
+        <p className="font-body text-[10px] text-[#4a5568] mt-1 uppercase tracking-widest font-bold">{label}</p>
+      </div>
+    </motion.div>
+  );
+}

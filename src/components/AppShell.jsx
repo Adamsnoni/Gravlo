@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutGrid, Building2, Bell, CreditCard, Settings, LogOut, Menu, X, KeyRound, ChevronRight, Crown, User, AlertTriangle, Archive } from 'lucide-react';
+import { LayoutGrid, Building2, Bell, CreditCard, Settings, LogOut, Menu, X, KeyRound, ChevronRight, Crown, User, AlertTriangle, Archive, Zap, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { db, subscribeUnreadNotificationsCount, subscribePendingUnitsCount } from '../services/firebase';
@@ -47,21 +47,13 @@ export default function AppShell() {
   const [activeTab, setActiveTab] = useState(isTenant ? '/tenant' : '/dashboard');
 
   useEffect(() => {
-    // Keep it synced with the actual URL if navigation happens outside sidebar clicks
-    // but default to exact match to prevent dual highlights
     setActiveTab(location.pathname);
   }, [location.pathname]);
 
-  // Real-time listener for pending unit join requests & notifications (landlords only)
   useEffect(() => {
     if (isTenant || !user?.uid) return;
-
-    // Joint request badge (on Properties)
     const unsubUnits = subscribePendingUnitsCount(user.uid, setPendingCount);
-
-    // Unread notifications badge (on Dashboard)
     const unsubNotifs = subscribeUnreadNotificationsCount(user.uid, setUnreadNotificationsCount);
-
     return () => { unsubUnits(); unsubNotifs(); };
   }, [user?.uid, isTenant]);
 
@@ -75,29 +67,27 @@ export default function AppShell() {
     .split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className="px-5 py-6 border-b border-[#1e2a2e]">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1a3c2e] to-[#52b788] flex items-center justify-center shadow-sm">
-            <KeyRound size={17} className="text-white opacity-90" />
+    <div className="flex flex-col h-full bg-[#0d1215]">
+      {/* Brand Header */}
+      <div className="px-6 py-10 border-b border-[#1e2a2e]/50">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1a3c2e] to-[#2d6a4f] flex items-center justify-center shadow-lg shadow-[#1a3c2e]/20 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <KeyRound size={18} className="text-[#e8e4de] relative z-10" />
           </div>
           <div>
-            <div className="font-display font-bold text-[#e8e4de] text-lg leading-none tracking-tight">Gravlo</div>
-            <div className="text-[10px] text-[#4a5568] font-body mt-1 uppercase tracking-widest font-bold">Property Manager</div>
+            <div className="font-display font-bold text-[#e8e4de] text-xl leading-none tracking-tight">LeaseEase</div>
+            <div className="flex items-center gap-2 mt-1.5">
+              <div className="w-1 h-1 rounded-full bg-[#52b788] animate-pulse" />
+              <span className="text-[9px] text-[#4a5568] font-black uppercase tracking-[0.2em]">Platform Core</span>
+            </div>
           </div>
         </div>
-        {/* Country pill */}
-        {country && (
-          <div className="mt-4 flex items-center gap-1.5 px-2 py-1 bg-[#141b1e] rounded-lg border border-[#1e2a2e] w-fit">
-            <span className="text-sm">{getFlag(country.code)}</span>
-            <span className="font-body text-[10px] text-[#4a5568] font-bold uppercase tracking-wider">{country.currency} ({currencySymbol})</span>
-          </div>
-        )}
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      {/* Navigation Matrix */}
+      <nav className="flex-1 px-4 py-8 space-y-1.5 overflow-y-auto no-scrollbar">
+        <p className="px-3 mb-4 font-body text-[9px] font-bold text-[#4a5568] uppercase tracking-[0.3em]">Operational Menu</p>
         {NAV.map(({ to, icon: Icon, label }) => {
           const isActive = activeTab === to;
           return (
@@ -108,20 +98,24 @@ export default function AppShell() {
                 setActiveTab(to);
                 setSidebarOpen(false);
               }}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${isActive
-                  ? 'bg-[#1a3c2e] text-[#52b788]'
-                  : 'text-[#4a5568] hover:bg-[#141b1e] hover:text-[#8a9ba8]'
+              className={`flex items-center gap-4 px-4 py-3.5 rounded-[1.25rem] transition-all duration-300 group relative ${isActive
+                ? 'bg-[#1a3c2e]/20 text-[#52b788] shadow-sm'
+                : 'text-[#4a5568] hover:bg-[#141b1e] hover:text-[#8a9ba8]'
                 }`}
             >
-              <Icon size={17} className={isActive ? 'text-[#52b788]' : 'text-[#4a5568] group-hover:text-[#8a9ba8]'} />
-              <span className={`font-body text-sm ${isActive ? 'font-semibold' : 'font-medium'}`}>{label}</span>
-              {label === 'Dashboard' && unreadNotificationsCount > 0 && (
-                <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-[#e74c3c] text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
+              {isActive && (
+                <motion.div layoutId="activeNav" className="absolute left-0 w-1 h-6 bg-[#52b788] rounded-r-full" />
+              )}
+              <Icon size={18} className={`${isActive ? 'text-[#52b788]' : 'text-[#4a5568] group-hover:text-[#8a9ba8]'} transition-colors`} />
+              <span className={`font-body text-sm tracking-tight ${isActive ? 'font-bold' : 'font-medium'}`}>{label}</span>
+
+              {label === 'Activity' && unreadNotificationsCount > 0 && (
+                <span className="ml-auto w-5 h-5 rounded-full bg-[#e74c3c] text-white text-[9px] font-bold flex items-center justify-center animate-bounce shadow-lg shadow-[#e74c3c]/20">
                   {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
                 </span>
               )}
               {label === 'Properties' && pendingCount > 0 && (
-                <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-[#e74c3c] text-white text-[9px] font-bold flex items-center justify-center">
+                <span className="ml-auto w-5 h-5 rounded-full bg-[#f0c040] text-[#1a1614] text-[9px] font-black flex items-center justify-center shadow-lg shadow-[#f0c040]/20">
                   {pendingCount > 9 ? '9+' : pendingCount}
                 </span>
               )}
@@ -130,58 +124,54 @@ export default function AppShell() {
         })}
       </nav>
 
-      {/* User */}
-      <div className="px-3 py-4 border-t border-[#1e2a2e]">
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#141b1e] transition-colors cursor-pointer group"
-          onClick={() => navigate('/profile')}>
-          <div className="w-8 h-8 rounded-full bg-[#1a3c2e] border border-[#2d6a4f] flex items-center justify-center flex-shrink-0">
-            <span className="font-body font-bold text-[#52b788] text-[10px]">{initials}</span>
+      {/* Identity Sphere */}
+      <div className="p-6 border-t border-[#1e2a2e]/50">
+        <div
+          className="flex items-center gap-4 p-4 rounded-2xl bg-[#141b1e] border border-[#1e2a2e] hover:border-[#1a3c2e] transition-all cursor-pointer group mb-4"
+          onClick={() => navigate('/profile')}
+        >
+          <div className="w-10 h-10 rounded-[1rem] bg-[#1a3c2e] border border-[#2d6a4f]/30 flex items-center justify-center flex-shrink-0 shadow-inner">
+            <span className="font-display font-bold text-[#52b788] text-xs">{initials}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-body font-semibold text-[#e8e4de] text-sm truncate">
-              {profile?.fullName || user?.displayName || 'User'}
+            <div className="font-body font-bold text-[#e8e4de] text-sm truncate tracking-tight">
+              {profile?.fullName || user?.displayName || 'User Entity'}
             </div>
-            <div className="font-body text-[11px] text-[#4a5568] truncate">{user?.email}</div>
+            {!isTenant ? (
+              <div className={`inline-flex items-center gap-1 mt-0.5 text-[8px] font-black uppercase tracking-[0.1em] ${userPlan.badgeColor.replace('bg-', 'text-')}`}>
+                <Crown size={8} /> {userPlan.badge}
+              </div>
+            ) : (
+              <div className="text-[8px] font-black uppercase tracking-[0.1em] text-[#52b788]">Verified Resident</div>
+            )}
           </div>
-          <ChevronRight size={14} className="text-[#1e2a2e] group-hover:text-[#4a5568] transition-colors" />
         </div>
-        {!isTenant && (
-          <div className="px-3 mb-2 mt-1">
-            <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${userPlan.badgeColor.replace('bg-', 'bg-').replace('text-', 'text-')}`}>
-              <Crown size={10} />
-              {userPlan.badge}
-            </div>
-          </div>
-        )}
-        <button onClick={handleLogout} className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-[#6b6460] hover:bg-[#2d1a1a] hover:text-[#e74c3c] transition-all duration-200">
-          <LogOut size={16} />
-          <span className="font-body text-sm font-medium">Sign Out</span>
+
+        <button onClick={handleLogout} className="flex items-center justify-center gap-3 w-full h-12 rounded-xl text-[#4a5568] hover:bg-[#2d1a1a]/20 hover:text-[#e74c3c] transition-all duration-300 font-body text-[10px] font-bold uppercase tracking-widest border border-transparent hover:border-[#3d2020]/20">
+          <LogOut size={16} /> Sign Out
         </button>
       </div>
     </div>
   );
 
   return (
-    <div className="flex min-h-screen bg-[#0a0f12]">
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-60 bg-[#0d1215] border-r border-[#1e2a2e] fixed inset-y-0 left-0 z-40">
+    <div className="flex min-h-screen bg-[#070b0d]">
+      <aside className="hidden lg:flex flex-col w-72 bg-[#0d1215] border-r border-[#1e2a2e] fixed inset-y-0 left-0 z-40 transition-all duration-500">
         <SidebarContent />
       </aside>
 
-      {/* Mobile Overlay */}
       <AnimatePresence>
         {sidebarOpen && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-ink/40 backdrop-blur-sm z-40 lg:hidden"
+              className="fixed inset-0 bg-[#070b0d]/80 backdrop-blur-xl z-40 lg:hidden"
               onClick={() => setSidebarOpen(false)} />
-            <motion.aside initial={{ x: -280 }} animate={{ x: 0 }} exit={{ x: -280 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="fixed inset-y-0 left-0 w-72 bg-[#0d1215] z-50 shadow-deep lg:hidden border-r border-[#1e2a2e]">
-              <div className="flex items-center justify-between px-5 pt-5 pb-0">
-                <div />
-                <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-stone-100 text-stone-400">
-                  <X size={18} />
+            <motion.aside initial={{ x: -320 }} animate={{ x: 0 }} exit={{ x: -320 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 left-0 w-80 bg-[#0d1215] z-50 shadow-2xl lg:hidden border-r border-[#1e2a2e]">
+              <div className="flex items-center justify-end p-6">
+                <button onClick={() => setSidebarOpen(false)} className="w-10 h-10 rounded-xl bg-[#141b1e] border border-[#1e2a2e] text-[#4a5568] flex items-center justify-center">
+                  <X size={20} />
                 </button>
               </div>
               <SidebarContent />
@@ -190,22 +180,19 @@ export default function AppShell() {
         )}
       </AnimatePresence>
 
-      {/* Main */}
-      <main className="flex-1 lg:ml-60 flex flex-col min-h-screen">
-        {/* Mobile top bar */}
-        <div className="lg:hidden flex items-center gap-3 px-4 py-3 bg-[#0d1215] border-b border-[#1e2a2e] sticky top-0 z-30">
-          <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-[#141b1e] text-[#4a5568] transition-colors">
+      <main className="flex-1 lg:ml-72 flex flex-col min-h-screen relative overflow-hidden">
+        {/* Decorative elements */}
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#52b788]/5 rounded-full blur-[120px] -mr-64 -mt-64 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-[#1a3c2e]/5 rounded-full blur-[100px] -ml-32 -mb-32 pointer-events-none" />
+
+        <div className="lg:hidden flex items-center gap-4 px-6 py-4 bg-[#0d1215]/80 backdrop-blur-md border-b border-[#1e2a2e] sticky top-0 z-30">
+          <button onClick={() => setSidebarOpen(true)} className="w-10 h-10 rounded-xl bg-[#141b1e] border border-[#1e2a2e] text-[#4a5568] flex items-center justify-center">
             <Menu size={20} />
           </button>
-          <div className="font-display font-bold text-[#e8e4de] text-lg tracking-tight">Gravlo</div>
-          {country && (
-            <span className="ml-auto flex items-center gap-1.5 px-2 py-0.5 bg-[#141b1e] rounded-lg border border-[#1e2a2e] font-body text-[10px] text-[#4a5568] font-bold uppercase tracking-wider">
-              {getFlag(country.code)} {country.currency}
-            </span>
-          )}
+          <div className="font-display font-bold text-[#e8e4de] text-xl tracking-tight">LeaseEase</div>
         </div>
 
-        <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <div className="flex-1 p-6 sm:p-8 lg:p-12 max-w-[1400px] w-full mx-auto relative z-10 overflow-x-hidden">
           <Outlet />
         </div>
       </main>

@@ -1,8 +1,8 @@
 // src/pages/PropertyDetailPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { ArrowLeft, Bed, Bath, MapPin, User, Mail, Phone, Plus, Wrench, CreditCard, Info, ChevronDown, Hash, Building2, DoorOpen, UserMinus, Link2, Copy, Check, UserCheck, AlertCircle, Loader2, Settings } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, Bed, Bath, MapPin, User, Mail, Phone, Plus, Wrench, CreditCard, Info, ChevronDown, Hash, Building2, DoorOpen, UserMinus, Link2, Copy, Check, UserCheck, AlertCircle, Loader2, Settings, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
@@ -29,6 +29,7 @@ const TABS = [
 export default function PropertyDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { fmt, fmtRent, currencySymbol, country } = useLocale();
 
   const [property, setProperty] = useState(null);
@@ -46,7 +47,7 @@ export default function PropertyDetailPage() {
 
   // Unit modals
   const [showAddUnit, setShowAddUnit] = useState(false);
-  const [editingUnit, setEditingUnit] = useState(null);   // null = add mode, object = edit mode
+  const [editingUnit, setEditingUnit] = useState(null);
   const [unitSaving, setUnitSaving] = useState(false);
 
   // Remove tenant confirm
@@ -79,7 +80,7 @@ export default function PropertyDetailPage() {
     return () => { u1(); u2(); u3(); u4(); };
   }, [user, id]);
 
-  // Auto-open Add Unit modal when deep-linked from PropertyCard
+  // Auto-open Add Unit modal when deep-linked
   useEffect(() => {
     if (searchParams.get('action') === 'add' && !loading) {
       setEditingUnit(null);
@@ -106,7 +107,7 @@ export default function PropertyDetailPage() {
   const cycleStatus = async (ticket) => {
     const next = ticket.status === 'open' ? 'in-progress' : ticket.status === 'in-progress' ? 'resolved' : 'open';
     await updateMaintenance(user.uid, id, ticket.id, { status: next });
-    toast.success(`Status → ${next}`);
+    toast.success(`Status updated to ${next}`);
   };
 
   // ── Unit handlers ─────────────────────────────────────────────────────
@@ -144,7 +145,6 @@ export default function PropertyDetailPage() {
     }
   };
 
-  // ── Settings handlers ───────────────────────────────────────────────────
   const handleUpdateRentPrice = async () => {
     setSettingsSaving(true);
     try {
@@ -171,20 +171,15 @@ export default function PropertyDetailPage() {
     if (!removeUnit) return;
     setUnitSaving(true);
     try {
-      // 1) Terminate active lease (stops invoices, preserves history as FORMER)
       const activeTenancy = await getActiveTenancy(user.uid, id, removeUnit.id);
       if (activeTenancy) {
         await terminateActiveLeasesForUnit(user.uid, id, removeUnit.id);
-        // Cancel any pending/sent invoices for this tenancy
         await cancelPendingInvoices(user.uid, activeTenancy.id);
       }
-
-      // 2) Update unit document
       await updateUnit(user.uid, id, removeUnit.id, {
         tenantId: null, tenantName: '', tenantEmail: '', status: 'vacant',
         rentStatus: null,
       });
-
       toast.success(`Lease terminated. ${removeUnit.unitName || 'Unit'} is now vacant.`);
       setShowRemoveConfirm(false);
       setRemoveUnit(null);
@@ -192,7 +187,6 @@ export default function PropertyDetailPage() {
     finally { setUnitSaving(false); }
   };
 
-  // ── Join request handlers ─────────────────────────────────────────────
   const handleApproveRequest = async (unit) => {
     setUnitSaving(true);
     try {
@@ -223,7 +217,7 @@ export default function PropertyDetailPage() {
         welcomeMessageDate: new Date(),
       });
       await clearUnitRequestNotifications(user.uid, id, unit.id, unit.pendingTenantId);
-      toast.success(`${unit.pendingTenantName || 'Tenant'} approved for ${unit.name}!`);
+      toast.success(`${unit.pendingTenantName || 'Tenant'} approved!`);
     } catch (err) { console.error(err); toast.error('Failed to approve request.'); }
     finally { setUnitSaving(false); }
   };
@@ -239,184 +233,227 @@ export default function PropertyDetailPage() {
         pendingRequestedAt: null,
       });
       await clearUnitRequestNotifications(user.uid, id, unit.id, unit.pendingTenantId);
-      toast.success(`Request from ${unit.pendingTenantName || 'tenant'} declined.`);
+      toast.success(`Request declined.`);
     } catch (err) { console.error(err); toast.error('Failed to decline request.'); }
     finally { setUnitSaving(false); }
   };
 
-  // ── Loading / Not found ───────────────────────────────────────────────
   if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="w-8 h-8 border-2 border-sage border-t-transparent rounded-full animate-spin" />
+    <div className="flex flex-col items-center justify-center h-96">
+      <Loader2 size={40} className="text-[#52b788] animate-spin mb-4" />
+      <p className="font-body text-[#4a5568] text-sm uppercase tracking-widest font-bold">Synchronizing Data...</p>
     </div>
   );
 
   if (!property) return (
-    <div className="text-center py-20">
-      <p className="font-body text-stone-400">Property not found.</p>
-      <Link to="/properties" className="btn-secondary mt-4 inline-flex">← Back to Properties</Link>
+    <div className="text-center py-20 bg-[#0d1215] border border-[#1e2a2e] rounded-3xl mt-10">
+      <p className="font-body text-[#4a5568] mb-6">Property record not found.</p>
+      <Link to="/properties" className="btn-secondary px-8 flex items-center gap-2 mx-auto w-fit">
+        <ArrowLeft size={16} /> Back to Properties
+      </Link>
     </div>
   );
 
   const totalPaid = payments.filter(p => p.status === 'paid').reduce((s, p) => s + (p.amount || 0), 0);
+  const activeIssues = maintenance.filter(m => m.status !== 'resolved').length;
 
-  // ══════════════════════════════════════════════════════════════════════
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-        <Link to="/properties" className="inline-flex items-center gap-1.5 text-sm font-body text-stone-400 hover:text-ink transition-colors mb-4">
-          <ArrowLeft size={15} /> All Properties
+        <Link to="/properties" className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-[#4a5568] hover:text-[#52b788] mb-6 transition-all">
+          <ArrowLeft size={16} /> All Properties
         </Link>
 
-        <div className="card overflow-hidden">
-          {/* Hero */}
-          <div className="bg-gradient-to-br from-ink to-ink-light p-6 sm:p-8 relative overflow-hidden">
-            <div className="absolute inset-0 opacity-5" style={{ backgroundImage: `radial-gradient(circle at 1px 1px, #F5F0E8 1px, transparent 0)`, backgroundSize: '24px 24px' }} />
-            <div className="absolute top-0 right-0 w-48 h-48 bg-sage/10 rounded-full blur-2xl" />
-            <div className="relative">
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <StatusBadge status={property.status} />
-              </div>
-              <h1 className="font-display text-cream text-2xl sm:text-3xl font-semibold mb-2">{property.name}</h1>
-              {property.unitNumber && (
-                <div className="flex items-center gap-1.5 text-sage mb-3">
-                  <Hash size={14} />
-                  <span className="font-body text-sm font-medium">{formatUnitDisplay(property)}</span>
+        {/* Hero Section */}
+        <div className="card overflow-hidden bg-[#0d1215] border-[#1e2a2e] relative group">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#1a3c2e] via-[#52b788] to-transparent opacity-50" />
+
+          <div className="p-8 relative">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-6">
+                  <StatusBadge status={property.status} />
+                  {property.buildingName && (
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#141b1e] border border-[#1e2a2e] text-[10px] font-bold text-[#e8e4de] uppercase tracking-wider">
+                      <Building2 size={12} className="text-[#52b788]" />
+                      {property.buildingName}
+                    </div>
+                  )}
                 </div>
-              )}
-              <div className="flex items-center gap-1.5 text-stone-400 mb-6">
-                <MapPin size={14} />
-                <span className="font-body text-sm">{property.address}</span>
+
+                <h1 className="font-display text-[#e8e4de] text-4xl sm:text-5xl font-bold tracking-tight mb-4 leading-tight">
+                  {property.name}
+                </h1>
+
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 text-[#4a5568]">
+                  <div className="flex items-center gap-2">
+                    <MapPin size={16} className="text-[#52b788]" />
+                    <span className="font-body text-sm font-medium">{property.address}</span>
+                  </div>
+                  {property.unitNumber && (
+                    <div className="flex items-center gap-2 border-l border-[#1e2a2e] pl-4">
+                      <Hash size={16} className="text-[#52b788]" />
+                      <span className="font-body text-sm font-bold text-[#e8e4de]">{formatUnitDisplay(property)}</span>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-6 mb-6">
+
+              <div className="flex flex-wrap gap-12 border-t lg:border-t-0 lg:border-l border-[#1e2a2e] pt-8 lg:pt-0 lg:pl-12">
                 <Stat label="Rent" value={fmtRent(property.monthlyRent, property.rentType)} accent />
-                <Stat label="Units" value={units.length} />
-                <Stat label="Occupied" value={units.filter(u => u.status === 'occupied').length} />
-                <Stat label="Bedrooms" value={property.bedrooms || '—'} />
-                <Stat label="Total Collected" value={fmt(totalPaid)} />
+                <Stat label="Capacity" value={`${units.length} Units`} />
+                <Stat label="Collected" value={fmt(totalPaid)} />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-stone-100 px-2 overflow-x-auto">
+        {/* Tabs Navigation */}
+        <div className="mt-10 flex gap-1 p-1 bg-[#0d1215] border border-[#1e2a2e] rounded-2xl w-fit overflow-x-auto no-scrollbar">
           {TABS.map(({ id: tid, label, icon: Icon }) => (
-            <button key={tid} onClick={() => setActiveTab(tid)}
-              className={`flex items-center gap-2 px-5 py-4 text-sm font-body font-medium border-b-2 transition-all whitespace-nowrap
-                  ${activeTab === tid ? 'border-sage text-sage' : 'border-transparent text-stone-400 hover:text-ink'}`}>
-              <Icon size={15} /> {label}
+            <button
+              key={tid}
+              onClick={() => setActiveTab(tid)}
+              className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all whitespace-nowrap
+                ${activeTab === tid
+                  ? 'bg-[#1a3c2e] text-[#52b788] shadow-sm'
+                  : 'text-[#4a5568] hover:bg-[#141b1e] hover:text-[#8a9ba8]'}`}
+            >
+              <Icon size={15} />
+              <span>{label}</span>
               {tid === 'units' && units.length > 0 && (
-                <span className="ml-1 w-5 h-5 rounded-full bg-sage/10 text-sage text-xs font-semibold flex items-center justify-center">{units.length}</span>
+                <span className="ml-1 px-1.5 py-0.5 rounded-md bg-[#1e2a2e] text-[#52b788] text-[9px] border border-[#2d6a4f]/20">
+                  {units.length}
+                </span>
+              )}
+              {tid === 'maintenance' && activeIssues > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-md bg-[#2d1a1a] text-[#e74c3c] text-[9px] border border-[#3d2020]/20 animate-pulse">
+                  {activeIssues}
+                </span>
               )}
             </button>
           ))}
         </div>
 
         {/* Tab Content */}
-        <div className="p-6">
-          {/* ── Units ────────────────────────────────────────────── */}
+        <div className="mt-8">
+          {/* ── Units Tab ────────────────────────────────────────── */}
           {activeTab === 'units' && (
-            <div className="space-y-6">
-              {/* Property Invite Link Section */}
-              <div className="p-6 rounded-3xl bg-sage/5 border-2 border-sage/10 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-sage/5 rounded-full blur-3xl -mr-16 -mt-16" />
-                <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-sage/15 flex items-center justify-center flex-shrink-0">
-                      <Link2 size={24} className="text-sage" />
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              {/* Portal Access Card */}
+              <div className="p-8 rounded-[32px] bg-gradient-to-br from-[#1a3c2e]/10 to-[#0d1215] border border-[#2d6a4f]/20 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-[#52b788]/5 rounded-full blur-[100px] -mr-32 -mt-32 group-hover:bg-[#52b788]/10 transition-colors" />
+
+                <div className="relative flex flex-col xl:flex-row items-start xl:items-center justify-between gap-8">
+                  <div className="flex items-start gap-5">
+                    <div className="w-14 h-14 rounded-2xl bg-[#141b1e] border border-[#1e2a2e] flex items-center justify-center flex-shrink-0 text-[#52b788]">
+                      <Link2 size={28} />
                     </div>
                     <div>
-                      <h3 className="font-display text-ink text-lg font-semibold mb-1">Building Access Link</h3>
-                      <p className="font-body text-stone-500 text-sm">Share this link to let tenants join any vacant unit in this building</p>
+                      <h3 className="font-display text-[#e8e4de] text-xl font-bold mb-1 tracking-tight">Building Access Link</h3>
+                      <p className="font-body text-[#4a5568] text-sm max-w-md font-medium">
+                        Share this master link with prospective tenants. It allows them to view all vacant units in this building and apply directly.
+                      </p>
                     </div>
                   </div>
 
-                  <div className="w-full md:w-auto flex items-center gap-2">
+                  <div className="w-full xl:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     {propertyInviteLink ? (
-                      <div className="flex-1 md:flex-initial flex items-center gap-2 bg-white/80 backdrop-blur-sm border border-sage/20 rounded-2xl p-1.5 pl-4 shadow-sm">
-                        <span className="font-mono text-xs text-stone-500 truncate max-w-[200px]">{propertyInviteLink}</span>
+                      <div className="flex items-center gap-3 bg-[#141b1e] border border-[#1e2a2e] rounded-2xl p-2 pl-5 shadow-sm">
+                        <span className="font-mono text-[11px] text-[#4a5568] truncate max-w-[240px]">{propertyInviteLink}</span>
                         <button
                           onClick={() => {
                             navigator.clipboard.writeText(propertyInviteLink);
                             setPortalLinkCopied(true);
                             setTimeout(() => setPortalLinkCopied(false), 2000);
                           }}
-                          className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-body font-bold transition-all ${portalLinkCopied ? 'bg-sage text-white' : 'bg-sage/10 text-sage hover:bg-sage/20'}`}
+                          className={`flex-shrink-0 flex items-center gap-2 px-6 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all ${portalLinkCopied ? 'bg-[#52b788] text-white' : 'bg-[#1a3c2e] text-[#52b788] hover:bg-[#2d6a4f]'
+                            }`}
                         >
-                          {portalLinkCopied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+                          {portalLinkCopied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy Link</>}
                         </button>
                       </div>
                     ) : (
                       <button
                         onClick={handleGeneratePropertyInvite}
                         disabled={generatingInvite}
-                        className="btn-primary w-full md:w-auto px-6 py-3 justify-center shadow-lg shadow-sage/10"
+                        className="btn-primary px-8 py-3.5 shadow-lg shadow-[#1a3c2e]/20"
                       >
-                        {generatingInvite ? <><Loader2 size={16} className="animate-spin" /> Generating…</> : <><Plus size={16} /> Generate Portal Link</>}
+                        {generatingInvite ? <Loader2 size={18} className="animate-spin" /> : <><Plus size={18} /> <span>Initialize Building Portal</span></>}
                       </button>
                     )}
+                    <a
+                      href={propertyInviteLink || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={`flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border border-[#1e2a2e] text-[#4a5568] hover:text-[#e8e4de] hover:bg-[#141b1e] transition-all ${!propertyInviteLink && 'opacity-30 pointer-events-none'}`}
+                    >
+                      <ExternalLink size={18} />
+                    </a>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between px-2">
                 <div>
-                  <p className="font-body text-sm text-stone-400">
-                    {units.length} unit{units.length !== 1 ? 's' : ''} · {units.filter(u => u.status === 'occupied').length} occupied
+                  <h3 className="font-display text-[#e8e4de] text-lg font-bold tracking-tight">Managed Units</h3>
+                  <p className="font-body text-[11px] text-[#4a5568] font-bold uppercase tracking-[0.15em] mt-1">
+                    {units.length} total · {units.filter(u => u.status === 'occupied').length} occupied
                   </p>
                 </div>
                 <button
                   onClick={() => { setEditingUnit(null); setShowAddUnit(true); }}
-                  className="btn-primary text-xs px-3 py-2"
+                  className="btn-secondary text-[11px] font-bold uppercase tracking-wider px-5"
                 >
-                  <Plus size={13} /> Add Unit
+                  <Plus size={14} /> Add Apartment
                 </button>
               </div>
 
-              {/* ── Join Requests ────────────────────────────────────── */}
+              {/* Join Requests */}
               {(() => {
                 const pending = units.filter(u => u.status === 'pending_approval' && !!u.pendingTenantId);
                 if (pending.length === 0) return null;
                 return (
-                  <div className="mb-5 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle size={15} className="text-amber" />
-                      <p className="font-body text-xs font-semibold text-amber uppercase tracking-wider">
-                        Action Required · {pending.length} join request{pending.length !== 1 ? 's' : ''}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-[#f0c040]">
+                      <AlertCircle size={15} />
+                      <p className="font-body text-[10px] font-bold uppercase tracking-widest">
+                        Pending Admissions ({pending.length})
                       </p>
                     </div>
                     {pending.map(unit => (
-                      <div key={unit.id} className="rounded-2xl border-2 border-amber/30 bg-amber/5 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-amber/15 flex items-center justify-center flex-shrink-0">
-                              <User size={16} className="text-amber" />
+                      <div key={unit.id} className="card p-6 bg-[#0d1215] border-2 border-[#3d3215]/50 animate-pulse-subtle bg-gradient-to-r from-[#2d2510]/10 to-transparent">
+                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-[#2d2510] border border-[#3d3215] flex items-center justify-center flex-shrink-0">
+                              <User size={20} className="text-[#f0c040]" />
                             </div>
                             <div>
-                              <p className="font-body text-sm font-semibold text-ink">
-                                {unit.pendingTenantName || 'Unknown Tenant'}
+                              <p className="font-body text-[#e8e4de] font-bold text-base tracking-tight leading-tight mb-1">
+                                {unit.pendingTenantName || 'Prospective Tenant'}
                               </p>
-                              <p className="font-body text-xs text-stone-500">
-                                {unit.pendingTenantEmail && <span className="mr-2">{unit.pendingTenantEmail}</span>}
-                                requested <strong>{unit.name}</strong>
+                              <p className="font-body text-xs text-[#4a5568] font-medium flex items-center gap-2">
+                                <Mail size={12} /> {unit.pendingTenantEmail}
+                                <span className="text-[#1e2a2e]">|</span>
+                                <span className="text-[#f0c040] font-bold uppercase tracking-wider text-[10px]">Applied for {unit.name}</span>
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
+
+                          <div className="flex items-center gap-3 w-full md:w-auto">
                             <button
                               onClick={() => handleDeclineRequest(unit)}
                               disabled={unitSaving}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-medium bg-white border border-stone-200 text-stone-500 hover:border-rust/40 hover:text-rust transition-all disabled:opacity-50"
+                              className="flex-1 md:flex-initial px-6 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-widest bg-[#2d1a1a] text-[#e74c3c] border border-[#3d2020] hover:bg-[#3d1515] transition-all disabled:opacity-50"
                             >
-                              <UserMinus size={13} /> Decline
+                              Reject
                             </button>
                             <button
                               onClick={() => handleApproveRequest(unit)}
                               disabled={unitSaving}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-medium bg-sage text-cream hover:bg-sage/90 transition-all disabled:opacity-50"
+                              className="flex-1 md:flex-initial px-8 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-widest bg-[#1a3c2e] text-[#52b788] border border-[#2d6a4f] hover:bg-[#2d6a4f] transition-all disabled:opacity-50 shadow-lg shadow-[#1a3c2e]/20"
                             >
-                              <UserCheck size={13} /> Approve
+                              Admit Tenant
                             </button>
                           </div>
                         </div>
@@ -426,41 +463,50 @@ export default function PropertyDetailPage() {
                 );
               })()}
 
-              {units.length === 0 ? (
-                <EmptyState
-                  icon={DoorOpen}
-                  title="No units yet"
-                  sub="Add apartments or units to this property to track tenants and rent."
-                />
-              ) : (
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {units.map(unit => (
-                    <UnitCard
-                      key={unit.id}
-                      unit={unit}
-                      fmtRent={fmtRent}
-                      landlordUid={user.uid}
-                      propertyId={id}
-                      propertyName={property?.name || ''}
-                      onRemove={handleOpenRemove}
-                      onEdit={handleOpenEdit}
+              <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                {units.map(unit => (
+                  <UnitCard
+                    key={unit.id}
+                    unit={unit}
+                    fmtRent={fmtRent}
+                    landlordUid={user.uid}
+                    propertyId={id}
+                    propertyName={property?.name || ''}
+                    onRemove={handleOpenRemove}
+                    onEdit={handleOpenEdit}
+                  />
+                ))}
+                {units.length === 0 && (
+                  <div className="col-span-full">
+                    <EmptyState
+                      icon={DoorOpen}
+                      title="No apartments added"
+                      sub="Create units to start admitting tenants and collecting rent."
+                      action={() => { setEditingUnit(null); setShowAddUnit(true); }}
+                      actionText="Add First Unit"
                     />
-                  ))}
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
-          {/* ── Payments ─────────────────────────────────────────── */}
+          {/* ── Payments Tab ─────────────────────────────────────── */}
           {activeTab === 'payments' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <p className="font-body text-sm text-stone-400">{payments.length} payments recorded</p>
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="flex items-center justify-between mb-6 px-1">
+                <div>
+                  <h3 className="font-display text-[#e8e4de] text-lg font-bold tracking-tight">Ledger History</h3>
+                  <p className="font-body text-[11px] text-[#4a5568] font-bold uppercase tracking-widest mt-1">
+                    {payments.length} successful transactions
+                  </p>
+                </div>
               </div>
+
               {payments.length === 0 ? (
-                <EmptyState icon={CreditCard} title="No payments yet" sub="Payments will appear here automatically after tenants pay online." />
+                <EmptyState icon={CreditCard} title="Ledger empty" sub="Automated receipts will appear here as soon as tenants complete payments." />
               ) : (
-                <div className="card overflow-hidden">
+                <div className="card overflow-hidden bg-[#0d1215] border-[#1e2a2e]">
                   {payments.map((p, i) => (
                     <PaymentRow key={p.id} payment={p} isLast={i === payments.length - 1} onDownloadInvoice={generateInvoicePdf} />
                   ))}
@@ -469,37 +515,57 @@ export default function PropertyDetailPage() {
             </div>
           )}
 
-          {/* ── Maintenance ──────────────────────────────────────── */}
+          {/* ── Maintenance Tab ───────────────────────────────────── */}
           {activeTab === 'maintenance' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <p className="font-body text-sm text-stone-400">{maintenance.filter(m => m.status !== 'resolved').length} open issues</p>
-                <button onClick={() => setShowMaintModal(true)} className="btn-primary text-xs px-3 py-2"><Plus size={13} /> Log Issue</button>
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="flex items-center justify-between px-1">
+                <div>
+                  <h3 className="font-display text-[#e8e4de] text-lg font-bold tracking-tight">Support Desk</h3>
+                  <p className="font-body text-[11px] text-[#4a5568] font-bold uppercase tracking-widest mt-1">
+                    {activeIssues} unresolved reports
+                  </p>
+                </div>
+                <button onClick={() => setShowMaintModal(true)} className="btn-secondary text-[11px] font-bold uppercase tracking-wider px-5">
+                  <Wrench size={14} /> Log Issue
+                </button>
               </div>
+
               {maintenance.length === 0 ? (
-                <EmptyState icon={Wrench} title="No issues logged" sub="All clear — no maintenance tickets for this property." />
+                <EmptyState
+                  icon={Wrench}
+                  title="No active issues"
+                  sub="Your facility status is green. No maintenance tickets found."
+                  action={() => setShowMaintModal(true)}
+                  actionText="Report Issue"
+                />
               ) : (
-                <div className="space-y-3">
+                <div className="grid sm:grid-cols-2 gap-4">
                   {maintenance.map(m => (
-                    <div key={m.id} className="flex items-start gap-4 p-4 card hover:shadow-deep transition-shadow">
-                      <div className={`mt-0.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${m.status === 'resolved' ? 'bg-sage' : m.status === 'in-progress' ? 'bg-amber' : 'bg-rust'}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="font-body font-semibold text-sm text-ink">{m.title}</p>
-                          <span className={`badge text-xs ${m.priority === 'high' ? 'badge-rust' : m.priority === 'medium' ? 'badge-amber' : 'badge-stone'}`}>
-                            {m.priority}
-                          </span>
-                        </div>
-                        {m.description && <p className="font-body text-xs text-stone-400 mt-1 line-clamp-2">{m.description}</p>}
-                        <div className="flex items-center gap-3 mt-2">
-                          <button onClick={() => cycleStatus(m)}
-                            className={`inline-flex items-center gap-1.5 text-xs font-body font-medium px-2.5 py-1 rounded-lg border transition-all
-                                ${m.status === 'resolved' ? 'bg-sage/10 text-sage border-sage/20' : m.status === 'in-progress' ? 'bg-amber/10 text-amber border-amber/20' : 'bg-rust/10 text-rust border-rust/20'}`}>
-                            <ChevronDown size={11} /> {m.status === 'open' ? 'Open' : m.status === 'in-progress' ? 'In Progress' : 'Resolved'}
-                          </button>
-                          <span className="font-body text-xs text-stone-300">
-                            {m.createdAt ? format(m.createdAt.toDate?.() ?? new Date(m.createdAt), 'MMM d') : ''}
-                          </span>
+                    <div key={m.id} className="card p-5 hover:border-[#52b788]/20 transition-all bg-[#0d1215] border-[#1e2a2e] group">
+                      <div className="flex items-start gap-4">
+                        <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${m.status === 'resolved' ? 'bg-[#52b788]' : m.status === 'in-progress' ? 'bg-[#f0c040]' : 'bg-[#e74c3c]'}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-4 mb-2">
+                            <h4 className="font-body font-bold text-[#e8e4de] text-sm tracking-tight">{m.title}</h4>
+                            <span className={`badge ${m.priority === 'high' ? 'badge-rust' : m.priority === 'medium' ? 'badge-amber' : 'badge-stone'}`}>
+                              {m.priority}
+                            </span>
+                          </div>
+                          {m.description && <p className="font-body text-xs text-[#4a5568] font-medium line-clamp-2 leading-relaxed mb-4">{m.description}</p>}
+
+                          <div className="flex items-center justify-between border-t border-[#1e2a2e] pt-4 mt-2">
+                            <button
+                              onClick={() => cycleStatus(m)}
+                              className={`inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all
+                                   ${m.status === 'resolved' ? 'bg-[#1a3c2e] border-[#2d6a4f]/30 text-[#52b788]' : 'bg-[#141b1e] border-[#1e2a2e] text-[#4a5568] hover:text-[#e8e4de]'}`}
+                            >
+                              {m.status === 'open' ? 'Reviewing' : m.status === 'in-progress' ? 'Repairing' : 'Resolved'}
+                              <ChevronDown size={10} />
+                            </button>
+                            <span className="font-body text-[10px] font-bold text-[#4a5568] uppercase tracking-widest">
+                              {m.createdAt ? format(m.createdAt.toDate?.() ?? new Date(m.createdAt), 'MMM d, yyyy') : ''}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -509,28 +575,35 @@ export default function PropertyDetailPage() {
             </div>
           )}
 
-          {/* ── Settings ─────────────────────────────────────────── */}
+          {/* ── Settings Tab ─────────────────────────────────────── */}
           {activeTab === 'settings' && (
-            <div className="max-w-2xl">
-              <h3 className="font-display text-lg font-semibold text-ink mb-4">Property Settings</h3>
+            <div className="max-w-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="mb-8">
+                <h3 className="font-display text-[#e8e4de] text-xl font-bold tracking-tight">Configuration</h3>
+                <p className="font-body text-sm text-[#4a5568] font-medium mt-1">Management overrides and property-wide defaults.</p>
+              </div>
 
-              <div className="card p-6">
-                <h4 className="font-body text-sm font-semibold text-ink mb-1">Default Rent Price</h4>
-                <p className="font-body text-xs text-stone-400 mb-4">
-                  Set the default rent for new units created in this property. Existing units will not be affected.
-                </p>
+              <div className="card p-8 bg-[#0d1215] border-[#1e2a2e]">
+                <div className="flex items-start gap-4 mb-8">
+                  <div className="w-10 h-10 rounded-xl bg-[#1a3c2e]/20 border border-[#2d6a4f]/30 flex items-center justify-center flex-shrink-0 text-[#52b788]">
+                    <DollarSign size={20} />
+                  </div>
+                  <div>
+                    <h4 className="font-body text-[#e8e4de] font-bold text-base tracking-tight mb-1">Standard Renting Fee</h4>
+                    <p className="font-body text-sm text-[#4a5568] font-medium leading-relaxed">
+                      This value will be pre-filled when creating new apartments. Existing active leases won't be modified.
+                    </p>
+                  </div>
+                </div>
 
-                <div className="flex gap-3">
-                  <div className="relative flex-1 max-w-xs">
-                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 font-body text-xs font-semibold pointer-events-none">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="relative flex-1">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#4a5568] font-display font-bold text-sm pointer-events-none">
                       {currencySymbol}
                     </div>
                     <input
                       type="number"
-                      min="0"
-                      step="0.01"
-                      className="input-base pl-10"
-                      placeholder="e.g. 1500"
+                      className="input-base pl-12 h-14 text-lg font-bold bg-[#141b1e]"
                       value={rentSetting}
                       onChange={e => setRentSetting(e.target.value)}
                     />
@@ -538,9 +611,9 @@ export default function PropertyDetailPage() {
                   <button
                     onClick={handleUpdateRentPrice}
                     disabled={settingsSaving}
-                    className="btn-primary"
+                    className="btn-primary h-14 px-10 shadow-lg shadow-[#1a3c2e]/20 min-w-[200px]"
                   >
-                    {settingsSaving ? <Loader2 size={16} className="animate-spin" /> : 'Save Default Rent'}
+                    {settingsSaving ? <Loader2 size={20} className="animate-spin" /> : 'Apply Policy'}
                   </button>
                 </div>
               </div>
@@ -549,41 +622,40 @@ export default function PropertyDetailPage() {
         </div>
       </motion.div>
 
-      {/* ── Maintenance Modal ──────────────────────────────────────────── */}
-      <Modal isOpen={showMaintModal} onClose={() => setShowMaintModal(false)} title="Log Maintenance Issue">
-        <form onSubmit={handleAddMaint} className="space-y-4">
+      {/* ── Modals ─────────────────────────────────────────────────────── */}
+      <Modal isOpen={showMaintModal} onClose={() => setShowMaintModal(false)} title="Report Facility Issue">
+        <form onSubmit={handleAddMaint} className="space-y-6">
           <div>
-            <label className="label-xs">Issue Title *</label>
-            <input className="input-base" placeholder="e.g. Leaking roof, Broken AC…" value={maintForm.title} onChange={setM('title')} required />
+            <label className="label-xs">Subject / Category *</label>
+            <input className="input-base" placeholder="e.g. Electrical Fault - Apt 4B" value={maintForm.title} onChange={setM('title')} required />
           </div>
           <div>
-            <label className="label-xs">Description</label>
-            <textarea className="input-base min-h-[80px] resize-none" placeholder="Describe the issue…" value={maintForm.description} onChange={setM('description')} />
+            <label className="label-xs">Narrative Description</label>
+            <textarea className="input-base min-h-[120px] resize-none" placeholder="Provide as much detail as possible for the technician…" value={maintForm.description} onChange={setM('description')} />
           </div>
           <div>
-            <label className="label-xs">Priority</label>
-            <div className="flex gap-2">
+            <label className="label-xs">Risk Priority</label>
+            <div className="flex gap-3">
               {['low', 'medium', 'high'].map(p => (
                 <button type="button" key={p} onClick={() => setMaintForm(f => ({ ...f, priority: p }))}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-body font-medium border capitalize transition-all
+                  className={`flex-1 py-3.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all
                     ${maintForm.priority === p
-                      ? p === 'high' ? 'bg-rust/10 text-rust border-rust/30' : p === 'medium' ? 'bg-amber/10 text-amber border-amber/30' : 'bg-sage/10 text-sage border-sage/30'
-                      : 'bg-stone-50 text-stone-400 border-stone-200 hover:bg-stone-100'}`}>
+                      ? p === 'high' ? 'bg-[#2d1a1a] text-[#e74c3c] border-[#3d2020]' : p === 'medium' ? 'bg-[#2d2510] text-[#f0c040] border-[#3d3215]' : 'bg-[#1a3c2e] text-[#52b788] border-[#2d6a4f]'
+                      : 'bg-[#141b1e] text-[#4a5568] border-[#1e2a2e] hover:border-[#4a5568]/30'}`}>
                   {p}
                 </button>
               ))}
             </div>
           </div>
-          <div className="flex gap-3 justify-end pt-2">
-            <button type="button" onClick={() => setShowMaintModal(false)} className="btn-secondary">Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary">
-              {saving ? <div className="w-4 h-4 border-2 border-cream border-t-transparent rounded-full animate-spin" /> : 'Log Issue'}
+          <div className="flex gap-4 justify-end pt-4 border-t border-[#1e2a2e]">
+            <button type="button" onClick={() => setShowMaintModal(false)} className="btn-secondary px-8">Discard</button>
+            <button type="submit" disabled={saving} className="btn-primary px-10">
+              {saving ? <Loader2 className="animate-spin" size={20} /> : 'Dispatch Ticket'}
             </button>
           </div>
         </form>
       </Modal>
 
-      {/* ── Add / Edit Unit Modal ──────────────────────────────────────── */}
       <AddUnitModal
         isOpen={showAddUnit}
         onClose={() => { setShowAddUnit(false); setEditingUnit(null); }}
@@ -594,20 +666,25 @@ export default function PropertyDetailPage() {
         defaultRent={property?.RentPrice || ''}
       />
 
-      {/* ── Move-out Confirmation ─────────────────────────────────── */}
-      <Modal isOpen={showRemoveConfirm} onClose={() => setShowRemoveConfirm(false)} title="Terminate Lease" size="sm">
-        <div className="space-y-4">
-          <div className="flex items-center gap-3 p-3 bg-rust/8 rounded-xl border border-rust/20">
-            <UserMinus size={18} className="text-rust flex-shrink-0" />
-            <p className="font-body text-sm text-rust">
-              Move out <strong>{removeUnit?.tenantName || 'tenant'}</strong> from <strong>{removeUnit?.unitName || removeUnit?.name}</strong>?
-              Payment history will be kept, and their status will change to <strong>FORMER</strong>.
+      <Modal isOpen={showRemoveConfirm} onClose={() => setShowRemoveConfirm(false)} title="Security Check" size="sm">
+        <div className="space-y-6">
+          <div className="p-6 rounded-2xl bg-[#2d1a1a]/20 border border-[#3d2020]/30">
+            <div className="flex items-center gap-3 mb-4 text-[#e74c3c]">
+              <AlertCircle size={24} />
+              <h4 className="font-display font-bold text-lg">Eviction Confirmation</h4>
+            </div>
+            <p className="font-body text-sm text-[#8a9ba8] leading-relaxed">
+              You are about to terminate the active residency for <strong>{removeUnit?.tenantName || 'this occupant'}</strong>.
+              This action stops all future billing and resets the unit to <strong>VACANT</strong>.
             </p>
           </div>
-          <div className="flex gap-3 justify-end">
-            <button onClick={() => setShowRemoveConfirm(false)} className="btn-secondary">Cancel</button>
-            <button onClick={handleMoveOutTenant} disabled={unitSaving} className="btn-danger">
-              {unitSaving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Confirm Move-out'}
+
+          <div className="flex flex-col gap-3">
+            <button onClick={handleMoveOutTenant} disabled={unitSaving} className="btn-danger w-full py-4 text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-[#2d1a1a]/20">
+              {unitSaving ? <Loader2 className="animate-spin mx-auto" size={20} /> : 'Finalize Termination'}
+            </button>
+            <button onClick={() => setShowRemoveConfirm(false)} className="btn-ghost w-full py-3 text-[10px] font-bold uppercase tracking-widest">
+              Abort
             </button>
           </div>
         </div>
@@ -618,34 +695,28 @@ export default function PropertyDetailPage() {
 
 function Stat({ label, value, accent }) {
   return (
-    <div>
-      <p className="font-body text-xs text-stone-500 mb-0.5">{label}</p>
-      <p className={`font-display font-semibold text-xl ${accent ? 'text-sage' : 'text-cream'}`}>{value}</p>
+    <div className="flex flex-col">
+      <p className="font-body text-[10px] uppercase tracking-widest text-[#4a5568] font-bold mb-1.5">{label}</p>
+      <p className={`font-display font-bold text-2xl tracking-tighter ${accent ? 'text-[#52b788]' : 'text-[#e8e4de]'}`}>
+        {value}
+      </p>
     </div>
   );
 }
-function InfoCard({ title, children }) {
+
+function EmptyState({ icon: Icon, title, sub, action, actionText }) {
   return (
-    <div className="bg-stone-50 rounded-xl p-4 border border-stone-100">
-      <p className="font-body text-xs font-semibold text-stone-400 uppercase tracking-wider mb-3">{title}</p>
-      <div className="space-y-2">{children}</div>
-    </div>
-  );
-}
-function InfoRow({ label, value }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="font-body text-xs text-stone-400 flex-shrink-0">{label}</span>
-      <span className="font-body text-sm text-ink font-medium text-right">{value}</span>
-    </div>
-  );
-}
-function EmptyState({ icon: Icon, title, sub }) {
-  return (
-    <div className="flex flex-col items-center text-center py-12">
-      <Icon size={32} className="text-stone-300 mb-3" />
-      <p className="font-body font-medium text-stone-500 text-sm">{title}</p>
-      <p className="font-body text-xs text-stone-300 mt-1">{sub}</p>
+    <div className="flex flex-col items-center text-center py-20 px-6 card border-dashed border-2 border-[#1e2a2e] bg-[#141b1e]/20">
+      <div className="w-16 h-16 rounded-3xl bg-[#141b1e] border border-[#1e2a2e] flex items-center justify-center mb-6 text-[#1e2a2e]">
+        <Icon size={32} />
+      </div>
+      <h3 className="font-display font-bold text-[#e8e4de] text-xl mb-2 tracking-tight">{title}</h3>
+      <p className="font-body text-[#4a5568] text-sm max-w-xs mx-auto mb-8 font-medium">{sub}</p>
+      {action && (
+        <button onClick={action} className="btn-secondary px-8">
+          {actionText}
+        </button>
+      )}
     </div>
   );
 }
