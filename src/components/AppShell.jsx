@@ -26,6 +26,7 @@ const TENANT_NAV = [
   { to: '/tenant', icon: LayoutGrid, label: 'My Homes' },
   { to: '/tenant/reminders', icon: Bell, label: 'Reminders' },
   { to: '/tenant/payments', icon: CreditCard, label: 'Payments' },
+  { to: '/tenant/maintenance', icon: Zap, label: 'Maintenance' },
   { to: '/profile', icon: User, label: 'Profile' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];

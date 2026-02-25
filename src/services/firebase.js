@@ -92,6 +92,16 @@ export const deleteProperty = async (uid, id) => {
     throw new Error('Cannot delete property: There are still active leases attached. Please move out tenants first.');
   }
 
+  // Delete all units in the subcollection
+  const unitsSnap = await getDocs(collection(db, 'users', uid, 'properties', id, 'units'));
+  const maintenanceSnap = await getDocs(collection(db, 'users', uid, 'properties', id, 'maintenance'));
+  const batch = writeBatch(db);
+
+  unitsSnap.forEach(d => batch.delete(d.ref));
+  maintenanceSnap.forEach(d => batch.delete(d.ref));
+
+  await batch.commit();
+
   return deleteDoc(doc(db, 'users', uid, 'properties', id));
 };
 
@@ -107,6 +117,28 @@ export const checkPropertiesExist = async (uid) => {
   const qArr = query(collection(db, 'users', uid, 'properties'), limit(1));
   const snap = await getDocs(qArr);
   return !snap.empty;
+};
+/**
+ * Public lookup: find a property by its ID across all landlord accounts.
+ * Used for public portal pages.
+ */
+export const getPublicProperty = async (propertyId) => {
+  const q = query(collectionGroup(db, 'properties'));
+  const snap = await getDocs(q);
+  const found = snap.docs.find(d => d.id === propertyId);
+  return found ? { id: found.id, ...found.data(), ownerId: found.ref.parent.parent.id } : null;
+};
+
+/**
+ * Public lookup: find all units for a specific property ID.
+ */
+export const getPublicUnits = async (propertyId) => {
+  const q = query(
+    collectionGroup(db, 'units'),
+    where('propertyId', '==', propertyId)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -258,6 +290,21 @@ export const updateMaintenance = (uid, propId, id, data) =>
 export const subscribeMaintenance = (uid, propId, cb) =>
   onSnapshot(query(collection(db, 'users', uid, 'properties', propId, 'maintenance'), orderBy('createdAt', 'desc')), (snap) =>
     cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+
+// For tenants: watch all maintenance requests across properties for this tenant UID
+export const subscribeTenantMaintenance = (tenantId, cb) =>
+  onSnapshot(
+    query(
+      collectionGroup(db, 'maintenance'),
+      where('tenantId', '==', tenantId)
+    ),
+    (snap) => {
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+      cb(docs);
+    },
+    (error) => console.error("Error subscribing to tenant maintenance:", error)
+  );
 
 // ════════════════════════════════════════════════════════════════════════════
 // UNITS  (properties/{propertyId}/units/{unitId})

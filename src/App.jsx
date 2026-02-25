@@ -10,6 +10,7 @@ import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import PropertiesPage from './pages/PropertiesPage';
+import AddPropertyPage from './pages/AddPropertyPage'; // Added import for AddPropertyPage
 import PropertyDetailPage from './pages/PropertyDetailPage';
 import RemindersPage from './pages/RemindersPage';
 import PaymentsPage from './pages/PaymentsPage';
@@ -18,15 +19,15 @@ import ProfilePage from './pages/ProfilePage';
 import PropertySuccessPage from './pages/PropertySuccessPage';
 import SubscriptionPage from './pages/SubscriptionPage';
 import OnboardingPage from './pages/OnboardingPage';
-import TenantDashboardPage from './pages/TenantDashboardPage';
-import TenantPaymentsPage from './pages/TenantPaymentsPage';
 import TenantRemindersPage from './pages/TenantRemindersPage';
+import TenantMaintenancePage from './pages/TenantMaintenancePage';
 import AppShell from './components/AppShell';
 import TenantReminderAlerts from './components/TenantReminderAlerts';
 import AcceptInvitePage from './pages/AcceptInvitePage';
 import NotificationsPage from './pages/NotificationsPage';
 import ArchivedTenantsPage from './pages/ArchivedTenantsPage';
 import RequestApprovalPage from './pages/RequestApprovalPage';
+import PropertyPortalPage from './pages/PropertyPortalPage';
 
 // Full-page spinner used while auth/profile resolves
 function LoadingSpinner() {
@@ -82,6 +83,7 @@ function AppRoutes() {
 
       {/* Public invite link — no auth required */}
       <Route path="/join/:token" element={<AcceptInvitePage />} />
+      <Route path="/portal/:propertyId" element={<PropertyPortalPage />} />
 
       <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
 
@@ -93,6 +95,7 @@ function AppRoutes() {
         <Route path="/tenant" element={<TenantDashboardPage />} />
         <Route path="/tenant/reminders" element={<TenantRemindersPage />} />
         <Route path="/properties" element={<PropertiesPage />} />
+        <Route path="/properties/add" element={<AddPropertyPage />} />
         <Route path="/properties/:id" element={<PropertyDetailPage />} />
         <Route path="/properties/:id/success" element={<PropertySuccessPage />} />
         <Route path="/archive" element={<ArchivedTenantsPage />} />
@@ -101,6 +104,7 @@ function AppRoutes() {
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/payments" element={<PaymentsPage />} />
         <Route path="/tenant/payments" element={<TenantPaymentsPage />} />
+        <Route path="/tenant/maintenance" element={<TenantMaintenancePage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/subscription" element={<SubscriptionPage />} />

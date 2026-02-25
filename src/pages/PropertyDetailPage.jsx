@@ -50,13 +50,12 @@ export default function PropertyDetailPage() {
   const [editingUnit, setEditingUnit] = useState(null);
   const [unitSaving, setUnitSaving] = useState(false);
 
-  // Remove tenant confirm
+  // Remove tenant / Delete unit confirm
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [removeUnit, setRemoveUnit] = useState(null);
+  const [isDeletingUnit, setIsDeletingUnit] = useState(false);
 
-  // Property invite link state
-  const [propertyInviteLink, setPropertyInviteLink] = useState(null);
-  const [generatingInvite, setGeneratingInvite] = useState(false);
+  // Portal link copied state
   const [portalLinkCopied, setPortalLinkCopied] = useState(false);
 
   // Settings tab state
@@ -127,23 +126,7 @@ export default function PropertyDetailPage() {
     finally { setUnitSaving(false); }
   };
 
-  const handleGeneratePropertyInvite = async () => {
-    setGeneratingInvite(true);
-    try {
-      const { link } = await createInviteToken({
-        landlordUid: user.uid,
-        propertyId: id,
-        propertyName: property?.name || '',
-      });
-      setPropertyInviteLink(link);
-      toast.success('Property invite link generated!');
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to generate invite link.');
-    } finally {
-      setGeneratingInvite(false);
-    }
-  };
+  const portalUrl = `${window.location.origin}/portal/${id}`;
 
   const handleUpdateRentPrice = async () => {
     setSettingsSaving(true);
@@ -162,8 +145,9 @@ export default function PropertyDetailPage() {
     setShowAddUnit(true);
   };
 
-  const handleOpenRemove = (unit) => {
+  const handleOpenRemove = (unit, isDelete = false) => {
     setRemoveUnit(unit);
+    setIsDeletingUnit(isDelete);
     setShowRemoveConfirm(true);
   };
 
@@ -184,6 +168,21 @@ export default function PropertyDetailPage() {
       setShowRemoveConfirm(false);
       setRemoveUnit(null);
     } catch (err) { console.error(err); toast.error('Failed to move out tenant.'); }
+    finally { setUnitSaving(false); }
+  };
+
+  const handleDeleteUnit = async () => {
+    if (!removeUnit) return;
+    setUnitSaving(true);
+    try {
+      await deleteUnit(user.uid, id, removeUnit.id);
+      toast.success(`${removeUnit.name || 'Unit'} has been decommissioned.`);
+      setShowRemoveConfirm(false);
+      setRemoveUnit(null);
+    } catch (err) {
+      console.error(err);
+      toast.error(err.message || 'Failed to delete unit.');
+    }
     finally { setUnitSaving(false); }
   };
 
@@ -358,35 +357,25 @@ export default function PropertyDetailPage() {
                   </div>
 
                   <div className="w-full xl:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                    {propertyInviteLink ? (
-                      <div className="flex items-center gap-3 bg-[#141b1e] border border-[#1e2a2e] rounded-2xl p-2 pl-5 shadow-sm">
-                        <span className="font-mono text-[11px] text-[#4a5568] truncate max-w-[240px]">{propertyInviteLink}</span>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(propertyInviteLink);
-                            setPortalLinkCopied(true);
-                            setTimeout(() => setPortalLinkCopied(false), 2000);
-                          }}
-                          className={`flex-shrink-0 flex items-center gap-2 px-6 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all ${portalLinkCopied ? 'bg-[#52b788] text-white' : 'bg-[#1a3c2e] text-[#52b788] hover:bg-[#2d6a4f]'
-                            }`}
-                        >
-                          {portalLinkCopied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy Link</>}
-                        </button>
-                      </div>
-                    ) : (
+                    <div className="flex items-center gap-3 bg-[#141b1e] border border-[#1e2a2e] rounded-2xl p-2 pl-5 shadow-sm">
+                      <span className="font-mono text-[11px] text-[#4a5568] truncate max-w-[240px]">{portalUrl}</span>
                       <button
-                        onClick={handleGeneratePropertyInvite}
-                        disabled={generatingInvite}
-                        className="btn-primary px-8 py-3.5 shadow-lg shadow-[#1a3c2e]/20"
+                        onClick={() => {
+                          navigator.clipboard.writeText(portalUrl);
+                          setPortalLinkCopied(true);
+                          setTimeout(() => setPortalLinkCopied(false), 2000);
+                        }}
+                        className={`flex-shrink-0 flex items-center gap-2 px-6 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all ${portalLinkCopied ? 'bg-[#52b788] text-white' : 'bg-[#1a3c2e] text-[#52b788] hover:bg-[#2d6a4f]'
+                          }`}
                       >
-                        {generatingInvite ? <Loader2 size={18} className="animate-spin" /> : <><Plus size={18} /> <span>Initialize Building Portal</span></>}
+                        {portalLinkCopied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy Link</>}
                       </button>
-                    )}
+                    </div>
                     <a
-                      href={propertyInviteLink || "#"}
+                      href={portalUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className={`flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border border-[#1e2a2e] text-[#4a5568] hover:text-[#e8e4de] hover:bg-[#141b1e] transition-all ${!propertyInviteLink && 'opacity-30 pointer-events-none'}`}
+                      className="flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border border-[#1e2a2e] text-[#4a5568] hover:text-[#e8e4de] hover:bg-[#141b1e] transition-all"
                     >
                       <ExternalLink size={18} />
                     </a>
@@ -668,20 +657,27 @@ export default function PropertyDetailPage() {
 
       <Modal isOpen={showRemoveConfirm} onClose={() => setShowRemoveConfirm(false)} title="Security Check" size="sm">
         <div className="space-y-6">
-          <div className="p-6 rounded-2xl bg-[#2d1a1a]/20 border border-[#3d2020]/30">
+          <div className={`p-6 rounded-2xl border ${isDeletingUnit ? 'bg-[#2d1a1a]/20 border-[#3d2020]/30' : 'bg-[#2d1a1a]/20 border-[#3d2020]/30'}`}>
             <div className="flex items-center gap-3 mb-4 text-[#e74c3c]">
               <AlertCircle size={24} />
-              <h4 className="font-display font-bold text-lg">Eviction Confirmation</h4>
+              <h4 className="font-display font-bold text-lg">{isDeletingUnit ? 'Confirm Deletion' : 'Eviction Confirmation'}</h4>
             </div>
             <p className="font-body text-sm text-[#8a9ba8] leading-relaxed">
-              You are about to terminate the active residency for <strong>{removeUnit?.tenantName || 'this occupant'}</strong>.
-              This action stops all future billing and resets the unit to <strong>VACANT</strong>.
+              {isDeletingUnit ? (
+                <>You are about to permanently delete <strong>{removeUnit?.name || 'this unit'}</strong>. This action is irreversible and will remove all associated logs for this vector.</>
+              ) : (
+                <>You are about to terminate the active residency for <strong>{removeUnit?.tenantName || 'this occupant'}</strong>. This action stops all future billing and resets the unit to <strong>VACANT</strong>.</>
+              )}
             </p>
           </div>
 
           <div className="flex flex-col gap-3">
-            <button onClick={handleMoveOutTenant} disabled={unitSaving} className="btn-danger w-full py-4 text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-[#2d1a1a]/20">
-              {unitSaving ? <Loader2 className="animate-spin mx-auto" size={20} /> : 'Finalize Termination'}
+            <button
+              onClick={isDeletingUnit ? handleDeleteUnit : handleMoveOutTenant}
+              disabled={unitSaving}
+              className="btn-danger w-full py-4 text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-[#2d1a1a]/20"
+            >
+              {unitSaving ? <Loader2 className="animate-spin mx-auto" size={20} /> : (isDeletingUnit ? 'Confirm Decommission' : 'Finalize Termination')}
             </button>
             <button onClick={() => setShowRemoveConfirm(false)} className="btn-ghost w-full py-3 text-[10px] font-bold uppercase tracking-widest">
               Abort

@@ -1,13 +1,13 @@
 // src/components/UnitCard.jsx
 import React from 'react';
 import { motion } from 'framer-motion';
-import { DoorOpen, UserMinus, Pencil, DollarSign, CalendarClock, User, Send, Loader2, Hash, ArrowUpRight } from 'lucide-react';
+import { DoorOpen, UserMinus, Pencil, DollarSign, CalendarClock, User, Send, Loader2, Hash, ArrowUpRight, Trash2 } from 'lucide-react';
 
 export default function UnitCard({ unit, fmtRent, onRemove, onEdit, currencySymbol = '$' }) {
     const isOccupied = unit.status === 'occupied' && unit.tenantId;
 
     const handleShareVancancy = () => {
-        const portalUrl = `${window.location.origin}/apply/${unit.propertyId}/${unit.id}`;
+        const portalUrl = `${window.location.origin}/portal/${unit.propertyId}`;
         const subject = encodeURIComponent(`Invitation to apply for ${unit.name} at ${unit.propertyName || 'the property'}`);
         const body = encodeURIComponent(
             `Hi there,\n\nI'd like to invite you to apply for ${unit.name} at ${unit.propertyName || 'the property'}. ` +
@@ -40,13 +40,24 @@ export default function UnitCard({ unit, fmtRent, onRemove, onEdit, currencySymb
                         </div>
                     </div>
                 </div>
-                <button
-                    onClick={() => onEdit(unit)}
-                    className="w-9 h-9 flex items-center justify-center rounded-xl text-[#4a5568] hover:text-[#e8e4de] bg-[#141b1e] border border-transparent hover:border-[#1e2a2e] transition-all"
-                    title="Edit Vector"
-                >
-                    <Pencil size={14} />
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => onEdit(unit)}
+                        className="w-9 h-9 flex items-center justify-center rounded-xl text-[#4a5568] hover:text-[#e8e4de] bg-[#141b1e] border border-transparent hover:border-[#1e2a2e] transition-all"
+                        title="Edit Vector"
+                    >
+                        <Pencil size={14} />
+                    </button>
+                    {!isOccupied && (
+                        <button
+                            onClick={() => onRemove(unit, true)}
+                            className="w-9 h-9 flex items-center justify-center rounded-xl text-[#4a5568] hover:text-[#e74c3c] bg-[#141b1e] border border-transparent hover:border-[#3d2020] transition-all"
+                            title="Delete Vector"
+                        >
+                            <Trash2 size={14} />
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-6 relative">
