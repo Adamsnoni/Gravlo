@@ -1,227 +1,147 @@
 // src/pages/DashboardPage.jsx
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Building2, TrendingUp, Users, AlertTriangle, ArrowRight,
-  Plus, Bell, Wrench, ChevronRight, User, UserCheck, ExternalLink,
-  Mail, LogOut, ArrowUp, X, Check
-} from 'lucide-react';
-import { format, differenceInDays, isPast, subMonths } from 'date-fns';
-import { useAuth } from '../context/AuthContext';
-import { useLocale } from '../context/LocaleContext';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { format, isPast, differenceInDays } from "date-fns";
+import { useAuth } from "../context/AuthContext";
+import { useLocale } from "../context/LocaleContext";
 import {
   subscribeProperties,
   subscribeReminders,
   subscribePendingUnits,
   subscribeNotifications,
-  markNotificationRead,
   clearUnitRequestNotifications,
   updateUnit,
   serverTimestamp
-} from '../services/firebase';
-import { createTenancy } from '../services/tenancy';
-import { toast } from 'react-hot-toast';
+} from "../services/firebase";
+import { createTenancy } from "../services/tenancy";
+import { toast } from "react-hot-toast";
 
 // ── Utilities ────────────────────────────────────────────────
 const safeToDate = (d) => {
   if (!d) return null;
-  if (typeof d.toDate === 'function') return d.toDate();
+  if (typeof d.toDate === "function") return d.toDate();
   const date = new Date(d);
   return isNaN(date.getTime()) ? null : date;
 };
 
+const fmt = (n, sym = "₦") => `${sym}${Number(n).toLocaleString()}`;
 const fmtShort = (n, sym = "₦") => {
   if (n >= 1000000) return `${sym}${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${sym}${(n / 1000).toFixed(0)}K`;
   return `${sym}${n}`;
 };
 
-// ── Icons (Simplified using Lucide) ──────────────────────────
-const CustomIcon = ({ icon: Icon, size = 18, color = "currentColor" }) => (
-  <Icon size={size} color={color} strokeWidth={2} />
+// ── Icons ────────────────────────────────────────────────────
+const Icon = ({ d, size = 18, stroke = 2 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+    <path d={d} />
+  </svg>
 );
 
-// ── Avatar ───────────────────────────────────────────────────
-const Avatar = ({ initials, size = 36, color = "#1a3c2e" }) => (
-  <div style={{
-    width: size, height: size, borderRadius: "50%",
-    background: color, display: "flex", alignItems: "center",
-    justifyContent: "center", flexShrink: 0,
-    fontSize: size * 0.33, fontWeight: 700, color: "#fff",
-    fontFamily: "'DM Sans', sans-serif", letterSpacing: "0.02em",
-  }}>
-    {initials}
+const Icons = {
+  grid: "M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z",
+  users: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75",
+  bell: "M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 01-3.46 0",
+  plus: "M12 5v14 M5 12h14",
+  check: "M20 6L9 17l-5-5",
+  x: "M18 6L6 18 M6 6l12 12",
+  trending: "M23 6l-9.5 9.5-5-5L1 18",
+  building: "M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z M3 6h18 M16 10a4 4 0 01-8 0",
+  mail: "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6l-10 7L2 6",
+  arrowUp: "M12 19V5 M5 12l7-7 7 7",
+};
+
+// ── Visual Components ────────────────────────────────────────
+const CornerLeaf = ({ size = 64, opacity = 0.07, color = "#1a3c2e" }) => (
+  <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ position: "absolute", top: 0, right: 0, pointerEvents: "none" }}>
+    <path d="M64 0C64 0 42 6 36 22C32 34 40 46 40 46C40 46 56 34 64 18Z" fill={color} opacity={opacity} />
+    <path d="M64 0C64 0 58 24 46 32C38 38 26 36 26 36C26 36 40 20 64 0Z" fill={color} opacity={opacity * 0.6} />
+  </svg>
+);
+
+const Avatar = ({ initials, size = 36, bg = "#1a3c2e", color = "#7fffd4" }) => (
+  <div style={{ width: size, height: size, borderRadius: "50%", background: bg, color, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.33, fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "0.02em" }}>
+    {initials.toUpperCase()}
   </div>
 );
 
-// ── Revenue Sparkline ────────────────────────────────────────
 const RevenueChart = ({ data, symbol }) => {
-  const [hovered, setHovered] = useState(null);
-  const max = Math.max(...data.map((d) => d.amount));
-  const min = Math.min(...data.map((d) => d.amount));
-  const H = 100, W = 100;
-  const pad = 8;
-
+  const [hov, setHov] = useState(null);
+  const vals = data.length > 0 ? data.map(d => d.amount) : [0, 0, 0, 0, 0, 0];
+  const max = Math.max(...vals, 1);
+  const min = Math.min(...vals, 0);
+  const W = 100, H = 80, px = 4, py = 8;
   const pts = data.map((d, i) => ({
-    x: pad + (i / (data.length - 1)) * (W - pad * 2),
-    y: H - pad - ((d.amount - min) / (max - min || 1)) * (H - pad * 2),
+    x: px + (i / (Math.max(data.length - 1, 1))) * (W - px * 2),
+    y: H - py - ((d.amount - min) / ((max - min) || 1)) * (H - py * 2),
   }));
-
-  const path = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
-  const area = `${path} L${pts[pts.length - 1].x},${H} L${pts[0].x},${H} Z`;
+  const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
+  const area = `${line} L${pts[pts.length - 1]?.x || W},${H} L${pts[0]?.x || 0},${H} Z`;
 
   return (
-    <div style={{ marginTop: 8 }}>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        style={{ width: "100%", height: 120, overflow: "visible" }}
-        preserveAspectRatio="none"
-      >
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 120, display: "block", overflow: "visible" }} preserveAspectRatio="none">
         <defs>
-          <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#52b788" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#52b788" stopOpacity="0" />
+          <linearGradient id="aG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#1a6a3c" stopOpacity="0.14" />
+            <stop offset="100%" stopColor="#1a6a3c" stopOpacity="0.01" />
           </linearGradient>
         </defs>
-        <path d={area} fill="url(#chartGrad)" />
-        <path d={path} fill="none" stroke="#52b788" strokeWidth="1.5"
-          strokeLinecap="round" strokeLinejoin="round" />
+        {[0.25, 0.5, 0.75].map(t => (
+          <line key={t} x1={px} y1={py + t * (H - py * 2)} x2={W - px} y2={py + t * (H - py * 2)} stroke="#e8f0e8" strokeWidth="0.5" strokeDasharray="2,2" />
+        ))}
+        {data.length > 0 && (
+          <>
+            <path d={area} fill="url(#aG)" />
+            <path d={line} fill="none" stroke="#1a6a3c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        )}
         {pts.map((p, i) => (
-          <circle
-            key={i} cx={p.x} cy={p.y} r={hovered === i ? 3 : 2}
-            fill={hovered === i ? "#fff" : "#52b788"}
-            stroke="#52b788" strokeWidth="1.5"
-            style={{ cursor: "pointer", transition: "r 0.15s" }}
-            onMouseEnter={() => setHovered(i)}
-            onMouseLeave={() => setHovered(null)}
-          />
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r={hov === i ? 5 : 3} fill={hov === i ? "#1a6a3c" : "#fff"} stroke="#1a6a3c" strokeWidth="2" style={{ cursor: "pointer", transition: "r 0.15s" }} onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)} />
+            {hov === i && (
+              <g>
+                <rect x={p.x - 18} y={p.y - 18} width={36} height={14} rx={4} fill="#1a3c2e" />
+                <text x={p.x} y={p.y - 8} textAnchor="middle" fill="#7fffd4" fontSize="5" fontFamily="'Plus Jakarta Sans',sans-serif" fontWeight="700">{fmtShort(data[i].amount, symbol)}</text>
+              </g>
+            )}
+          </g>
         ))}
       </svg>
-      {/* Month labels */}
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
         {data.map((d, i) => (
-          <div key={i} style={{ textAlign: "center", flex: 1 }}>
-            <p style={{
-              fontSize: 10, color: hovered === i ? "#52b788" : "#4a5568",
-              fontFamily: "'DM Sans', sans-serif",
-              fontWeight: hovered === i ? 700 : 400,
-              margin: 0, transition: "color 0.15s",
-            }}>
-              {d.month}
-            </p>
-            {hovered === i && (
-              <p style={{
-                fontSize: 9, color: "#52b788", margin: "2px 0 0",
-                fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
-                animation: "fadeIn 0.15s ease",
-              }}>
-                {fmtShort(d.amount, symbol)}
-              </p>
-            )}
-          </div>
+          <span key={i} style={{ fontSize: 11, fontFamily: "'Plus Jakarta Sans',sans-serif", color: hov === i ? "#1a6a3c" : "#94a3b8", fontWeight: hov === i ? 700 : 400, transition: "color 0.15s" }}>{d.month}</span>
         ))}
       </div>
     </div>
   );
 };
 
-// ── Stat Card ────────────────────────────────────────────────
-const StatCard = ({ label, value, sub, icon: IconComp, accent, delay = 0 }) => (
-  <div style={{
-    background: "#141b1e",
-    border: "1px solid #1e2a2e",
-    borderRadius: 14,
-    padding: "20px 22px",
-    position: "relative",
-    overflow: "hidden",
-    animation: `slideUp 0.5s ease ${delay}s both`,
-    transition: "border-color 0.2s, transform 0.2s",
-    cursor: "default",
-  }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.borderColor = accent || "#52b788";
-      e.currentTarget.style.transform = "translateY(-2px)";
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.borderColor = "#1e2a2e";
-      e.currentTarget.style.transform = "translateY(0)";
-    }}
-  >
-    {/* Accent dot */}
-    <div style={{
-      position: "absolute", top: 0, left: 0, right: 0, height: 2,
-      background: `linear-gradient(90deg, ${accent || "#52b788"}, transparent)`,
-    }} />
-
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-      <div>
-        <p style={{
-          fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
-          textTransform: "uppercase", color: "#4a5568",
-          margin: "0 0 10px", fontFamily: "'DM Sans', sans-serif",
-        }}>
-          {label}
-        </p>
-        <p style={{
-          fontSize: 28, fontWeight: 800, color: "#e8e4de",
-          margin: "0 0 4px", fontFamily: "'Syne', sans-serif",
-          lineHeight: 1,
-        }}>
-          {value}
-        </p>
-        {sub && (
-          <p style={{
-            fontSize: 12, color: "#4a5568", margin: 0,
-            fontFamily: "'DM Sans', sans-serif",
-          }}>
-            {sub}
-          </p>
-        )}
-      </div>
-      <div style={{
-        width: 38, height: 38, borderRadius: 10,
-        background: `${accent || "#52b788"}18`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        color: accent || "#52b788",
-      }}>
-        <IconComp size={18} />
-      </div>
-    </div>
-  </div>
-);
-
-// ── Section Header ───────────────────────────────────────────
-const SectionHeader = ({ title, action, actionLabel }) => (
-  <div style={{
-    display: "flex", alignItems: "center",
-    justifyContent: "space-between", marginBottom: 16,
-  }}>
-    <h2 style={{
-      fontSize: 13, fontWeight: 700, color: "#e8e4de",
-      letterSpacing: "0.06em", textTransform: "uppercase",
-      fontFamily: "'DM Sans', sans-serif", margin: 0,
+const StatCard = ({ label, value, sub, subColor, icon, accentBg, accentColor, borderColor, delay = 0 }) => {
+  const [hov, setHov] = useState(false);
+  return (
+    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{
+      background: "#fff", border: `1.5px solid ${hov ? accentColor + "55" : borderColor || "#e2ede8"}`,
+      borderRadius: 20, padding: "22px 24px", position: "relative", overflow: "hidden",
+      animation: `slideUp 0.5s ease ${delay}s both`,
+      boxShadow: hov ? `0 12px 32px ${accentColor}18` : "0 1px 8px rgba(26,60,46,0.06)",
+      transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
+      transform: hov ? "translateY(-3px)" : "translateY(0)", cursor: "default",
     }}>
-      {title}
-    </h2>
-    {action && (
-      <button onClick={action} style={{
-        fontSize: 12, color: "#52b788", background: "none",
-        border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-        fontWeight: 600, padding: 0,
-        transition: "opacity 0.2s",
-      }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-      >
-        {actionLabel || "View all →"}
-      </button>
-    )}
-  </div>
-);
+      <CornerLeaf size={56} opacity={0.055} color="#1a3c2e" />
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, borderRadius: "20px 20px 0 0", background: `linear-gradient(90deg, ${accentColor}, ${accentColor}40)` }} />
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 14, background: accentBg, display: "flex", alignItems: "center", justifyContent: "center", color: accentColor }}>{icon}</div>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.06em", textTransform: "uppercase", paddingTop: 4 }}>{label}</span>
+      </div>
+      <p style={{ fontSize: 32, fontWeight: 900, color: "#0f2318", margin: "0 0 6px", fontFamily: "'Fraunces',serif", lineHeight: 1, letterSpacing: "-0.025em" }}>{value}</p>
+      {sub && <p style={{ fontSize: 12, color: subColor || "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 500 }}>{sub}</p>}
+    </div>
+  );
+};
 
-// ── Join Request Card ────────────────────────────────────────
-const JoinRequestCard = ({ req, onApprove, onReject, approvingSaving }) => {
+const JoinCard = ({ req, onApprove, approvingSaving }) => {
   const [status, setStatus] = useState("pending");
 
   const handleApprove = async () => {
@@ -234,82 +154,35 @@ const JoinRequestCard = ({ req, onApprove, onReject, approvingSaving }) => {
     }
   };
 
-  const handleReject = () => {
-    setStatus("rejected");
-    onReject?.(req.id);
-  };
-
-  const initials = (req.pendingTenantName || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const initials = (req.pendingTenantName || "U")
+    .split(" ").map(w => w[0]).join("").slice(0, 2);
 
   return (
-    <div style={{
-      background: "#141b1e",
-      border: `1px solid ${status === "approved" ? "#1a3c2e" : status === "rejected" ? "#2d1a1a" : "#1e2a2e"}`,
-      borderRadius: 12, padding: "14px 16px",
-      marginBottom: 10, transition: "all 0.3s",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Avatar initials={initials} size={38}
-          color={status === "approved" ? "#1a3c2e" : status === "rejected" ? "#3d1515" : "#1e2d38"}
-        />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-            <p style={{
-              fontSize: 14, fontWeight: 600, color: "#e8e4de",
-              margin: 0, fontFamily: "'DM Sans', sans-serif",
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
-            }}>
-              {req.pendingTenantName}
-            </p>
-            <span style={{
-              fontSize: 10, fontWeight: 600, padding: "2px 7px",
-              borderRadius: 99, fontFamily: "'DM Sans', sans-serif",
-              background: status === "approved" ? "#1a3c2e" : status === "rejected" ? "#2d1a1a" : "#1e2a2e",
-              color: status === "approved" ? "#52b788" : status === "rejected" ? "#e74c3c" : "#4a5568",
-            }}>
-              {status === "pending" ? "Pending" : status === "approved" ? "✓ Approved" : "✗ Rejected"}
+    <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 14, padding: "14px 0", borderBottom: "1px solid #f0f9f4" }}>
+      <Avatar initials={initials} size={40}
+        bg={status === "approved" ? "#1a3c2e" : status === "rejected" ? "#fef2f2" : "#e8f5ee"}
+        color={status === "approved" ? "#7fffd4" : status === "rejected" ? "#dc2626" : "#1a6a3c"}
+      />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2 }}>
+          <p style={{ fontSize: 14, fontWeight: 700, color: "#0f2318", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{req.pendingTenantName}</p>
+          {status !== "pending" && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, fontFamily: "'Plus Jakarta Sans',sans-serif", flexShrink: 0, background: status === "approved" ? "#dcfce7" : "#fef2f2", color: status === "approved" ? "#16a34a" : "#dc2626" }}>
+              {status === "approved" ? "✓ Approved" : "✗ Declined"}
             </span>
-          </div>
-          <p style={{
-            fontSize: 12, color: "#4a5568", margin: 0,
-            fontFamily: "'DM Sans', sans-serif",
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
-          }}>
-            {req.propertyName} · <span style={{ color: "#52b788" }}>{req.name || req.unitName}</span>
-          </p>
+          )}
         </div>
+        <p style={{ fontSize: 12, color: "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+          <span style={{ color: "#1a6a3c", fontWeight: 600 }}>{req.unitName || req.name}</span> · {req.propertyName}
+        </p>
       </div>
-
       {status === "pending" && (
-        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-          <button
-            onClick={handleApprove}
-            disabled={approvingSaving}
-            style={{
-              flex: 1, padding: "8px", borderRadius: 8,
-              background: "#1a3c2e", border: "1px solid #2d6a4f",
-              color: "#52b788", fontSize: 13, fontWeight: 600,
-              cursor: approvingSaving ? "not-allowed" : "pointer",
-              fontFamily: "'DM Sans', sans-serif",
-              transition: "all 0.2s",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6
-            }}
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <button onClick={handleApprove} disabled={approvingSaving} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "#e8f5ee", color: "#1a6a3c", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.2s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#1a3c2e"; e.currentTarget.style.color = "#7fffd4"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "#e8f5ee"; e.currentTarget.style.color = "#1a6a3c"; }}
           >
-            {approvingSaving ? <Loader2 size={14} className="animate-spin" /> : 'Approve'}
-          </button>
-          <button
-            onClick={handleReject}
-            disabled={approvingSaving}
-            style={{
-              flex: 1, padding: "8px", borderRadius: 8,
-              background: "#1e1e1e", border: "1px solid #2a2020",
-              color: "#6b6460", fontSize: 13, fontWeight: 600,
-              cursor: approvingSaving ? "not-allowed" : "pointer",
-              fontFamily: "'DM Sans', sans-serif",
-              transition: "all 0.2s",
-            }}
-          >
-            Decline
+            {approvingSaving ? "..." : <Icon d={Icons.check} size={14} stroke={2.5} />}
           </button>
         </div>
       )}
@@ -317,101 +190,12 @@ const JoinRequestCard = ({ req, onApprove, onReject, approvingSaving }) => {
   );
 };
 
-// ── Property Row ─────────────────────────────────────────────
-const PropertyRow = ({ property, delay, fmtShort }) => {
-  const unitsCount = property.unitsCount || (property.units ? Object.keys(property.units).length : 0);
-  const occupiedCount = property.occupiedCount || 0;
-  const pct = unitsCount > 0 ? Math.round((occupiedCount / unitsCount) * 100) : 0;
-
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 14,
-      padding: "13px 0",
-      borderBottom: "1px solid #1e2a2e",
-      animation: `slideUp 0.4s ease ${delay}s both`,
-      cursor: "pointer",
-      transition: "opacity 0.2s",
-    }}
-      onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.75")}
-      onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-    >
-      <div style={{
-        width: 40, height: 40, borderRadius: 10,
-        background: "#141b1e", border: "1px solid #1e2a2e",
-        display: "flex", alignItems: "center",
-        justifyContent: "center", color: "#52b788", flexShrink: 0,
-      }}>
-        <Building2 size={18} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{
-          fontSize: 14, fontWeight: 600, color: "#e8e4de",
-          margin: "0 0 3px", fontFamily: "'DM Sans', sans-serif",
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        }}>
-          {property.name}
-        </p>
-        <p style={{
-          fontSize: 11, color: "#4a5568", margin: 0,
-          fontFamily: "'DM Sans', sans-serif",
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
-        }}>
-          {property.address}
-        </p>
-      </div>
-      <div style={{ textAlign: "center", minWidth: 60 }}>
-        <p style={{
-          fontSize: 13, fontWeight: 700, color: "#e8e4de",
-          margin: "0 0 2px", fontFamily: "'DM Sans', sans-serif",
-        }}>
-          {occupiedCount}/{unitsCount}
-        </p>
-        <div style={{
-          height: 3, borderRadius: 99, background: "#1e2a2e",
-          overflow: "hidden",
-        }}>
-          <div style={{
-            height: "100%",
-            width: `${pct}%`,
-            background: pct > 80 ? "#52b788" : pct > 50 ? "#f0c040" : "#e74c3c",
-            borderRadius: 99, transition: "width 1s ease",
-          }} />
-        </div>
-      </div>
-      <div style={{ textAlign: "right", minWidth: 90 }}>
-        <p style={{
-          fontSize: 14, fontWeight: 700, color: "#52b788",
-          margin: 0, fontFamily: "'Syne', sans-serif",
-        }}>
-          {fmtShort(property.monthlyRevenue || 0)}
-        </p>
-        <p style={{
-          fontSize: 10, color: "#4a5568", margin: "2px 0 0",
-          fontFamily: "'DM Sans', sans-serif",
-        }}>
-          /month
-        </p>
-      </div>
-    </div>
-  );
-};
-
-// ── Shared Loader ────────────────────────────────────────────
-const Loader2 = ({ size = 18, className = "" }) => (
-  <svg
-    width={size} height={size} viewBox="0 0 24 24" fill="none"
-    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-    className={`${className} animate-spin`}
-  >
-    <path d="M21 12a9 9 0 11-6.219-8.56" />
-  </svg>
-);
-
 // ── Main Dashboard ───────────────────────────────────────────
 export default function DashboardPage() {
   const { user, profile } = useAuth();
-  const { fmt, country } = useLocale();
+  const { country } = useLocale();
   const navigate = useNavigate();
+  const role = profile?.role || 'landlord';
 
   const [properties, setProperties] = useState([]);
   const [reminders, setReminders] = useState([]);
@@ -429,7 +213,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) return;
-    const u1 = subscribeProperties(user.uid, (data) => { setProperties(data); setDataLoading(false); });
+    const u1 = subscribeProperties(user.uid, (data) => {
+      setProperties(data);
+      setDataLoading(false);
+    });
     const u2 = subscribeReminders(user.uid, setReminders);
     const u3 = subscribePendingUnits(user.uid, setPendingUnits);
     const u4 = subscribeNotifications(user.uid, setNotifications);
@@ -440,10 +227,10 @@ export default function DashboardPage() {
     setApprovingSaving(true);
     try {
       await updateUnit(user.uid, unit.propertyId, unit.id, {
-        status: 'occupied',
+        status: "occupied",
         tenantId: unit.pendingTenantId,
-        tenantName: unit.pendingTenantName || '',
-        tenantEmail: unit.pendingTenantEmail || '',
+        tenantName: unit.pendingTenantName || "",
+        tenantEmail: unit.pendingTenantEmail || "",
         welcomeMessageSent: true,
         welcomeMessageDate: serverTimestamp(),
         pendingTenantId: null,
@@ -456,274 +243,273 @@ export default function DashboardPage() {
         landlordId: user.uid,
         propertyId: unit.propertyId,
         unitId: unit.id,
-        tenantName: unit.pendingTenantName || '',
-        tenantEmail: unit.pendingTenantEmail || '',
-        unitName: unit.unitName || unit.name || '',
-        propertyName: unit.propertyName || '',
+        tenantName: unit.pendingTenantName || "",
+        tenantEmail: unit.pendingTenantEmail || "",
+        unitName: unit.unitName || unit.name || "",
+        propertyName: unit.propertyName || "",
         rentAmount: unit.rentAmount || 0,
-        billingCycle: unit.billingCycle || 'monthly',
-        currency: country?.currency || 'NGN',
+        billingCycle: unit.billingCycle || "monthly",
+        currency: country?.currency || "NGN",
         welcomeMessageSent: true,
         welcomeMessageDate: new Date(),
       });
       await clearUnitRequestNotifications(user.uid, unit.propertyId, unit.id, unit.pendingTenantId);
-      toast.success(`${unit.pendingTenantName || 'Tenant'} approved!`);
+      toast.success(`${unit.pendingTenantName || "Tenant"} approved!`);
     } catch (err) {
-      toast.error('Failed to approve request.');
+      toast.error("Failed to approve request.");
       throw err;
     } finally {
       setApprovingSaving(false);
     }
   };
 
-  // ── Derived Stats ──
-  const totalUnits = properties.reduce((s, p) => s + (p.unitsCount || 0), 0);
-  const occupiedUnits = properties.reduce((s, p) => s + (p.occupiedCount || 0), 0);
-  const vacantUnits = totalUnits - occupiedUnits;
-  const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
-  const monthlyRev = properties.reduce((s, p) => s + (p.monthlyRevenue || 0), 0);
-  const yearlyRev = monthlyRev * 12;
-  const symbol = country?.symbol || '₦';
+  const symbol = country?.symbol || "₦";
+  const totalUnits = properties.reduce((acc, p) => acc + (p.unitsCount || 0), 0);
+  const occupiedCount = properties.reduce((acc, p) => acc + (p.occupiedCount || 0), 0);
+  const revenue = properties.reduce((acc, p) => acc + (p.monthlyRevenue || 0), 0);
+  const occupancyRate = totalUnits > 0 ? Math.round((occupiedCount / totalUnits) * 100) : 0;
 
-  const overdueRem = reminders.filter(r => {
-    const d = safeToDate(r.dueDate);
-    return d && isPast(d) && r.status !== 'paid';
-  });
-
-  const urgentRemCount = reminders.filter(r => {
+  const urgentReminders = reminders.filter(r => {
+    if (r.status === "paid") return false;
     const d = safeToDate(r.dueDate);
     if (!d) return false;
-    return !isPast(d) && differenceInDays(d, new Date()) <= 5 && r.status !== 'paid';
-  }).length + overdueRem.length;
+    return isPast(d) || differenceInDays(d, new Date()) <= 5;
+  }).slice(0, 5);
 
-  // Revenue chart data (last 6 months)
-  const chartData = Array.from({ length: 6 }, (_, i) => {
-    const m = subMonths(new Date(), 5 - i);
-    // Simple mock growth simulation based on current revenue
-    const factor = 0.85 + (i * 0.03) + (Math.random() * 0.05);
-    return {
-      month: format(m, 'MMM'),
-      amount: monthlyRev * factor
-    };
-  });
-
-  const topProperties = [...properties]
-    .sort((a, b) => (b.monthlyRevenue || 0) - (a.monthlyRevenue || 0))
-    .slice(0, 4);
-
-  const combinedActivity = [
-    ...notifications.map(n => ({ ...n, feedType: 'notification' })),
-    ...overdueRem.map(r => ({ ...r, feedType: 'reminder', overdue: true }))
-  ].sort((a, b) => {
-    const dateA = safeToDate(a.createdAt) || safeToDate(a.dueDate) || new Date(0);
-    const dateB = safeToDate(b.createdAt) || safeToDate(b.dueDate) || new Date(0);
-    return dateB - dateA;
-  }).slice(0, 6);
+  const mockHistory = [
+    { month: "Sep", amount: revenue * 0.7 },
+    { month: "Oct", amount: revenue * 0.82 },
+    { month: "Nov", amount: revenue * 0.78 },
+    { month: "Dec", amount: revenue * 0.95 },
+    { month: "Jan", amount: revenue * 0.88 },
+    { month: "Feb", amount: revenue },
+  ];
 
   if (dataLoading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: "100px 0" }}>
-        <Loader2 size={32} className="text-sage" />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#f4fbf7" }}>
+        <div style={{ width: 30, height: 30, border: "3px solid rgba(74,124,89,0.12)", borderTopColor: "#4A7C59", borderRadius: "50%", animation: "spin 0.8s linear infinite" }}></div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
   return (
-    <div style={{ background: "#0a0f12", color: "#e8e4de", fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ maxWidth: 1400, margin: "0 auto", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <style>{`
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50%       { opacity: 0.4; }
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,800;9..144,900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @keyframes slideUp { from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)} }
       `}</style>
 
-      {/* Top Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32 }}>
-        <div>
-          <p style={{ fontSize: 13, color: "#4a5568", margin: 0 }}>{greeting},</p>
-          <p style={{ fontSize: 16, fontWeight: 700, color: "#e8e4de", fontFamily: "'Syne', sans-serif", margin: 0 }}>
-            {(profile?.fullName || user?.displayName || 'there').split(' ')[0]} 👋
-          </p>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button
-            onClick={() => navigate('/properties')}
-            style={{
-              display: "flex", alignItems: "center", gap: 7, padding: "8px 16px",
-              background: "linear-gradient(135deg, #1a3c2e, #2d6a4f)",
-              border: "none", borderRadius: 8, color: "#52b788", fontSize: 13, fontWeight: 600,
-              cursor: "pointer", transition: "opacity 0.2s",
-            }}
-          >
-            <Plus size={14} /> Add Property
-          </button>
-
-          <button
-            onClick={() => navigate('/notifications')}
-            style={{
-              position: "relative", width: 38, height: 38, borderRadius: 8,
-              background: "#141b1e", border: "1px solid #1e2a2e",
-              color: "#4a5568", cursor: "pointer", display: "flex", alignItems: "center",
-              justifyContent: "center", transition: "all 0.2s",
-            }}
-          >
-            <Bell size={17} />
-            {notifications.some(n => !n.read) && (
-              <div style={{
-                position: "absolute", top: 7, right: 7, width: 7, height: 7, borderRadius: "50%",
-                background: "#e74c3c", animation: "pulse 2s ease-in-out infinite", border: "1.5px solid #0a0f12",
-              }} />
-            )}
-          </button>
-        </div>
+      {/* Header Info */}
+      <div style={{ marginBottom: 32, animation: "slideUp 0.5s ease both" }}>
+        <p style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500, margin: 0 }}>{greeting},</p>
+        <h1 style={{ fontSize: 32, fontWeight: 900, color: "#0f2318", fontFamily: "'Fraunces',serif", margin: 0, letterSpacing: "-0.015em" }}>{(profile?.fullName || user?.displayName || "User").split(" ")[0]} 👋</h1>
       </div>
 
-      {/* Stats Grid */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-        gap: 16, marginBottom: 28,
-      }}>
-        <StatCard
-          label="Monthly Revenue"
-          value={fmtShort(monthlyRev, symbol)}
-          sub="+12.4% vs last month"
-          accent="#52b788" delay={0} icon={TrendingUp}
-        />
-        <StatCard
-          label="Total Units"
-          value={totalUnits}
-          sub={`Across ${properties.length} properties`}
-          accent="#c8a951" delay={0.05} icon={Building2}
-        />
-        <StatCard
-          label="Occupancy Rate"
-          value={`${occupancyRate}%`}
-          sub={`${occupiedUnits} occupied · ${vacantUnits} vacant`}
-          accent="#3498db" delay={0.1} icon={Users}
-        />
-        <StatCard
-          label="Urgent Reminders"
-          value={urgentRemCount}
-          sub={overdueRem.length > 0 ? `${overdueRem.length} overdue` : "All current"}
-          accent="#e74c3c" delay={0.15} icon={AlertTriangle}
-        />
-      </div>
-
-      {/* Main Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 20, marginBottom: 20 }}>
-
-        {/* Revenue Chart */}
-        <div style={{
-          background: "#0d1215", border: "1px solid #1e2a2e",
-          borderRadius: 16, padding: "24px", animation: "slideUp 0.5s ease 0.2s both"
-        }}>
-          <SectionHeader title="Revenue Overview" />
-          <p style={{
-            fontSize: 32, fontWeight: 800, color: "#e8e4de",
-            fontFamily: "'Syne', sans-serif", margin: "0 0 4px", lineHeight: 1,
-          }}>
-            {fmt(monthlyRev)}
-          </p>
-          <p style={{ fontSize: 12, color: "#4a5568", margin: 0 }}>
-            Live portfolio analytics · <span style={{ color: "#52b788" }}>+₦120K vs Jan</span>
-          </p>
-          <RevenueChart data={chartData} symbol={symbol} />
-        </div>
-
-        {/* Join Requests */}
-        <div style={{
-          background: "#0d1215", border: "1px solid #1e2a2e",
-          borderRadius: 16, padding: "24px", animation: "slideUp 0.5s ease 0.25s both"
-        }}>
-          <SectionHeader title={`Join Requests · ${pendingUnits.length}`} action={() => navigate('/notifications')} />
-          <div style={{ maxHeight: 340, overflowY: "auto" }}>
-            {pendingUnits.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "40px 0" }}>
-                <p style={{ fontSize: 32, marginBottom: 8 }}>🎉</p>
-                <p style={{ fontSize: 13, color: "#4a5568" }}>All requests handled</p>
-              </div>
-            ) : (
-              pendingUnits.map(req => (
-                <JoinRequestCard
-                  key={req.id} req={req}
-                  onApprove={approvePending}
-                  approvingSaving={approvingSaving}
-                />
-              ))
-            )}
+      {/* Payout Alert */}
+      {role !== 'tenant' && profile?.payoutStatus !== 'active' && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            background: "#fff9f9",
+            border: "1.5px solid #fee2e2",
+            borderRadius: 20,
+            padding: "20px 24px",
+            marginBottom: 24,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+            boxShadow: "0 4px 12px rgba(220, 38, 38, 0.03)"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 17c-.77 1.333.192 3 1.732 3z" size={20} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#991b1b", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Action Required: Settlement Infrastructure Pending</p>
+              <p style={{ margin: 0, fontSize: 12, color: "#b91c1c", fontWeight: 500, opacity: 0.8 }}>Secure your rent collection by linking your bank account for automated Paystack payouts.</p>
+            </div>
           </div>
-        </div>
+          <button
+            onClick={() => navigate('/settings/payouts')}
+            style={{
+              background: "#dc2626",
+              color: "#fff",
+              padding: "10px 20px",
+              borderRadius: 12,
+              border: "none",
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: "pointer",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              whiteSpace: "nowrap"
+            }}
+          >
+            Setup Payouts
+          </button>
+        </motion.div>
+      )}
+
+      {/* Stat cards Grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20, marginBottom: 24 }}>
+        <StatCard
+          label="Monthly Revenue" value={fmtShort(revenue, symbol)}
+          sub="Current period" subColor="#1a6a3c"
+          icon={<Icon d={Icons.trending} size={20} />} accentBg="#e8f5ee" accentColor="#1a6a3c" borderColor="#cce8d8" delay={0}
+        />
+        <StatCard
+          label="Total Units" value={totalUnits}
+          sub={`Across ${properties.length} properties`}
+          icon={<Icon d={Icons.building} size={20} />} accentBg="#fef9ed" accentColor="#c8691a" borderColor="#f5e0b8" delay={0.05}
+        />
+        <StatCard
+          label="Occupancy" value={`${occupancyRate}%`}
+          sub={`${occupiedCount} occupied · ${totalUnits - occupiedCount} vacant`}
+          icon={<Icon d={Icons.users} size={20} />} accentBg="#eff6ff" accentColor="#2563eb" borderColor="#bfdbfe" delay={0.1}
+        />
+        <StatCard
+          label="Recent Alerts" value={urgentReminders.length + pendingUnits.length}
+          sub="Require attention" icon={<Icon d={Icons.bell} size={20} />}
+          accentBg="#f5f0ff" accentColor="#7c3aed" borderColor="#ddd6fe" delay={0.15}
+        />
       </div>
 
-      {/* Bottom Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
+      {/* Revenue + Join Requests */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 20, marginBottom: 24 }}>
+        <div style={{ background: "#fff", border: "1.5px solid #e2ede8", borderRadius: 22, padding: 28, animation: "slideUp 0.5s ease 0.2s both", boxShadow: "0 2px 14px rgba(26,60,46,0.05)", position: "relative", overflow: "hidden" }}>
+          <CornerLeaf size={80} opacity={0.06} color="#1a3c2e" />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94a3b8", margin: "0 0 6px", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Revenue Trend</p>
+              <p style={{ fontSize: 32, fontWeight: 900, color: "#0f2318", margin: "0 0 4px", fontFamily: "'Fraunces',serif", lineHeight: 1, letterSpacing: "-0.025em" }}>{fmt(revenue, symbol)}</p>
+              <p style={{ fontSize: 13, color: "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Current monthly billing</p>
+            </div>
+          </div>
+          <RevenueChart data={mockHistory} symbol={symbol} />
+        </div>
 
-        {/* Properties List */}
-        <div style={{
-          background: "#0d1215", border: "1px solid #1e2a2e",
-          borderRadius: 16, padding: "24px", animation: "slideUp 0.5s ease 0.3s both"
-        }}>
-          <SectionHeader title="Top Properties" action={() => navigate('/properties')} actionLabel="Manage →" />
-          {topProperties.length === 0 ? (
-            <p style={{ fontSize: 13, color: "#4a5568", textAlign: "center", padding: "20px" }}>No properties yet.</p>
+        <div style={{ background: "#fff", border: "1.5px solid #e2ede8", borderRadius: 22, padding: 24, animation: "slideUp 0.5s ease 0.25s both", boxShadow: "0 2px 14px rgba(26,60,46,0.05)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <p style={{ fontSize: 14, fontWeight: 800, color: "#0f2318", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif", textTransform: "uppercase", letterSpacing: "0.04em" }}>Join Requests</p>
+              <span style={{ fontSize: 11, fontWeight: 800, color: "#1a6a3c", background: "#e8f5ee", padding: "2px 9px", borderRadius: 99, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{pendingUnits.length}</span>
+            </div>
+            <button onClick={() => navigate("/properties")} style={{ fontSize: 12, color: "#1a6a3c", background: "none", border: "none", cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 700 }}>View all →</button>
+          </div>
+          <p style={{ fontSize: 12, color: "#94a3b8", margin: "0 0 16px", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Tenants awaiting approval</p>
+          {pendingUnits.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>All requests processed!</div>
           ) : (
-            topProperties.map((p, i) => (
-              <PropertyRow key={p.id} property={p} delay={0.3 + i * 0.05} fmtShort={(n) => fmtShort(n, symbol)} />
+            pendingUnits.slice(0, 3).map(req => (
+              <JoinCard key={req.id} req={req} onApprove={approvePending} approvingSaving={approvingSaving} />
             ))
           )}
         </div>
+      </div>
 
-        {/* Recent Activity */}
-        <div style={{
-          background: "#0d1215", border: "1px solid #1e2a2e",
-          borderRadius: 16, padding: "24px", animation: "slideUp 0.5s ease 0.4s both"
-        }}>
-          <SectionHeader title="Activity" action={() => navigate('/notifications')} />
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            {combinedActivity.length === 0 ? (
-              <p style={{ fontSize: 13, color: "#4a5568", textAlign: "center", padding: "20px" }}>No recent activity.</p>
-            ) : (
-              combinedActivity.map((act, i) => (
-                <div key={act.id} style={{
-                  display: "flex", alignItems: "center", gap: 12, padding: "10px 0",
-                  borderBottom: i < combinedActivity.length - 1 ? "1px solid #1e2a2e" : "none",
-                }}>
-                  <div style={{
-                    width: 34, height: 34, borderRadius: 8, flexShrink: 0,
-                    background: act.overdue ? "#2d1a1a" : "#1a3c2e",
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
-                  }}>
-                    {act.overdue ? "⌛" : "💰"}
+      {/* Properties + Alerts + Activity */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20 }}>
+        {/* Properties Mini List */}
+        <div style={{ background: "#fff", border: "1.5px solid #e2ede8", borderRadius: 22, padding: 24, animation: "slideUp 0.5s ease 0.3s both", boxShadow: "0 2px 14px rgba(26,60,46,0.05)", position: "relative", overflow: "hidden" }}>
+          <CornerLeaf size={60} opacity={0.055} color="#1a3c2e" />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+            <p style={{ fontSize: 14, fontWeight: 800, color: "#0f2318", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif", textTransform: "uppercase", letterSpacing: "0.04em" }}>Properties</p>
+            <button onClick={() => navigate("/properties")} style={{ fontSize: 12, color: "#1a6a3c", background: "#e8f5ee", border: "1px solid #cce8d8", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 700, display: "flex", alignItems: "center", gap: 5, transition: "background 0.2s" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#d4f0e0")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "#e8f5ee")}
+            ><Icon d={Icons.plus} size={12} /> Add New</button>
+          </div>
+          {properties.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>No properties added yet.</div>
+          ) : (
+            properties.slice(0, 4).map((prop, i) => {
+              const pct = prop.unitsCount > 0 ? Math.round((prop.occupiedCount / prop.unitsCount) * 100) : 0;
+              const barCol = pct >= 80 ? "#1a6a3c" : pct >= 50 ? "#c8691a" : "#e74c3c";
+              return (
+                <div key={prop.id} onClick={() => navigate(`/properties/${prop.id}`)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 0", borderBottom: i < 3 ? "1px solid #f0f9f4" : "none", cursor: "pointer", transition: "opacity 0.2s", animation: `slideUp 0.4s ease ${0.3 + i * 0.06}s both` }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.65")}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                >
+                  <div style={{ width: 42, height: 42, borderRadius: 12, background: "#1a6a3c14", border: "1px solid #1a6a3c28", display: "flex", alignItems: "center", justifyContent: "center", color: "#1a6a3c", flexShrink: 0 }}>
+                    <Icon d={Icons.building} size={18} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{
-                      fontSize: 13, fontWeight: 600, color: "#e8e4de",
-                      margin: "0 0 1px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
-                    }}>
-                      {act.tenantName || 'Someone'}
-                    </p>
-                    <p style={{ fontSize: 11, color: "#4a5568", margin: 0 }}>
-                      {act.overdue ? 'Payment Overdue' : (act.type === 'unit_request' ? 'Requested unit' : 'Recent action')}
-                    </p>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: "#0f2318", margin: "0 0 3px", fontFamily: "'Plus Jakarta Sans',sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{prop.name}</p>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ flex: 1, height: 4, background: "#e8f0e8", borderRadius: 99, overflow: "hidden", maxWidth: 90 }}>
+                        <div style={{ height: "100%", width: `${pct}%`, background: barCol, borderRadius: 99, transition: "width 1s ease" }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: "'Plus Jakarta Sans',sans-serif", whiteSpace: "nowrap" }}>{prop.occupiedCount}/{prop.unitsCount}</span>
+                    </div>
                   </div>
-                  {act.amount && (
-                    <p style={{ fontSize: 13, fontWeight: 700, color: act.overdue ? "#e74c3c" : "#52b788", margin: 0 }}>
-                      {fmtShort(act.amount, symbol)}
-                    </p>
-                  )}
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <p style={{ fontSize: 15, fontWeight: 800, color: "#1a6a3c", margin: "0 0 2px", fontFamily: "'Fraunces',serif" }}>{fmtShort(prop.monthlyRevenue || 0, symbol)}</p>
+                    <p style={{ fontSize: 10, color: "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>/month</p>
+                  </div>
                 </div>
-              ))
-            )}
+              );
+            })
+          )}
+        </div>
+
+        {/* Urgent Reminders */}
+        <div style={{ background: "#fff", border: "1.5px solid #e2ede8", borderRadius: 22, padding: 24, animation: "slideUp 0.5s ease 0.35s both", boxShadow: "0 2px 14px rgba(26,60,46,0.05)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+            <p style={{ fontSize: 14, fontWeight: 800, color: "#0f2318", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif", textTransform: "uppercase", letterSpacing: "0.04em" }}>Urgent Alerts</p>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", background: "#fef2f2", padding: "3px 10px", borderRadius: 99, fontFamily: "'Plus Jakarta Sans',sans-serif", border: "1px solid #fecaca" }}>{reminders.filter(r => r.status !== "paid").length} active</span>
           </div>
+          {urgentReminders.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>All payments are up to date!</div>
+          ) : (
+            urgentReminders.map((t, i) => {
+              const d = safeToDate(t.dueDate);
+              const days = d ? differenceInDays(d, new Date()) : 0;
+              const initials = (t.tenantName || "U").split(" ").map(w => w[0]).join("").slice(0, 2);
+              return (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 0", borderBottom: i < urgentReminders.length - 1 ? "1px solid #f0f9f4" : "none" }}>
+                  <Avatar initials={initials} size={40} bg="#fef2f2" color="#dc2626" />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: "#0f2318", margin: "0 0 2px", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.tenantName}</p>
+                    <p style={{ fontSize: 11, color: "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.propertyName} · {t.unitName}</p>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 800, color: "#dc2626", margin: "0 0 3px", fontFamily: "'Fraunces',serif" }}>{fmt(t.amount, symbol)}</p>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#dc2626", background: "#fef2f2", padding: "2px 7px", borderRadius: 99, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? "Due today" : `${days}d left`}</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Notifications / Activity */}
+        <div style={{ background: "#fff", border: "1.5px solid #e2ede8", borderRadius: 22, padding: 24, animation: "slideUp 0.5s ease 0.4s both", boxShadow: "0 2px 14px rgba(26,60,46,0.05)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+            <p style={{ fontSize: 14, fontWeight: 800, color: "#0f2318", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif", textTransform: "uppercase", letterSpacing: "0.04em" }}>Activity</p>
+            <button onClick={() => navigate("/notifications")} style={{ fontSize: 12, color: "#1a6a3c", background: "none", border: "none", cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 700 }}>View all →</button>
+          </div>
+          {notifications.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>No recent activity.</div>
+          ) : (
+            notifications.slice(0, 5).map((act, i) => {
+              const isLast = i === notifications.slice(0, 5).length - 1;
+              return (
+                <div key={act.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 0", borderBottom: isLast ? "none" : "1px solid #f0f9f4" }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 11, flexShrink: 0, background: act.type === "payment" ? "#e8f5ee" : "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+                    {act.type === "payment" ? "💰" : "🔔"}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: "#0f2318", margin: "0 0 1px", fontFamily: "'Plus Jakarta Sans',sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{act.title || act.message}</p>
+                    <p style={{ fontSize: 11, color: "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{act.timestamp ? format(safeToDate(act.timestamp), "h:mm a") : ""}</p>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>

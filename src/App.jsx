@@ -21,8 +21,10 @@ import OnboardingPage from './pages/OnboardingPage';
 import TenantDashboardPage from './pages/TenantDashboardPage';
 import TenantPaymentsPage from './pages/TenantPaymentsPage';
 import TenantRemindersPage from './pages/TenantRemindersPage';
+import TenantMaintenancePage from './pages/TenantMaintenancePage';
 import AppShell from './components/AppShell';
 import TenantReminderAlerts from './components/TenantReminderAlerts';
+import PayoutOnboardingPage from './pages/PayoutOnboardingPage';
 import AcceptInvitePage from './pages/AcceptInvitePage';
 import NotificationsPage from './pages/NotificationsPage';
 import ArchivedTenantsPage from './pages/ArchivedTenantsPage';
@@ -92,6 +94,7 @@ function AppRoutes() {
         } />
         <Route path="/tenant" element={<TenantDashboardPage />} />
         <Route path="/tenant/reminders" element={<TenantRemindersPage />} />
+        <Route path="/tenant/maintenance" element={<TenantMaintenancePage />} />
         <Route path="/properties" element={<PropertiesPage />} />
         <Route path="/properties/:id" element={<PropertyDetailPage />} />
         <Route path="/properties/:id/success" element={<PropertySuccessPage />} />
@@ -102,6 +105,7 @@ function AppRoutes() {
         <Route path="/payments" element={<PaymentsPage />} />
         <Route path="/tenant/payments" element={<TenantPaymentsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings/payouts" element={<PayoutOnboardingPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/subscription" element={<SubscriptionPage />} />
       </Route>

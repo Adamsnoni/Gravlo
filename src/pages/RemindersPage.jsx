@@ -1,7 +1,7 @@
 // src/pages/RemindersPage.jsx
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Plus, Trash2, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Bell, Plus, Trash2, CheckCircle, Clock, AlertTriangle, ArrowRight, Activity, Calendar, Hash, User, DollarSign, X } from 'lucide-react';
 import { format, differenceInDays, isPast } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
@@ -10,11 +10,11 @@ import Modal from '../components/Modal';
 import toast from 'react-hot-toast';
 
 const URGENCY = {
-  overdue: { label: 'Overdue', color: 'text-rust', bg: 'bg-rust/10', border: 'border-rust/20', dot: 'bg-rust' },
-  urgent: { label: 'Urgent', color: 'text-rust', bg: 'bg-rust/8', border: 'border-rust/15', dot: 'bg-rust/70' },
-  soon: { label: 'Soon', color: 'text-amber', bg: 'bg-amber/10', border: 'border-amber/20', dot: 'bg-amber' },
-  ok: { label: 'Upcoming', color: 'text-sage', bg: 'bg-sage/8', border: 'border-sage/15', dot: 'bg-sage' },
-  paid: { label: 'Paid', color: 'text-stone-400', bg: 'bg-stone-100', border: 'border-stone-200', dot: 'bg-stone-300' },
+  overdue: { label: 'Settlement Overdue', color: 'text-[#e74c3c]', bg: 'bg-[#fff5f5]', border: 'border-[#fee2e2]', icon: AlertTriangle },
+  urgent: { label: 'High Priority', color: 'text-[#e74c3c]', bg: 'bg-[#fff5f5]', border: 'border-[#fee2e2]', icon: Clock },
+  soon: { label: 'Upcoming Date', color: 'text-[#c8691a]', bg: 'bg-[#fef9ed]', border: 'border-[#f5e0b8]', icon: Bell },
+  ok: { label: 'Routine Reminder', color: 'text-[#1a6a3c]', bg: 'bg-[#f4fbf7]', border: 'border-[#ddf0e6]', icon: CheckCircle },
+  paid: { label: 'Settled Record', color: 'text-[#94a3a8]', bg: 'bg-[#fcfdfc]', border: 'border-[#f0f7f2]', icon: CheckCircle },
 };
 
 function getUrgency(r) {
@@ -26,6 +26,12 @@ function getUrgency(r) {
   if (days <= 7) return 'soon';
   return 'ok';
 }
+
+const fadeUp = (delay = 0) => ({
+  initial: { opacity: 0, y: 16 },
+  animate: { opacity: 1, y: 0 },
+  transition: { delay, duration: 0.35, ease: "easeOut" },
+});
 
 export default function RemindersPage() {
   const { user } = useAuth();
@@ -58,27 +64,27 @@ export default function RemindersPage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!form.amount || !form.dueDate) { toast.error('Please fill all required fields.'); return; }
+    if (!form.amount || !form.dueDate) { toast.error('Required fields: Amount and Maturity Date.'); return; }
     setSaving(true);
     try {
       const propName = properties.find(p => p.id === form.propertyId)?.name || '';
-      await addReminder(user.uid, { ...form, amount: parseInt(form.amount), dueDate: new Date(form.dueDate), propertyName: propName });
-      toast.success('Reminder created!');
+      await addReminder(user.uid, { ...form, amount: parseFloat(form.amount), dueDate: new Date(form.dueDate), propertyName: propName });
+      toast.success('Protocol established.');
       setShowModal(false);
       setForm(emptyForm);
-    } catch { toast.error('Failed to create reminder.'); }
+    } catch { toast.error('Failed to commit procedure.'); }
     finally { setSaving(false); }
   };
 
   const handleMarkPaid = async (r) => {
     await updateReminder(user.uid, r.id, { status: 'paid', paidAt: new Date() });
-    toast.success('Marked as paid!');
+    toast.success('Settlement verified.');
   };
 
   const handleDelete = async (r) => {
-    if (!confirm(`Delete reminder for ${r.tenantName}?`)) return;
+    if (!confirm(`Archive alert for ${r.tenantName}?`)) return;
     await deleteReminder(user.uid, r.id);
-    toast.success('Reminder deleted.');
+    toast.success('Alert archived.');
   };
 
   const filtered = filter === 'all' ? reminders : reminders.filter(r => getUrgency(r) === filter);
@@ -87,47 +93,59 @@ export default function RemindersPage() {
   const totalDue = reminders.filter(r => r.status !== 'paid').reduce((s, r) => s + (r.amount || 0), 0);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="flex items-start justify-between">
+    <div className="max-w-6xl mx-auto space-y-10 pb-12 animate-slide-up">
+      {/* Page Header */}
+      <motion.div {...fadeUp(0)} className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="font-display text-ink text-3xl font-semibold">Reminders</h1>
-          <p className="font-body text-stone-400 text-sm mt-0.5">
-            {reminders.filter(r => r.status !== 'paid').length} active · {fmt(totalDue)} outstanding
+          <p className="text-[#6b8a7a] font-bold text-xs uppercase tracking-[0.15em] mb-2">Portfolio Vigilance</p>
+          <h1 className="font-fraunces text-[#1a2e22] text-4xl font-black tracking-tight leading-none italic">
+            Management Alerts
+          </h1>
+          <p className="text-[#94a3a8] font-medium text-sm mt-3 flex items-center gap-2">
+            <Activity size={16} /> Monitoring {reminders.filter(r => r.status !== 'paid').length} active settlement cycles
           </p>
         </div>
-        <button onClick={() => setShowModal(true)} className="btn-primary">
-          <Plus size={16} /> New Reminder
+        <button
+          onClick={() => { setForm(emptyForm); setShowModal(true); }}
+          className="btn-primary px-8 py-4 shadow-xl shadow-[#1a6a3c]/20"
+        >
+          <Plus size={18} strokeWidth={3} className="mr-2" /> Establish New Protocol
         </button>
       </motion.div>
 
-      {/* Overdue alert */}
+      {/* Critical Status Alert */}
       {counts.overdue > 0 && (
-        <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
-          className="flex items-center gap-3 p-4 bg-rust/8 border border-rust/20 rounded-xl">
-          <AlertTriangle size={18} className="text-rust flex-shrink-0" />
-          <div>
-            <p className="font-body font-semibold text-sm text-rust">{counts.overdue} overdue reminder{counts.overdue > 1 ? 's' : ''}</p>
-            <p className="font-body text-xs text-stone-400">Follow up with tenants immediately.</p>
+        <motion.div {...fadeUp(0.05)} className="card p-6 bg-[#fff5f5] border border-[#fee2e2] flex items-center gap-6 relative overflow-hidden group">
+          <div className="absolute top-[-20px] left-[-20px] opacity-[0.05] transform rotate-12 transition-transform group-hover:rotate-45 duration-700 text-[#e74c3c]">
+            <AlertTriangle size={120} />
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-[#e74c3c] shadow-sm shrink-0">
+            <AlertTriangle size={24} strokeWidth={2.5} />
+          </div>
+          <div className="relative z-10">
+            <h4 className="font-fraunces text-[#1a2e22] text-lg font-black italic">{counts.overdue} Overdue Settlements Detected</h4>
+            <p className="text-[#e74c3c] text-xs font-bold uppercase tracking-widest mt-1 italic">Immediate intervention protocol recommended.</p>
           </div>
         </motion.div>
       )}
 
-      {/* Filter tabs */}
-      <div className="flex gap-2 flex-wrap">
+      {/* Filter Scope */}
+      <div className="flex bg-[#fcfdfc] p-1.5 rounded-[1.25rem] border border-[#f0f7f2] shadow-sm overflow-x-auto no-scrollbar max-w-fit">
         {[
-          { key: 'all', label: 'All', count: reminders.length },
+          { key: 'all', label: 'Global Registry', count: reminders.length },
           { key: 'overdue', label: 'Overdue', count: counts.overdue },
-          { key: 'urgent', label: 'Urgent', count: counts.urgent },
+          { key: 'urgent', label: 'High Priority', count: counts.urgent },
           { key: 'soon', label: 'Soon', count: counts.soon },
           { key: 'ok', label: 'Upcoming', count: counts.ok },
         ].map(({ key, label, count }) => (
-          <button key={key} onClick={() => setFilter(key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-body font-medium border transition-all
-              ${filter === key ? 'bg-ink text-cream border-ink' : 'bg-white text-stone-500 border-stone-200 hover:border-stone-300'}`}>
+          <button
+            key={key}
+            onClick={() => setFilter(key)}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${filter === key ? 'bg-[#1a3c2e] text-white shadow-md' : 'text-[#6b8a7a] hover:text-[#1a6a3c]'}`}
+          >
             {label}
             {count > 0 && (
-              <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${filter === key ? 'bg-white/15 text-cream' : 'bg-stone-100 text-stone-500'}`}>
+              <span className={`px-2 py-0.5 rounded-lg text-[9px] ${filter === key ? 'bg-white/20 text-white' : 'bg-[#e8f5ee] text-[#1a6a3c]'}`}>
                 {count}
               </span>
             )}
@@ -135,19 +153,25 @@ export default function RemindersPage() {
         ))}
       </div>
 
-      {/* List */}
+      {/* Content Stream */}
       {loading ? (
-        <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="card h-20 animate-pulse bg-stone-100" />)}</div>
-      ) : filtered.length === 0 ? (
-        <div className="card p-16 flex flex-col items-center text-center border-2 border-dashed border-stone-200">
-          <Bell size={40} className="text-stone-300 mb-3" />
-          <p className="font-body font-medium text-stone-500">{filter === 'all' ? 'No reminders yet' : `No ${filter} reminders`}</p>
-          <p className="font-body text-xs text-stone-300 mt-1">{filter === 'all' && 'Create reminders to track rent due dates.'}</p>
+        <div className="space-y-4">
+          {[1, 2, 3, 4].map(i => <div key={i} className="card h-24 animate-pulse bg-white/50" />)}
         </div>
+      ) : filtered.length === 0 ? (
+        <motion.div {...fadeUp(0.1)} className="card p-24 flex flex-col items-center text-center bg-[#fcfdfc]/50 border-2 border-dashed border-[#ddf0e6]">
+          <div className="w-20 h-20 bg-white rounded-[2rem] flex items-center justify-center text-[#cce8d8] mb-6 shadow-sm border border-[#f0f7f2]">
+            <Bell size={40} strokeWidth={1.5} />
+          </div>
+          <h2 className="font-fraunces text-[#1a2e22] text-2xl font-black mb-2 italic">Registry Empty</h2>
+          <p className="text-[#6b8a7a] font-medium max-w-sm">
+            {filter === 'all' ? "No active settlement alerts have been configured for your portfolio." : `No procedures match the "${filter}" classification.`}
+          </p>
+        </motion.div>
       ) : (
-        <div className="card overflow-hidden">
-          <AnimatePresence>
-            {filtered.map((r) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <AnimatePresence mode="popLayout">
+            {filtered.map((r, idx) => {
               const urg = getUrgency(r);
               const U = URGENCY[urg];
               const d = r.dueDate?.toDate?.() ?? new Date(r.dueDate);
@@ -155,39 +179,65 @@ export default function RemindersPage() {
               const isPaid = urg === 'paid';
 
               return (
-                <motion.div key={r.id} initial={{ opacity: 0 }} animate={{ opacity: isPaid ? 0.6 : 1 }} exit={{ opacity: 0, height: 0 }}
-                  className="flex items-center gap-4 px-5 py-4 border-b border-stone-100 last:border-0 hover:bg-stone-50/70 transition-colors group">
-                  <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${U.dot}`} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="font-body font-semibold text-sm text-ink">{r.tenantName}</span>
-                      {r.propertyName && <span className="font-body text-xs text-stone-400">{r.propertyName}</span>}
-                      {r.recurring && <span className="font-body text-xs px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">Monthly</span>}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                      <span className={`font-body text-xs font-medium px-2 py-0.5 rounded-full border ${U.bg} ${U.color} ${U.border}`}>
-                        {isPaid ? 'Paid' : isPast(d) ? 'Overdue' : days === 0 ? 'Due today' : days === 1 ? 'Due tomorrow' : `Due in ${days}d`}
-                      </span>
-                      <span className="font-body text-xs text-stone-400">
-                        <Clock size={11} className="inline mr-1" />{format(d, 'MMM d, yyyy')}
-                      </span>
+                <motion.div
+                  key={r.id}
+                  {...fadeUp(0.1 + idx * 0.05)}
+                  layout
+                  className={`card p-8 group overflow-hidden bg-white border-[#f0f7f2] hover:border-[#1a6a3c]/30 hover:shadow-2xl transition-all relative ${isPaid ? 'opacity-60 grayscale-[0.5]' : ''}`}
+                >
+                  <div className={`absolute top-0 right-0 w-32 h-32 opacity-[0.03] transform translate-x-10 translate-y-[-10px] rotate-12 group-hover:rotate-45 transition-transform duration-700 text-[#1a6a3c]`}>
+                    <Bell size={120} />
+                  </div>
+
+                  <div className="flex items-start justify-between mb-8 relative z-10">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className={`w-14 h-14 rounded-2xl ${U.bg} ${U.border} border flex items-center justify-center ${U.color} flex-shrink-0 shadow-sm transition-transform group-hover:scale-105`}>
+                        <U.icon size={28} strokeWidth={2.5} />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-fraunces font-black text-[#1a2e22] text-xl truncate mb-1 italic leading-none">{r.tenantName || 'Subject Account'}</h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-black text-[#6b8a7a] uppercase tracking-widest bg-[#f4fbf7] border border-[#ddf0e6] px-2 py-0.5 rounded-lg">
+                            {r.propertyName || 'Portfolio Asset'}
+                          </span>
+                          {r.recurring && (
+                            <span className="text-[9px] font-black text-[#1a6a3c] uppercase tracking-widest bg-[#e8f5ee] px-2 py-0.5 rounded-lg flex items-center gap-1">
+                              <Calendar size={10} /> Monthly
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-display font-semibold text-lg text-ink">{fmt(r.amount || 0)}</p>
-                  </div>
-                  {!isPaid && (
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => handleMarkPaid(r)}
-                        className="flex items-center gap-1.5 text-xs font-body font-medium px-3 py-1.5 rounded-lg bg-sage/10 text-sage border border-sage/20 hover:bg-sage/20 transition-colors">
-                        <CheckCircle size={13} /> Paid
-                      </button>
-                      <button onClick={() => handleDelete(r)}
-                        className="p-1.5 rounded-lg bg-rust/8 text-rust border border-rust/15 hover:bg-rust/15 transition-colors">
-                        <Trash2 size={13} />
-                      </button>
+
+                  <div className="grid grid-cols-2 gap-4 mb-8">
+                    <div className="p-4 rounded-xl bg-[#fcfdfc] border border-[#f0f7f2]">
+                      <p className="text-[8px] font-black text-[#94a3a8] uppercase tracking-[0.2em] mb-1">Settlement Deadline</p>
+                      <p className={`font-bold text-sm ${isPast(d) && !isPaid ? 'text-[#e74c3c]' : 'text-[#1a2e22]'}`}>{format(d, 'MMM d, yyyy')}</p>
                     </div>
-                  )}
+                    <div className="p-4 rounded-xl bg-[#fcfdfc] border border-[#f0f7f2]">
+                      <p className="text-[8px] font-black text-[#94a3a8] uppercase tracking-[0.2em] mb-1">Maturity Val</p>
+                      <p className="font-fraunces font-black text-[#1a2e22] text-lg leading-none italic">{fmt(r.amount || 0)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-6 border-t border-[#f0f7f2]">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-white border border-[#f0f7f2] shadow-inner text-[#94a3a8]">
+                      <Clock size={12} strokeWidth={3} />
+                      {isPaid ? 'Settled' : days === 0 ? 'Matures Today' : days > 0 ? `${days} Days Remaining` : 'Past Due Term'}
+                    </div>
+
+                    {!isPaid && (
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => handleMarkPaid(r)} className="bg-[#e8f5ee] text-[#1a6a3c] font-black text-[10px] uppercase tracking-widest px-6 py-2.5 rounded-xl border border-[#ddf0e6] hover:bg-[#1a3c2e] hover:text-white transition-all shadow-sm">
+                          Authorize Settlement
+                        </button>
+                        <button onClick={() => handleDelete(r)} className="w-10 h-10 rounded-xl bg-white border border-[#f0f7f2] flex items-center justify-center text-[#94a3a8] hover:bg-[#e74c3c] hover:text-white transition-all shadow-sm">
+                          <Trash2 size={18} strokeWidth={2.5} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </motion.div>
               );
             })}
@@ -195,53 +245,72 @@ export default function RemindersPage() {
         </div>
       )}
 
-      {/* Modal */}
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="New Rent Reminder">
-        <form onSubmit={handleSave} className="space-y-4">
-          <div>
-            <label className="label-xs">Link to Property (optional)</label>
-            <select className="input-base" value={form.propertyId} onChange={handlePropertySelect}>
-              <option value="">— Select property —</option>
-              {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
+      {/* Protocol Establishment Modal */}
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title="Establish Alert Protocol"
+        size="md"
+      >
+        <form onSubmit={handleSave} className="p-2 space-y-8">
+          <div className="space-y-6">
             <div>
-              <label className="label-xs">Tenant Name</label>
-              <div className="input-base bg-stone-50 text-stone-400 cursor-not-allowed flex items-center overflow-hidden whitespace-nowrap text-ellipsis">
-                {form.tenantName || 'Select a property'}
+              <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-3 block">Target Asset Correlation *</label>
+              <div className="relative">
+                <Hash size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-[#cce8d8] pointer-events-none" strokeWidth={3} />
+                <select className="w-full bg-[#f4fbf7] border border-[#ddf0e6] rounded-2xl pl-12 pr-5 py-4 text-[#1a2e22] font-semibold text-sm focus:ring-4 focus:ring-[#1a6a3c]/5 focus:border-[#1a6a3c] transition-all appearance-none cursor-pointer" value={form.propertyId} onChange={handlePropertySelect}>
+                  <option value="">— Select Portfolio Asset —</option>
+                  {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
               </div>
             </div>
-            <div>
-              <label className="label-xs">Amount ({currencySymbol}) *</label>
-              <input className="input-base" type="number" placeholder="e.g. 250000" value={form.amount} onChange={set('amount')} required />
-            </div>
-            <div>
-              <label className="label-xs">Due Date *</label>
-              <input className="input-base" type="date" value={form.dueDate} onChange={set('dueDate')} required />
-            </div>
-            <div>
-              <label className="label-xs">Notify N days before</label>
-              <div className="flex items-center gap-3">
-                <input type="range" min={1} max={14} value={form.notifyDaysBefore}
-                  onChange={e => setForm(f => ({ ...f, notifyDaysBefore: parseInt(e.target.value) }))}
-                  className="flex-1 accent-sage" />
-                <span className="font-mono text-sm font-medium text-ink w-8 text-right">{form.notifyDaysBefore}d</span>
+
+            <div className="grid sm:grid-cols-2 gap-6">
+              <div>
+                <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-3 block">Account Reference</label>
+                <div className="relative">
+                  <User size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-[#cce8d8]" strokeWidth={3} />
+                  <input className="w-full bg-[#fcfdfc] border border-[#f0f7f2] rounded-2xl pl-12 pr-5 py-4 text-[#1a2e22] font-semibold text-sm opacity-60" value={form.tenantName || 'Standard Account'} readOnly />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-3 block">Settlement Val ({currencySymbol}) *</label>
+                <div className="relative">
+                  <div className="absolute left-5 top-1/2 -translate-y-1/2 text-[#1a6a3c] font-black text-sm">{currencySymbol}</div>
+                  <input className="w-full bg-[#f4fbf7] border border-[#ddf0e6] rounded-2xl pl-12 pr-5 py-4 text-[#1a2e22] font-black text-base focus:ring-4 focus:ring-[#1a6a3c]/5 focus:border-[#1a6a3c] transition-all" type="number" placeholder="0" value={form.amount} onChange={set('amount')} required />
+                </div>
               </div>
             </div>
+
+            <div className="grid sm:grid-cols-2 gap-6">
+              <div>
+                <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-3 block">Maturity Target *</label>
+                <div className="relative">
+                  <Calendar size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-[#cce8d8]" strokeWidth={3} />
+                  <input className="w-full bg-[#f4fbf7] border border-[#ddf0e6] rounded-2xl pl-12 pr-5 py-4 text-[#1a2e22] font-semibold text-sm focus:ring-4 focus:ring-[#1a6a3c]/5 focus:border-[#1a6a3c] transition-all" type="date" value={form.dueDate} onChange={set('dueDate')} required />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-3 block">Advance Escalation</label>
+                <div className="flex items-center gap-4 py-3.5 px-5 bg-[#f4fbf7] border border-[#ddf0e6] rounded-2xl">
+                  <input type="range" min={1} max={14} value={form.notifyDaysBefore} onChange={e => setForm(f => ({ ...f, notifyDaysBefore: parseInt(e.target.value) }))} className="flex-1 accent-[#1a6a3c]" />
+                  <span className="font-fraunces font-black text-[#1a2e22] text-sm italic w-8 text-right">{form.notifyDaysBefore}d</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-4 rounded-2xl bg-[#f4fbf7]/50 border border-[#ddf0e6]">
+              <input type="checkbox" id="rec-landlord" checked={form.recurring} onChange={set('recurring')} className="w-5 h-5 rounded-lg accent-[#1a6a3c] cursor-pointer" />
+              <label htmlFor="rec-landlord" className="text-xs font-bold text-[#1a6a3c] cursor-pointer italic">Replicate protocol on a monthly cycle (Recurring Alert)</label>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <input type="checkbox" id="recurring" checked={form.recurring} onChange={set('recurring')} className="w-4 h-4 rounded accent-sage" />
-            <label htmlFor="recurring" className="font-body text-sm text-ink cursor-pointer">Recurring monthly reminder</label>
-          </div>
-          <div>
-            <label className="label-xs">Notes (optional)</label>
-            <input className="input-base" placeholder="Any additional notes…" value={form.notes} onChange={set('notes')} />
-          </div>
-          <div className="flex gap-3 justify-end pt-2">
-            <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary">
-              {saving ? <div className="w-4 h-4 border-2 border-cream border-t-transparent rounded-full animate-spin" /> : <><Plus size={15} /> Create Reminder</>}
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+            <button type="submit" disabled={saving} className="flex-1 btn-primary py-4 text-base order-1 sm:order-2">
+              {saving ? <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" /> : <span className="flex items-center gap-2">Authorize Protocol <Plus size={18} strokeWidth={3} /></span>}
+            </button>
+            <button type="button" onClick={() => setShowModal(false)} className="flex-1 btn-secondary py-4 text-base order-2 sm:order-1 border-transparent hover:bg-gray-100">
+              Discard
             </button>
           </div>
         </form>

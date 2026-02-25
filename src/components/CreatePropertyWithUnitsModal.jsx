@@ -23,7 +23,6 @@ import toast from 'react-hot-toast';
 const TYPES = ['Apartment', 'House', 'Studio', 'Duplex', 'Commercial', 'Other'];
 const BILLING = [
     { value: 'monthly', label: 'Monthly' },
-    { value: 'quarterly', label: 'Quarterly' },
     { value: 'yearly', label: 'Yearly' },
 ];
 
@@ -31,7 +30,7 @@ const makeUnit = (idx, prefix = 'Unit') => ({
     id: crypto.randomUUID(),
     unitName: `${prefix} ${idx + 1}`,
     rentAmount: '',
-    billingCycle: 'monthly',
+    billingCycle: 'yearly',
     tenantName: '',
     tenantEmail: '',
     showTenant: false,

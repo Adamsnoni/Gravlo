@@ -1,10 +1,7 @@
 // src/pages/ProfilePage.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// Dedicated personal profile page — identity, contact, subscription.
-// ─────────────────────────────────────────────────────────────────────────────
 import React from 'react';
 import { motion } from 'framer-motion';
-import { User, Mail, Phone, MapPin, Calendar, Crown, Shield, Check, LogOut } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Calendar, Crown, Shield, Check, LogOut, ArrowRight, Activity, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { getFlag } from '../utils/countries';
@@ -12,6 +9,12 @@ import { resetPassword } from '../services/firebase';
 import { Link, useNavigate } from 'react-router-dom';
 import { PLANS } from '../services/subscription';
 import toast from 'react-hot-toast';
+
+const fadeUp = (delay = 0) => ({
+    initial: { opacity: 0, y: 12 },
+    animate: { opacity: 1, y: 0 },
+    transition: { delay, duration: 0.3, ease: "easeOut" },
+});
 
 export default function ProfilePage() {
     const { user, profile, logout } = useAuth();
@@ -21,7 +24,7 @@ export default function ProfilePage() {
 
     const handleLogout = async () => {
         await logout();
-        toast.success('Signed out.');
+        toast.success('Safe travels!');
         navigate('/login');
     };
 
@@ -29,9 +32,9 @@ export default function ProfilePage() {
         try {
             await resetPassword(user.email);
             setResetSent(true);
-            toast.success('Password reset email sent!');
+            toast.success('Security link dispatched!');
         } catch {
-            toast.error('Failed to send reset email.');
+            toast.error('Failed to initiate reset.');
         }
     };
 
@@ -46,35 +49,42 @@ export default function ProfilePage() {
     const userPlan = PLANS[profile?.subscription?.planId || 'free'] || PLANS.free;
 
     return (
-        <div className="space-y-6 max-w-2xl">
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-                <h1 className="font-display text-ink text-3xl font-semibold">Profile</h1>
-                <p className="font-body text-stone-400 text-sm mt-0.5">Your personal identity and account details</p>
+        <div className="max-w-4xl mx-auto space-y-10 pb-12 animate-slide-up">
+            {/* Page Header */}
+            <motion.div {...fadeUp(0)}>
+                <p className="text-[#6b8a7a] font-bold text-xs uppercase tracking-[0.15em] mb-2">Account Identity</p>
+                <h1 className="font-fraunces text-[#1a2e22] text-4xl font-black tracking-tight leading-none italic">
+                    Personal Profile
+                </h1>
             </motion.div>
 
-            {/* Hero Card */}
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-                className="card overflow-hidden">
-                <div className="bg-gradient-to-br from-ink to-ink-light p-6 relative overflow-hidden">
-                    <div className="absolute inset-0 opacity-5" style={{ backgroundImage: `radial-gradient(circle at 1px 1px, #F5F0E8 1px, transparent 0)`, backgroundSize: '24px 24px' }} />
-                    <div className="absolute top-0 right-0 w-40 h-40 bg-sage/10 rounded-full blur-2xl" />
-                    <div className="relative flex items-center gap-5">
-                        <div className="w-20 h-20 rounded-2xl bg-sage/20 border-2 border-sage/40 flex items-center justify-center flex-shrink-0 shadow-lg">
-                            <span className="font-display font-bold text-sage text-3xl">{initials}</span>
+            {/* Profile Identity Card */}
+            <motion.div {...fadeUp(0.05)} className="card overflow-hidden bg-white border-[#f0f7f2] shadow-xl relative">
+                <div className="h-1.5 w-full bg-[#1a6a3c]" />
+                <div className="p-8 sm:p-10 bg-gradient-to-br from-[#fcfdfc] to-white">
+                    <div className="flex flex-col md:flex-row items-center gap-8">
+                        <div className="relative group">
+                            <div className="w-24 h-24 rounded-[2rem] bg-[#1a3c2e] flex items-center justify-center shadow-2xl transform group-hover:rotate-6 transition-transform duration-500">
+                                <span className="font-fraunces font-black text-white text-3xl italic">{initials}</span>
+                            </div>
+                            <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-2xl bg-white border border-[#ddf0e6] shadow-lg flex items-center justify-center text-[#1a6a3c]">
+                                <Shield size={18} strokeWidth={2.5} />
+                            </div>
                         </div>
-                        <div>
-                            <h2 className="font-display text-cream text-2xl font-semibold">
-                                {profile?.fullName || user?.displayName || 'User'}
+
+                        <div className="flex-1 text-center md:text-left">
+                            <h2 className="font-fraunces text-[#1a2e22] text-3xl font-black mb-2 tracking-tight">
+                                {profile?.fullName || user?.displayName || 'Registry Member'}
                             </h2>
-                            <p className="font-body text-stone-400 text-sm mt-0.5">{user?.email}</p>
-                            <div className="flex items-center gap-2 mt-2">
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-body font-semibold capitalize ${role === 'tenant' ? 'bg-sage/15 text-sage' : 'bg-amber/15 text-amber'
-                                    }`}>
+                            <p className="text-[#6b8a7a] font-semibold text-sm mb-4">{user?.email}</p>
+
+                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                                <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-sm ${role === 'tenant' ? 'bg-[#e8f5ee] border-[#ddf0e6] text-[#1a6a3c]' : 'bg-[#fef9ed] border-[#f5e0b8] text-[#c8691a]'}`}>
                                     {role}
                                 </span>
                                 {role !== 'tenant' && (
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-body font-semibold ${userPlan.badgeColor}`}>
-                                        <Crown size={10} /> {userPlan.badge}
+                                    <span className="inline-flex items-center gap-2 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-[#1a3c2e] text-white shadow-md">
+                                        <Crown size={12} strokeWidth={2.5} /> {userPlan.badge}
                                     </span>
                                 )}
                             </div>
@@ -82,86 +92,93 @@ export default function ProfilePage() {
                     </div>
                 </div>
 
-                {/* Detail grid */}
-                <div className="p-6 space-y-4">
-                    <div className="grid sm:grid-cols-2 gap-4">
-                        <ProfileField icon={User} label="Full Name" value={profile?.fullName || user?.displayName || '—'} />
-                        <ProfileField icon={Mail} label="Email" value={user?.email || '—'} />
-                        <ProfileField icon={Phone} label="Phone" value={profile?.phone || '—'} />
-                        <ProfileField icon={MapPin} label="Country"
-                            value={country ? `${getFlag(country.code)} ${country.name}` : '—'} />
+                <div className="p-8 sm:p-10 border-t border-[#f0f7f2]">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <ProfileField icon={User} label="Full Legal Name" value={profile?.fullName || user?.displayName || '—'} />
+                        <ProfileField icon={Mail} label="Verified Email" value={user?.email || '—'} />
+                        <ProfileField icon={Phone} label="Contact Number" value={profile?.phone || '—'} />
+                        <ProfileField icon={MapPin} label="Operating Region" value={country ? `${getFlag(country.code)} ${country.name}` : '—'} />
                         <ProfileField icon={Calendar} label="Member Since" value={memberSince} />
-                        <ProfileField
-                            label="Currency"
-                            value={country ? `${country.currencyName} (${country.symbol})` : '—'}
-                            icon={() => <span className="text-sm font-semibold text-stone-400">{currencySymbol}</span>}
-                        />
+                        <ProfileField icon={Activity} label="Standard Currency" value={country ? `${country.currencyName} (${country.symbol})` : '—'} />
                     </div>
                 </div>
             </motion.div>
 
-            {/* Subscription — landlords only */}
-            {role !== 'tenant' && (
-                <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="card p-6">
-                    <div className="flex items-center gap-3 mb-5 pb-4 border-b border-stone-100">
-                        <Crown size={16} className="text-stone-400" />
-                        <h3 className="font-body font-semibold text-ink text-sm">Subscription</h3>
-                    </div>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <div className="flex items-center gap-2 mb-1">
-                                <p className="font-body font-semibold text-ink text-lg">{userPlan.name}</p>
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-body font-semibold ${userPlan.badgeColor}`}>
-                                    <Crown size={10} /> {userPlan.badge}
-                                </span>
-                            </div>
-                            <p className="font-body text-xs text-stone-400">
-                                {userPlan.price === 0 ? 'Free forever' : `${currencySymbol}${userPlan.price}/${userPlan.period}`}
-                                {' · '}
-                                {userPlan.maxProperties === Infinity ? 'Unlimited' : `Up to ${userPlan.maxProperties}`} properties
-                            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Subscription - Landlords */}
+                {role !== 'tenant' && (
+                    <motion.div {...fadeUp(0.1)} className="card p-8 bg-[#1a3c2e] text-white relative overflow-hidden group">
+                        <div className="absolute top-[-30px] right-[-30px] opacity-[0.05] transform rotate-12 transition-transform group-hover:rotate-45 duration-700">
+                            <Crown size={180} />
                         </div>
-                        <Link to="/subscription" className="btn-secondary text-sm">
-                            {userPlan.id === 'free' ? 'Upgrade' : 'Manage Plan'}
-                        </Link>
-                    </div>
-                </motion.div>
-            )}
+                        <div className="relative z-10">
+                            <div className="flex items-center gap-3 mb-8">
+                                <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
+                                    <Zap size={20} className="text-[#52b788]" />
+                                </div>
+                                <h3 className="font-fraunces text-xl font-black italic">Plan Membership</h3>
+                            </div>
 
-            {/* Security */}
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="card p-6">
-                <div className="flex items-center gap-3 mb-5 pb-4 border-b border-stone-100">
-                    <Shield size={16} className="text-stone-400" />
-                    <h3 className="font-body font-semibold text-ink text-sm">Security</h3>
-                </div>
-                <div className="flex items-center justify-between">
-                    <div>
-                        <p className="font-body font-medium text-sm text-ink">Password</p>
-                        <p className="font-body text-xs text-stone-400 mt-0.5">Send a reset link to your email</p>
+                            <div className="mb-8">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <p className="font-fraunces text-2xl font-black italic tracking-wide">{userPlan.name}</p>
+                                    <span className="px-2 py-0.5 rounded-lg bg-white/10 border border-white/20 text-[9px] font-black uppercase tracking-widest">{userPlan.badge}</span>
+                                </div>
+                                <p className="text-white/70 text-sm font-medium">
+                                    {userPlan.price === 0 ? 'Enterprise Free Edition' : `${currencySymbol}${userPlan.price}/${userPlan.period}`}
+                                    {' · '}
+                                    {userPlan.maxProperties === Infinity ? 'Unlimited' : `Capacity: ${userPlan.maxProperties} Assets`}
+                                </p>
+                            </div>
+
+                            <Link to="/subscription" className="inline-flex items-center gap-2 bg-white text-[#1a3c2e] font-black text-xs uppercase tracking-widest px-8 py-4 rounded-xl hover:bg-[#f4fbf7] active:scale-95 transition-all shadow-xl">
+                                {userPlan.id === 'free' ? 'Upgrade Tier' : 'Manage Subscription'}
+                                <ArrowRight size={16} strokeWidth={3} />
+                            </Link>
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* Security Section */}
+                <motion.div {...fadeUp(0.15)} className="card p-8 bg-white border-[#f0f7f2] shadow-xl">
+                    <div className="flex items-center gap-3 mb-8">
+                        <div className="w-10 h-10 rounded-xl bg-[#f4fbf7] border border-[#ddf0e6] flex items-center justify-center text-[#1a6a3c]">
+                            <Shield size={20} strokeWidth={2.5} />
+                        </div>
+                        <h3 className="font-fraunces text-xl font-black italic text-[#1a2e22]">Security Protocol</h3>
                     </div>
-                    <button onClick={handleResetPassword} disabled={resetSent} className="btn-secondary text-sm">
-                        {resetSent ? <><Check size={14} className="text-sage" /> Email Sent</> : 'Reset Password'}
+
+                    <div className="p-6 rounded-2xl bg-[#fcfdfc] border border-[#f0f7f2] mb-8">
+                        <h4 className="font-bold text-[#1a2e22] text-sm mb-1">Passcode Management</h4>
+                        <p className="text-[#6b8a7a] text-xs font-medium italic">Authorize a security reset link to your registered email address.</p>
+                    </div>
+
+                    <button
+                        onClick={handleResetPassword}
+                        disabled={resetSent}
+                        className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${resetSent ? 'bg-[#e8f5ee] text-[#1a6a3c] border-[#ddf0e6]' : 'bg-white border-[#ddf0e6] text-[#6b8a7a] hover:border-[#1a6a3c] hover:text-[#1a6a3c] shadow-sm'}`}
+                    >
+                        {resetSent ? <><Check size={16} strokeWidth={3} /> Check Your Inbox</> : 'Initiate Password Reset'}
+                    </button>
+                </motion.div>
+            </div>
+
+            {/* Account Management */}
+            <motion.div {...fadeUp(0.2)} className="card p-8 bg-[#fff5f5] border-[#fee2e2] shadow-sm">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-white border border-[#fee2e2] flex items-center justify-center text-[#e74c3c] shadow-sm">
+                            <LogOut size={24} strokeWidth={2.5} />
+                        </div>
+                        <div>
+                            <h4 className="font-fraunces text-[#1a2e22] text-lg font-black italic mb-0.5">Session Termination</h4>
+                            <p className="text-[#94a3a8] text-xs font-bold uppercase tracking-widest">Sign out of this workspace</p>
+                        </div>
+                    </div>
+                    <button onClick={handleLogout} className="w-full sm:w-auto btn-danger px-10 py-4 shadow-xl shadow-red-100">
+                        Sign Out Now
                     </button>
                 </div>
-            </motion.div>
-
-            {/* Sign Out */}
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="card p-6">
-                <div className="flex items-center gap-3 mb-4 pb-4 border-b border-stone-100">
-                    <LogOut size={16} className="text-stone-400" />
-                    <h3 className="font-body font-semibold text-ink text-sm">Account</h3>
-                </div>
-                <div className="flex items-center justify-between mb-4">
-                    <div>
-                        <p className="font-body font-medium text-sm text-ink">{profile?.fullName || user?.displayName || 'User'}</p>
-                        <p className="font-body text-xs text-stone-400 mt-0.5">{user?.email}</p>
-                    </div>
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-body font-semibold capitalize ${profile?.role === 'tenant' ? 'bg-sage/10 text-sage' : 'bg-amber/10 text-amber'
-                        }`}>{profile?.role || 'landlord'}</span>
-                </div>
-                <button onClick={handleLogout} className="btn-danger w-full">
-                    <LogOut size={15} /> Sign Out
-                </button>
             </motion.div>
         </div>
     );
@@ -169,13 +186,13 @@ export default function ProfilePage() {
 
 function ProfileField({ icon: Icon, label, value }) {
     return (
-        <div className="flex items-start gap-3 p-3 rounded-xl bg-stone-50 border border-stone-100">
-            <div className="w-8 h-8 rounded-lg bg-white border border-stone-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                {typeof Icon === 'function' && Icon.length === 0 ? <Icon /> : <Icon size={14} className="text-stone-400" />}
-            </div>
-            <div className="min-w-0">
-                <p className="font-body text-[11px] text-stone-400 uppercase tracking-wider font-semibold">{label}</p>
-                <p className="font-body text-sm text-ink font-medium mt-0.5 truncate">{value}</p>
+        <div className="group flex flex-col gap-2">
+            <label className="text-[9px] font-black text-[#94a3a8] uppercase tracking-[0.2em]">{label}</label>
+            <div className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-lg bg-[#f4fbf7] flex items-center justify-center text-[#1a6a3c] flex-shrink-0">
+                    <Icon size={14} strokeWidth={2.5} />
+                </div>
+                <p className="text-[#1a2e22] font-bold text-sm truncate">{value}</p>
             </div>
         </div>
     );

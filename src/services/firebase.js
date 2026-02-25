@@ -84,6 +84,7 @@ export const deleteProperty = async (uid, id) => {
   const activeTenancies = await getDocs(
     query(
       collection(db, 'tenancies'),
+      where('landlordId', '==', uid),
       where('propertyId', '==', id),
       where('status', '==', 'active')
     )
@@ -259,6 +260,28 @@ export const subscribeMaintenance = (uid, propId, cb) =>
   onSnapshot(query(collection(db, 'users', uid, 'properties', propId, 'maintenance'), orderBy('createdAt', 'desc')), (snap) =>
     cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
 
+// For tenants: watch all maintenance tickets where tenantId matches
+export const subscribeTenantMaintenance = (tenantId, cb) =>
+  onSnapshot(
+    query(
+      collectionGroup(db, 'maintenance'),
+      where('tenantId', '==', tenantId)
+    ),
+    (snap) => {
+      const docs = snap.docs.map(d => {
+        const pathSegments = d.ref.path.split('/');
+        return {
+          id: d.id,
+          landlordId: pathSegments[1],
+          propertyId: pathSegments[3],
+          ...d.data()
+        };
+      });
+      docs.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+      cb(docs);
+    }
+  );
+
 // ════════════════════════════════════════════════════════════════════════════
 // UNITS  (properties/{propertyId}/units/{unitId})
 // ════════════════════════════════════════════════════════════════════════════
@@ -277,6 +300,7 @@ export const deleteUnit = async (uid, propId, unitId) => {
   const activeTenancies = await getDocs(
     query(
       collection(db, 'tenancies'),
+      where('landlordId', '==', uid),
       where('unitId', '==', unitId),
       where('status', '==', 'active')
     )

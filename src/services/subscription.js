@@ -4,7 +4,7 @@
 // Plans: free, pro ($7/mo), business ($20/mo) — landlords only.
 // ─────────────────────────────────────────────────────────────────────────────
 import { db } from './firebase';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { getSubscriptionPrices } from '../utils/pricing';
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -47,6 +47,7 @@ export const PLANS = {
         badge: 'PRO',
         badgeColor: 'bg-sage/15 text-sage',
         popular: true,
+        paystackPlanCode: 'PLN_p4bs1izxjamc6ry',
         description: 'For growing landlords who need more power.',
         features: [
             { label: 'Up to 20 properties', included: true },
@@ -74,6 +75,7 @@ export const PLANS = {
         maxProperties: Infinity,
         badge: 'BIZ',
         badgeColor: 'bg-amber/15 text-amber',
+        paystackPlanCode: 'PLN_fbtczbvb3z3geli',
         description: 'For professional property managers at scale.',
         features: [
             { label: 'Unlimited properties', included: true },
@@ -130,12 +132,12 @@ export async function getUserPlan(uid) {
  */
 export async function updateUserPlan(uid, planId) {
     if (!PLANS[planId]) throw new Error(`Invalid plan: ${planId}`);
-    await updateDoc(doc(db, 'users', uid), {
+    await setDoc(doc(db, 'users', uid), {
         subscription: {
             planId,
             updatedAt: serverTimestamp(),
         },
-    });
+    }, { merge: true });
 }
 
 /**

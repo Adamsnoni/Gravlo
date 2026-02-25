@@ -1,8 +1,8 @@
 // src/pages/PropertyDetailPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { ArrowLeft, Bed, Bath, MapPin, User, Mail, Phone, Plus, Wrench, CreditCard, Info, ChevronDown, Hash, Building2, DoorOpen, UserMinus, Link2, Copy, Check, UserCheck, AlertCircle, Loader2, Settings } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, Bed, Bath, MapPin, User, Mail, Phone, Plus, Wrench, CreditCard, Info, ChevronDown, Hash, Building2, DoorOpen, UserMinus, Link2, Copy, Check, UserCheck, AlertCircle, Loader2, Settings, ArrowRight, Activity, Calendar, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
@@ -10,8 +10,7 @@ import { subscribeProperties, subscribePayments, subscribeMaintenance, addMainte
 import { createTenancy, terminateActiveLeasesForUnit, getActiveTenancy } from '../services/tenancy';
 import { cancelPendingInvoices } from '../services/invoices';
 import { generateInvoicePdf } from '../utils/invoicePdf';
-import { formatUnitDisplay, getShortUnitId } from '../utils/unitDisplay';
-import StatusBadge from '../components/StatusBadge';
+import { formatUnitDisplay } from '../utils/unitDisplay';
 import PaymentRow from '../components/PaymentRow';
 import Modal from '../components/Modal';
 import UnitCard from '../components/UnitCard';
@@ -25,6 +24,12 @@ const TABS = [
   { id: 'maintenance', label: 'Maintenance', icon: Wrench },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
+
+const fadeUp = (delay = 0) => ({
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  transition: { delay, duration: 0.3, ease: "easeOut" },
+});
 
 export default function PropertyDetailPage() {
   const { id } = useParams();
@@ -43,11 +48,17 @@ export default function PropertyDetailPage() {
   const [showMaintModal, setShowMaintModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [maintForm, setMaintForm] = useState({ title: '', description: '', priority: 'medium' });
+  const setM = k => e => setMaintForm(f => ({ ...f, [k]: e.target.value }));
 
   // Unit modals
   const [showAddUnit, setShowAddUnit] = useState(false);
-  const [editingUnit, setEditingUnit] = useState(null);   // null = add mode, object = edit mode
+  const [editingUnit, setEditingUnit] = useState(null);
   const [unitSaving, setUnitSaving] = useState(false);
+
+  // Deletion state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [unitToDelete, setUnitToDelete] = useState(null);
+  const [showPropDeleteConfirm, setShowPropDeleteConfirm] = useState(false);
 
   // Remove tenant confirm
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
@@ -62,15 +73,12 @@ export default function PropertyDetailPage() {
   const [rentSetting, setRentSetting] = useState('');
   const [settingsSaving, setSettingsSaving] = useState(false);
 
-  // ── Subscriptions ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
     const u1 = subscribeProperties(user.uid, props => {
       const p = props.find(x => x.id === id);
       setProperty(p || null);
-      if (p) {
-        setRentSetting(p.RentPrice?.toString() || '');
-      }
+      if (p) setRentSetting(p.RentPrice?.toString() || '');
       setLoading(false);
     });
     const u2 = subscribePayments(user.uid, id, setPayments);
@@ -79,7 +87,6 @@ export default function PropertyDetailPage() {
     return () => { u1(); u2(); u3(); u4(); };
   }, [user, id]);
 
-  // Auto-open Add Unit modal when deep-linked from PropertyCard
   useEffect(() => {
     if (searchParams.get('action') === 'add' && !loading) {
       setEditingUnit(null);
@@ -87,16 +94,13 @@ export default function PropertyDetailPage() {
     }
   }, [loading, searchParams]);
 
-  // ── Maintenance handlers ──────────────────────────────────────────────
-  const setM = k => e => setMaintForm(f => ({ ...f, [k]: e.target.value }));
-
   const handleAddMaint = async (e) => {
     e.preventDefault();
     if (!maintForm.title) { toast.error('Title is required.'); return; }
     setSaving(true);
     try {
       await addMaintenance(user.uid, id, maintForm);
-      toast.success('Issue logged!');
+      toast.success('Ticket logged!');
       setShowMaintModal(false);
       setMaintForm({ title: '', description: '', priority: 'medium' });
     } catch { toast.error('Failed to save.'); }
@@ -106,23 +110,22 @@ export default function PropertyDetailPage() {
   const cycleStatus = async (ticket) => {
     const next = ticket.status === 'open' ? 'in-progress' : ticket.status === 'in-progress' ? 'resolved' : 'open';
     await updateMaintenance(user.uid, id, ticket.id, { status: next });
-    toast.success(`Status → ${next}`);
+    toast.success(`Status updated → ${next}`);
   };
 
-  // ── Unit handlers ─────────────────────────────────────────────────────
   const handleAddOrEditUnit = async (data) => {
     setUnitSaving(true);
     try {
       if (editingUnit) {
         await updateUnit(user.uid, id, editingUnit.id, data);
-        toast.success('Unit updated!');
+        toast.success('Unit saved!');
       } else {
         await addUnit(user.uid, id, data);
-        toast.success('Unit added!');
+        toast.success('Unit added successfully!');
       }
       setShowAddUnit(false);
       setEditingUnit(null);
-    } catch { toast.error('Failed to save unit.'); }
+    } catch { toast.error('System error. Try again.'); }
     finally { setUnitSaving(false); }
   };
 
@@ -135,26 +138,18 @@ export default function PropertyDetailPage() {
         propertyName: property?.name || '',
       });
       setPropertyInviteLink(link);
-      toast.success('Property invite link generated!');
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to generate invite link.');
-    } finally {
-      setGeneratingInvite(false);
-    }
+      toast.success('Portal link ready!');
+    } catch (err) { toast.error('Failed to generate.'); }
+    finally { setGeneratingInvite(false); }
   };
 
-  // ── Settings handlers ───────────────────────────────────────────────────
   const handleUpdateRentPrice = async () => {
     setSettingsSaving(true);
     try {
       await updateProperty(user.uid, id, { RentPrice: rentSetting ? Number(rentSetting) : null });
-      toast.success('Default rent updated!');
-    } catch {
-      toast.error('Failed to update default rent.');
-    } finally {
-      setSettingsSaving(false);
-    }
+      toast.success('Default settings updated!');
+    } catch { toast.error('Update failed.'); }
+    finally { setSettingsSaving(false); }
   };
 
   const handleOpenEdit = (unit) => {
@@ -167,32 +162,60 @@ export default function PropertyDetailPage() {
     setShowRemoveConfirm(true);
   };
 
+  const handleOpenDelete = (unit) => {
+    setUnitToDelete(unit);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteUnit = async () => {
+    if (!unitToDelete) return;
+    setUnitSaving(true);
+    try {
+      await deleteUnit(user.uid, id, unitToDelete.id);
+      toast.success('Unit removed from registry.');
+      setShowDeleteConfirm(false);
+      setUnitToDelete(null);
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete unit.');
+    } finally {
+      setUnitSaving(false);
+    }
+  };
+
+  const handleDeleteProperty = async () => {
+    setSaving(true);
+    try {
+      await deleteProperty(user.uid, id, property?.id);
+      toast.success('Property deleted!');
+      navigate('/properties');
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete property.');
+    } finally {
+      setSaving(false);
+      setShowPropDeleteConfirm(false);
+    }
+  };
+
   const handleMoveOutTenant = async () => {
     if (!removeUnit) return;
     setUnitSaving(true);
     try {
-      // 1) Terminate active lease (stops invoices, preserves history as FORMER)
       const activeTenancy = await getActiveTenancy(user.uid, id, removeUnit.id);
       if (activeTenancy) {
         await terminateActiveLeasesForUnit(user.uid, id, removeUnit.id);
-        // Cancel any pending/sent invoices for this tenancy
         await cancelPendingInvoices(user.uid, activeTenancy.id);
       }
-
-      // 2) Update unit document
       await updateUnit(user.uid, id, removeUnit.id, {
         tenantId: null, tenantName: '', tenantEmail: '', status: 'vacant',
         rentStatus: null,
       });
-
-      toast.success(`Lease terminated. ${removeUnit.unitName || 'Unit'} is now vacant.`);
+      toast.success(`Tenant moved out. Unit is now vacant.`);
       setShowRemoveConfirm(false);
       setRemoveUnit(null);
-    } catch (err) { console.error(err); toast.error('Failed to move out tenant.'); }
+    } catch (err) { toast.error('Error terminating lease.'); }
     finally { setUnitSaving(false); }
   };
 
-  // ── Join request handlers ─────────────────────────────────────────────
   const handleApproveRequest = async (unit) => {
     setUnitSaving(true);
     try {
@@ -223,8 +246,8 @@ export default function PropertyDetailPage() {
         welcomeMessageDate: new Date(),
       });
       await clearUnitRequestNotifications(user.uid, id, unit.id, unit.pendingTenantId);
-      toast.success(`${unit.pendingTenantName || 'Tenant'} approved for ${unit.name}!`);
-    } catch (err) { console.error(err); toast.error('Failed to approve request.'); }
+      toast.success('Tenant approved!');
+    } catch (err) { toast.error('Approval failed.'); }
     finally { setUnitSaving(false); }
   };
 
@@ -239,185 +262,186 @@ export default function PropertyDetailPage() {
         pendingRequestedAt: null,
       });
       await clearUnitRequestNotifications(user.uid, id, unit.id, unit.pendingTenantId);
-      toast.success(`Request from ${unit.pendingTenantName || 'tenant'} declined.`);
-    } catch (err) { console.error(err); toast.error('Failed to decline request.'); }
+      toast.success('Request declined.');
+    } catch (err) { toast.error('Declined failed.'); }
     finally { setUnitSaving(false); }
   };
 
-  // ── Loading / Not found ───────────────────────────────────────────────
   if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="w-8 h-8 border-2 border-sage border-t-transparent rounded-full animate-spin" />
+    <div className="flex items-center justify-center min-h-[40vh]">
+      <div className="w-8 h-8 border-3 border-[#1a6a3c] border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
   if (!property) return (
     <div className="text-center py-20">
-      <p className="font-body text-stone-400">Property not found.</p>
-      <Link to="/properties" className="btn-secondary mt-4 inline-flex">← Back to Properties</Link>
+      <p className="text-[#94a3a8] font-bold italic tracking-wide">Property archive not found.</p>
+      <Link to="/properties" className="btn-secondary mt-6">← Back to Portfolio</Link>
     </div>
   );
 
   const totalPaid = payments.filter(p => p.status === 'paid').reduce((s, p) => s + (p.amount || 0), 0);
+  const occupiedCount = units.filter(u => u.status === 'occupied').length;
 
-  // ══════════════════════════════════════════════════════════════════════
   return (
-    <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-        <Link to="/properties" className="inline-flex items-center gap-1.5 text-sm font-body text-stone-400 hover:text-ink transition-colors mb-4">
-          <ArrowLeft size={15} /> All Properties
+    <div className="max-w-7xl mx-auto space-y-8 pb-12 animate-slide-up">
+      {/* Page Navigation */}
+      <motion.div {...fadeUp(0)}>
+        <Link to="/properties" className="inline-flex items-center gap-2 text-xs font-bold text-[#6b8a7a] hover:text-[#1a6a3c] transition-colors mb-6 uppercase tracking-widest">
+          <ArrowLeft size={16} strokeWidth={3} /> Return to Portfolio
         </Link>
 
-        <div className="card overflow-hidden">
-          {/* Hero */}
-          <div className="bg-gradient-to-br from-ink to-ink-light p-6 sm:p-8 relative overflow-hidden">
-            <div className="absolute inset-0 opacity-5" style={{ backgroundImage: `radial-gradient(circle at 1px 1px, #F5F0E8 1px, transparent 0)`, backgroundSize: '24px 24px' }} />
-            <div className="absolute top-0 right-0 w-48 h-48 bg-sage/10 rounded-full blur-2xl" />
-            <div className="relative">
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <StatusBadge status={property.status} />
-              </div>
-              <h1 className="font-display text-cream text-2xl sm:text-3xl font-semibold mb-2">{property.name}</h1>
-              {property.unitNumber && (
-                <div className="flex items-center gap-1.5 text-sage mb-3">
-                  <Hash size={14} />
-                  <span className="font-body text-sm font-medium">{formatUnitDisplay(property)}</span>
+        {/* Hero Card */}
+        <div className="card overflow-hidden bg-white border-[#f0f7f2] shadow-xl relative">
+          <div className="h-1.5 w-full bg-[#1a6a3c]" />
+          <div className="p-8 sm:p-10 flex flex-col lg:flex-row items-start justify-between gap-10">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${property.status === 'occupied' ? 'bg-[#e8f5ee] border-[#ddf0e6] text-[#1a6a3c]' : 'bg-[#fef9ed] border-[#f5e0b8] text-[#c8691a]'}`}>
+                  {property.status}
                 </div>
-              )}
-              <div className="flex items-center gap-1.5 text-stone-400 mb-6">
-                <MapPin size={14} />
-                <span className="font-body text-sm">{property.address}</span>
+                {property.type && <span className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest px-3 py-1 bg-[#f4fbf7] rounded-lg border border-[#f0f7f2]">{property.type}</span>}
               </div>
-              <div className="flex flex-wrap gap-6 mb-6">
-                <Stat label="Rent" value={fmtRent(property.monthlyRent, property.rentType)} accent />
-                <Stat label="Units" value={units.length} />
-                <Stat label="Occupied" value={units.filter(u => u.status === 'occupied').length} />
-                <Stat label="Bedrooms" value={property.bedrooms || '—'} />
-                <Stat label="Total Collected" value={fmt(totalPaid)} />
+
+              <h1 className="font-fraunces text-[#1a2e22] text-4xl font-black mb-4 tracking-tight leading-tight italic">
+                {property.name}
+              </h1>
+
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2 text-[#6b8a7a] font-semibold text-sm">
+                  <MapPin size={16} className="text-[#cce8d8]" />
+                  {property.address}
+                </div>
+                {property.unitNumber && (
+                  <div className="flex items-center gap-2 text-[#1a6a3c] font-bold text-xs uppercase tracking-wider">
+                    <Hash size={14} strokeWidth={3} /> {property.unitNumber}
+                  </div>
+                )}
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-6 p-6 bg-[#fcfdfc] rounded-[2rem] border border-[#f0f7f2] flex-shrink-0 w-full lg:w-80">
+              <HeroStat label="Valuation" value={fmtRent(property.monthlyRent, property.rentType)} accent color="#1a6a3c" />
+              <HeroStat label="Occupancy" value={`${occupiedCount}/${units.length}`} accent color="#c8691a" />
+              <HeroStat label="Collected" value={fmt(totalPaid)} />
+              <HeroStat label="Active Units" value={units.length} />
             </div>
           </div>
         </div>
+      </motion.div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-stone-100 px-2 overflow-x-auto">
-          {TABS.map(({ id: tid, label, icon: Icon }) => (
-            <button key={tid} onClick={() => setActiveTab(tid)}
-              className={`flex items-center gap-2 px-5 py-4 text-sm font-body font-medium border-b-2 transition-all whitespace-nowrap
-                  ${activeTab === tid ? 'border-sage text-sage' : 'border-transparent text-stone-400 hover:text-ink'}`}>
-              <Icon size={15} /> {label}
-              {tid === 'units' && units.length > 0 && (
-                <span className="ml-1 w-5 h-5 rounded-full bg-sage/10 text-sage text-xs font-semibold flex items-center justify-center">{units.length}</span>
-              )}
-            </button>
-          ))}
+      {/* Tabs Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+
+        {/* Navigation Rail */}
+        <div className="lg:col-span-3">
+          <div className="flex lg:flex-col gap-2 overflow-x-auto pb-4 lg:pb-0 h-fit sticky top-24">
+            {TABS.map(({ id: tid, label, icon: Icon }) => (
+              <button
+                key={tid}
+                onClick={() => setActiveTab(tid)}
+                className={`flex items-center gap-3 px-5 py-4 rounded-2xl text-sm font-bold transition-all whitespace-nowrap border-2 ${activeTab === tid
+                  ? 'bg-[#1a3c2e] text-white border-[#1a3c2e] shadow-lg transform scale-[1.02]'
+                  : 'bg-white text-[#6b8a7a] border-[#f0f7f2] hover:border-[#1a6a3c]/30 hover:text-[#1a6a3c]'}`}
+              >
+                <Icon size={18} strokeWidth={activeTab === tid ? 2.5 : 2} />
+                {label}
+                {tid === 'units' && units.length > 0 && (
+                  <span className={`ml-auto px-2 py-0.5 rounded-lg text-[10px] font-black ${activeTab === tid ? 'bg-white/20 text-white' : 'bg-[#f4fbf7] text-[#1a6a3c]'}`}>
+                    {units.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Tab Content */}
-        <div className="p-6">
-          {/* ── Units ────────────────────────────────────────────── */}
+        {/* Content Area */}
+        <div className="lg:col-span-9 animate-fade-in">
+
+          {/* Units Tab */}
           {activeTab === 'units' && (
-            <div className="space-y-6">
-              {/* Property Invite Link Section */}
-              <div className="p-6 rounded-3xl bg-sage/5 border-2 border-sage/10 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-sage/5 rounded-full blur-3xl -mr-16 -mt-16" />
-                <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-sage/15 flex items-center justify-center flex-shrink-0">
-                      <Link2 size={24} className="text-sage" />
+            <div className="space-y-8">
+              {/* Building Portal Link */}
+              <div className="card p-8 bg-gradient-to-br from-[#1a3c2e] to-[#2d6a4f] text-white overflow-hidden relative group">
+                <div className="absolute top-[-40px] right-[-40px] opacity-[0.1] transform rotate-12 transition-transform group-hover:rotate-45 duration-700">
+                  <DoorOpen size={200} />
+                </div>
+                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+                  <div className="flex items-center gap-5">
+                    <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner">
+                      <Link2 size={28} />
                     </div>
                     <div>
-                      <h3 className="font-display text-ink text-lg font-semibold mb-1">Building Access Link</h3>
-                      <p className="font-body text-stone-500 text-sm">Share this link to let tenants join any vacant unit in this building</p>
+                      <h3 className="font-fraunces text-xl font-bold italic mb-1">Building Access Portal</h3>
+                      <p className="text-white/70 text-sm font-medium">Allow prospects to self-join vacant units in this complex.</p>
                     </div>
                   </div>
 
-                  <div className="w-full md:w-auto flex items-center gap-2">
+                  <div className="w-full md:w-auto">
                     {propertyInviteLink ? (
-                      <div className="flex-1 md:flex-initial flex items-center gap-2 bg-white/80 backdrop-blur-sm border border-sage/20 rounded-2xl p-1.5 pl-4 shadow-sm">
-                        <span className="font-mono text-xs text-stone-500 truncate max-w-[200px]">{propertyInviteLink}</span>
+                      <div className="flex items-center gap-2 bg-white rounded-2xl p-1.5 pl-4 shadow-2xl">
+                        <span className="font-mono text-xs text-[#1a3c2e] truncate max-w-[180px] font-bold">{propertyInviteLink}</span>
                         <button
                           onClick={() => {
                             navigator.clipboard.writeText(propertyInviteLink);
                             setPortalLinkCopied(true);
                             setTimeout(() => setPortalLinkCopied(false), 2000);
                           }}
-                          className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-body font-bold transition-all ${portalLinkCopied ? 'bg-sage text-white' : 'bg-sage/10 text-sage hover:bg-sage/20'}`}
+                          className={`flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${portalLinkCopied ? 'bg-[#1a3c2e] text-white' : 'bg-[#e8f5ee] text-[#1a6a3c] hover:bg-[#1a6a3c] hover:text-white'}`}
                         >
-                          {portalLinkCopied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+                          {portalLinkCopied ? <><Check size={14} /> Copied</> : 'Copy Link'}
                         </button>
                       </div>
                     ) : (
                       <button
                         onClick={handleGeneratePropertyInvite}
                         disabled={generatingInvite}
-                        className="btn-primary w-full md:w-auto px-6 py-3 justify-center shadow-lg shadow-sage/10"
+                        className="bg-white text-[#1a3c2e] font-black text-xs uppercase tracking-widest px-8 py-4 rounded-xl hover:bg-[#f4fbf7] active:scale-95 transition-all shadow-xl disabled:opacity-50"
                       >
-                        {generatingInvite ? <><Loader2 size={16} className="animate-spin" /> Generating…</> : <><Plus size={16} /> Generate Portal Link</>}
+                        {generatingInvite ? 'Initializing...' : 'Generate Portal Link'}
                       </button>
                     )}
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-body text-sm text-stone-400">
-                    {units.length} unit{units.length !== 1 ? 's' : ''} · {units.filter(u => u.status === 'occupied').length} occupied
-                  </p>
-                </div>
+              {/* Units List Header */}
+              <div className="flex items-center justify-between px-2">
+                <h3 className="font-fraunces text-[#1a2e22] text-xl font-black italic">Complex Units</h3>
                 <button
                   onClick={() => { setEditingUnit(null); setShowAddUnit(true); }}
-                  className="btn-primary text-xs px-3 py-2"
+                  className="btn-primary text-xs px-4"
                 >
-                  <Plus size={13} /> Add Unit
+                  <Plus size={16} strokeWidth={3} /> Add New Unit
                 </button>
               </div>
 
-              {/* ── Join Requests ────────────────────────────────────── */}
+              {/* Join Requests */}
               {(() => {
                 const pending = units.filter(u => u.status === 'pending_approval' && !!u.pendingTenantId);
                 if (pending.length === 0) return null;
                 return (
-                  <div className="mb-5 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle size={15} className="text-amber" />
-                      <p className="font-body text-xs font-semibold text-amber uppercase tracking-wider">
-                        Action Required · {pending.length} join request{pending.length !== 1 ? 's' : ''}
-                      </p>
-                    </div>
+                  <div className="space-y-4">
                     {pending.map(unit => (
-                      <div key={unit.id} className="rounded-2xl border-2 border-amber/30 bg-amber/5 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-amber/15 flex items-center justify-center flex-shrink-0">
-                              <User size={16} className="text-amber" />
+                      <div key={unit.id} className="card p-6 border-[#f5e0b8] bg-[#fef9ed]/20 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-[#c8691a]/5 rounded-full blur-3xl" />
+                        <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-[#fef9ed] border border-[#f5e0b8] flex items-center justify-center text-[#c8691a]">
+                              <UserCheck size={24} />
                             </div>
-                            <div>
-                              <p className="font-body text-sm font-semibold text-ink">
-                                {unit.pendingTenantName || 'Unknown Tenant'}
-                              </p>
-                              <p className="font-body text-xs text-stone-500">
-                                {unit.pendingTenantEmail && <span className="mr-2">{unit.pendingTenantEmail}</span>}
-                                requested <strong>{unit.name}</strong>
-                              </p>
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-black text-[#c8691a] uppercase tracking-widest mb-1">New Resident Request</p>
+                              <h4 className="font-fraunces font-black text-[#1a2e22] text-lg truncate">
+                                {unit.pendingTenantName || 'Candidate'} → {unit.name}
+                              </h4>
+                              <p className="text-[#6b8a7a] text-xs font-semibold mt-1 italic">{unit.pendingTenantEmail}</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <button
-                              onClick={() => handleDeclineRequest(unit)}
-                              disabled={unitSaving}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-medium bg-white border border-stone-200 text-stone-500 hover:border-rust/40 hover:text-rust transition-all disabled:opacity-50"
-                            >
-                              <UserMinus size={13} /> Decline
-                            </button>
-                            <button
-                              onClick={() => handleApproveRequest(unit)}
-                              disabled={unitSaving}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-body font-medium bg-sage text-cream hover:bg-sage/90 transition-all disabled:opacity-50"
-                            >
-                              <UserCheck size={13} /> Approve
-                            </button>
+                          <div className="flex items-center gap-3 w-full md:w-auto">
+                            <button onClick={() => handleDeclineRequest(unit)} className="flex-1 btn-secondary py-3 text-xs font-black uppercase text-[#e74c3c] border-[#fee2e2]">Decline</button>
+                            <button onClick={() => handleApproveRequest(unit)} className="flex-1 btn-primary py-3 text-xs bg-[#1a6a3c] shadow-lg shadow-[#1a6a3c]/20">Approve Access</button>
                           </div>
                         </div>
                       </div>
@@ -427,40 +451,50 @@ export default function PropertyDetailPage() {
               })()}
 
               {units.length === 0 ? (
-                <EmptyState
-                  icon={DoorOpen}
-                  title="No units yet"
-                  sub="Add apartments or units to this property to track tenants and rent."
-                />
+                <div className="card p-20 flex flex-col items-center text-center border-dashed border-2 border-[#ddf0e6] bg-[#fcfdfc]/50">
+                  <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-[#cce8d8] mb-4 border border-[#f0f7f2]">
+                    <DoorOpen size={32} />
+                  </div>
+                  <p className="font-fraunces text-[#1a2e22] text-lg font-black italic">No individual units</p>
+                  <p className="text-[#6b8a7a] text-sm font-medium mt-1">Start by adding apartments or floor plans to this property.</p>
+                </div>
               ) : (
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {units.map(unit => (
-                    <UnitCard
-                      key={unit.id}
-                      unit={unit}
-                      fmtRent={fmtRent}
-                      landlordUid={user.uid}
-                      propertyId={id}
-                      propertyName={property?.name || ''}
-                      onRemove={handleOpenRemove}
-                      onEdit={handleOpenEdit}
-                    />
-                  ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <AnimatePresence mode="popLayout">
+                    {units.map(unit => (
+                      <UnitCard
+                        key={unit.id}
+                        unit={unit}
+                        fmtRent={fmtRent}
+                        landlordUid={user.uid}
+                        propertyId={id}
+                        propertyName={property?.name || ''}
+                        onRemove={handleOpenRemove}
+                        onEdit={handleOpenEdit}
+                        onDelete={handleOpenDelete}
+                      />
+                    ))}
+                  </AnimatePresence>
                 </div>
               )}
             </div>
           )}
 
-          {/* ── Payments ─────────────────────────────────────────── */}
+          {/* Payments Tab */}
           {activeTab === 'payments' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <p className="font-body text-sm text-stone-400">{payments.length} payments recorded</p>
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="font-fraunces text-[#1a2e22] text-xl font-black italic">Ledger Registry</h3>
+                <span className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest">{payments.length} Records</span>
               </div>
               {payments.length === 0 ? (
-                <EmptyState icon={CreditCard} title="No payments yet" sub="Payments will appear here automatically after tenants pay online." />
+                <div className="card p-20 flex flex-col items-center text-center bg-[#fcfdfc]/50">
+                  <CreditCard size={48} className="text-[#cce8d8] mb-4" />
+                  <p className="font-fraunces text-[#1a2e22] text-lg font-black italic">Empty Ledger</p>
+                  <p className="text-[#6b8a7a] text-sm font-medium">Online rent payments will automatically appear in this transaction list.</p>
+                </div>
               ) : (
-                <div className="card overflow-hidden">
+                <div className="card overflow-hidden shadow-xl border-[#f0f7f2]">
                   {payments.map((p, i) => (
                     <PaymentRow key={p.id} payment={p} isLast={i === payments.length - 1} onDownloadInvoice={generateInvoicePdf} />
                   ))}
@@ -469,121 +503,156 @@ export default function PropertyDetailPage() {
             </div>
           )}
 
-          {/* ── Maintenance ──────────────────────────────────────── */}
+          {/* Maintenance Tab */}
           {activeTab === 'maintenance' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <p className="font-body text-sm text-stone-400">{maintenance.filter(m => m.status !== 'resolved').length} open issues</p>
-                <button onClick={() => setShowMaintModal(true)} className="btn-primary text-xs px-3 py-2"><Plus size={13} /> Log Issue</button>
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="font-fraunces text-[#1a2e22] text-xl font-black italic">Service Tickets</h3>
+                <button onClick={() => setShowMaintModal(true)} className="btn-primary text-xs px-4"><Plus size={16} strokeWidth={3} /> Issue Ticket</button>
               </div>
+
               {maintenance.length === 0 ? (
-                <EmptyState icon={Wrench} title="No issues logged" sub="All clear — no maintenance tickets for this property." />
+                <div className="card p-20 flex flex-col items-center text-center bg-[#fcfdfc]/50">
+                  <Wrench size={48} className="text-[#cce8d8] mb-4" />
+                  <p className="font-fraunces text-[#1a2e22] text-lg font-black italic">All Systems Clear</p>
+                  <p className="text-[#6b8a7a] text-sm font-medium">No active maintenance issues or repair requests for this property.</p>
+                </div>
               ) : (
-                <div className="space-y-3">
-                  {maintenance.map(m => (
-                    <div key={m.id} className="flex items-start gap-4 p-4 card hover:shadow-deep transition-shadow">
-                      <div className={`mt-0.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${m.status === 'resolved' ? 'bg-sage' : m.status === 'in-progress' ? 'bg-amber' : 'bg-rust'}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="font-body font-semibold text-sm text-ink">{m.title}</p>
-                          <span className={`badge text-xs ${m.priority === 'high' ? 'badge-rust' : m.priority === 'medium' ? 'badge-amber' : 'badge-stone'}`}>
-                            {m.priority}
-                          </span>
-                        </div>
-                        {m.description && <p className="font-body text-xs text-stone-400 mt-1 line-clamp-2">{m.description}</p>}
-                        <div className="flex items-center gap-3 mt-2">
-                          <button onClick={() => cycleStatus(m)}
-                            className={`inline-flex items-center gap-1.5 text-xs font-body font-medium px-2.5 py-1 rounded-lg border transition-all
-                                ${m.status === 'resolved' ? 'bg-sage/10 text-sage border-sage/20' : m.status === 'in-progress' ? 'bg-amber/10 text-amber border-amber/20' : 'bg-rust/10 text-rust border-rust/20'}`}>
-                            <ChevronDown size={11} /> {m.status === 'open' ? 'Open' : m.status === 'in-progress' ? 'In Progress' : 'Resolved'}
-                          </button>
-                          <span className="font-body text-xs text-stone-300">
-                            {m.createdAt ? format(m.createdAt.toDate?.() ?? new Date(m.createdAt), 'MMM d') : ''}
-                          </span>
+                <div className="space-y-4">
+                  {maintenance.map((m, i) => (
+                    <motion.div key={m.id} {...fadeUp(i * 0.05)} className="card p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 hover:border-[#1a6a3c]/30 hover:shadow-lg transition-all">
+                      <div className="flex items-start gap-4">
+                        <div className={`mt-1.5 w-3 h-3 rounded-full flex-shrink-0 shadow-sm ${m.status === 'resolved' ? 'bg-[#1a6a3c]' : m.status === 'in-progress' ? 'bg-[#c8691a]' : 'bg-[#e74c3c]'} border-2 border-white ring-2 ring-transparent group-hover:ring-emerald-50`} />
+                        <div>
+                          <div className="flex items-center gap-3 mb-1">
+                            <h4 className="font-bold text-[#1a2e22]">{m.title}</h4>
+                            <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg ${m.priority === 'high' ? 'bg-[#fff5f5] text-[#e74c3c]' : m.priority === 'medium' ? 'bg-[#fef9ed] text-[#c8691a]' : 'bg-[#f4fbf7] text-[#1a6a3c]'}`}>
+                              {m.priority}
+                            </span>
+                          </div>
+                          <p className="text-sm text-[#6b8a7a] font-medium italic mb-2">{m.description}</p>
+                          <div className="flex items-center gap-4 text-[10px] font-bold text-[#94a3a8] tracking-wider uppercase">
+                            <span className="flex items-center gap-1.5"><Calendar size={12} /> {m.createdAt ? format(m.createdAt.toDate?.() ?? new Date(m.createdAt), 'MMM d, yyyy') : 'No Date'}</span>
+                            <span className="flex items-center gap-1.5"><Activity size={12} /> ID: #{m.id.slice(-4).toUpperCase()}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                      <button onClick={() => cycleStatus(m)} className={`btn-secondary py-2 px-4 text-xs font-black uppercase tracking-widest flex items-center gap-2 group ${m.status === 'resolved' ? 'bg-[#1a6a3c] text-white border-[#1a6a3c]' : ''}`}>
+                        {m.status === 'resolved' ? <Check size={14} strokeWidth={3} /> : <ChevronDown size={14} strokeWidth={3} className="group-hover:translate-y-0.5 transition-transform" />}
+                        {m.status.replace('-', ' ')}
+                      </button>
+                    </motion.div>
                   ))}
                 </div>
               )}
             </div>
           )}
 
-          {/* ── Settings ─────────────────────────────────────────── */}
+          {/* Settings Tab */}
           {activeTab === 'settings' && (
-            <div className="max-w-2xl">
-              <h3 className="font-display text-lg font-semibold text-ink mb-4">Property Settings</h3>
+            <div className="max-w-2xl space-y-8">
+              <h3 className="font-fraunces text-[#1a2e22] text-xl font-black italic">Property Configuration</h3>
 
-              <div className="card p-6">
-                <h4 className="font-body text-sm font-semibold text-ink mb-1">Default Rent Price</h4>
-                <p className="font-body text-xs text-stone-400 mb-4">
-                  Set the default rent for new units created in this property. Existing units will not be affected.
-                </p>
+              <div className="card p-10 bg-white shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-2 h-full bg-[#1a6a3c]" />
+                <div className="relative z-10">
+                  <h4 className="font-fraunces text-lg font-bold text-[#1a2e22] mb-2 flex items-center gap-2">
+                    <CreditCard size={20} className="text-[#1a6a3c]" />
+                    Financial Standards
+                  </h4>
+                  <p className="text-sm text-[#6b8a7a] font-medium leading-relaxed mb-8">
+                    Configure the default rent base for this property. This value serves as a preset for all new units initialized within the building.
+                  </p>
 
-                <div className="flex gap-3">
-                  <div className="relative flex-1 max-w-xs">
-                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 font-body text-xs font-semibold pointer-events-none">
-                      {currencySymbol}
+                  <div className="space-y-6">
+                    <div>
+                      <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-3 block">Base Rent Valuation</label>
+                      <div className="flex gap-4">
+                        <div className="relative flex-1">
+                          <div className="absolute left-5 top-1/2 -translate-y-1/2 text-[#1a6a3c] font-black text-sm">
+                            {currencySymbol}
+                          </div>
+                          <input
+                            type="number"
+                            className="w-full bg-[#f4fbf7] border border-[#ddf0e6] rounded-2xl pl-12 pr-5 py-5 text-[#1a2e22] font-black text-xl focus:ring-4 focus:ring-[#1a6a3c]/5 focus:border-[#1a6a3c] transition-all"
+                            placeholder="0.00"
+                            value={rentSetting}
+                            onChange={e => setRentSetting(e.target.value)}
+                          />
+                        </div>
+                        <button
+                          onClick={handleUpdateRentPrice}
+                          disabled={settingsSaving}
+                          className="btn-primary px-10 shadow-xl"
+                        >
+                          {settingsSaving ? <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" /> : 'Commit Update'}
+                        </button>
+                      </div>
                     </div>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="input-base pl-10"
-                      placeholder="e.g. 1500"
-                      value={rentSetting}
-                      onChange={e => setRentSetting(e.target.value)}
-                    />
                   </div>
-                  <button
-                    onClick={handleUpdateRentPrice}
-                    disabled={settingsSaving}
-                    className="btn-primary"
-                  >
-                    {settingsSaving ? <Loader2 size={16} className="animate-spin" /> : 'Save Default Rent'}
-                  </button>
                 </div>
+              </div>
+
+              <div className="p-8 rounded-3xl bg-[#fff5f5] border border-[#fee2e2]">
+                <h4 className="text-[10px] font-black text-[#e74c3c] uppercase tracking-widest mb-2">Danger Zone</h4>
+                <p className="text-sm text-[#94a3a8] font-medium mb-4 italic">Archiving or removing a property cannot be undone once confirmed.</p>
+                <button
+                  onClick={() => setShowPropDeleteConfirm(true)}
+                  className="text-sm font-black text-[#e74c3c] hover:underline flex items-center gap-2"
+                >
+                  Permanently Delete Property <Trash2 size={14} strokeWidth={3} />
+                </button>
               </div>
             </div>
           )}
         </div>
-      </motion.div>
+      </div>
 
-      {/* ── Maintenance Modal ──────────────────────────────────────────── */}
-      <Modal isOpen={showMaintModal} onClose={() => setShowMaintModal(false)} title="Log Maintenance Issue">
-        <form onSubmit={handleAddMaint} className="space-y-4">
+      {/* Persistence Modals */}
+      <Modal isOpen={showMaintModal} onClose={() => setShowMaintModal(false)} title="Issue New Service Ticket" size="md">
+        <form onSubmit={handleAddMaint} className="space-y-8 p-2">
           <div>
-            <label className="label-xs">Issue Title *</label>
-            <input className="input-base" placeholder="e.g. Leaking roof, Broken AC…" value={maintForm.title} onChange={setM('title')} required />
+            <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-2 block">Ticket Subject *</label>
+            <input
+              className="w-full bg-[#f4fbf7] border border-[#ddf0e6] rounded-2xl px-5 py-4 text-[#1a2e22] font-semibold text-sm focus:ring-2 focus:ring-[#1a6a3c]/10 focus:border-[#1a6a3c] transition-all"
+              placeholder="e.g. Electrical fault in Unit 4B"
+              value={maintForm.title}
+              onChange={setM('title')}
+              required
+            />
           </div>
           <div>
-            <label className="label-xs">Description</label>
-            <textarea className="input-base min-h-[80px] resize-none" placeholder="Describe the issue…" value={maintForm.description} onChange={setM('description')} />
+            <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-2 block">Maintenance Details</label>
+            <textarea
+              className="w-full bg-[#f4fbf7] border border-[#ddf0e6] rounded-2xl px-5 py-4 text-[#1a2e22] font-semibold text-sm h-32 resize-none transition-all"
+              placeholder="Provide specific details for the maintenance team..."
+              value={maintForm.description}
+              onChange={setM('description')}
+            />
           </div>
           <div>
-            <label className="label-xs">Priority</label>
-            <div className="flex gap-2">
+            <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-3 block">Urgency Status</label>
+            <div className="grid grid-cols-3 gap-3">
               {['low', 'medium', 'high'].map(p => (
                 <button type="button" key={p} onClick={() => setMaintForm(f => ({ ...f, priority: p }))}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-body font-medium border capitalize transition-all
-                    ${maintForm.priority === p
-                      ? p === 'high' ? 'bg-rust/10 text-rust border-rust/30' : p === 'medium' ? 'bg-amber/10 text-amber border-amber/30' : 'bg-sage/10 text-sage border-sage/30'
-                      : 'bg-stone-50 text-stone-400 border-stone-200 hover:bg-stone-100'}`}>
+                  className={`py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all
+                      ${maintForm.priority === p
+                      ? p === 'high' ? 'bg-[#e74c3c] text-white border-[#e74c3c] shadow-lg' : p === 'medium' ? 'bg-[#c8691a] text-white border-[#c8691a] shadow-lg' : 'bg-[#1a6a3c] text-white border-[#1a6a3c] shadow-lg'
+                      : 'bg-white text-[#6b8a7a] border-[#f0f7f2] hover:bg-[#f4fbf7]'}`}>
                   {p}
                 </button>
               ))}
             </div>
           </div>
-          <div className="flex gap-3 justify-end pt-2">
-            <button type="button" onClick={() => setShowMaintModal(false)} className="btn-secondary">Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary">
-              {saving ? <div className="w-4 h-4 border-2 border-cream border-t-transparent rounded-full animate-spin" /> : 'Log Issue'}
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+            <button type="submit" disabled={saving} className="flex-1 btn-primary py-4 text-base order-1 sm:order-2">
+              {saving ? <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" /> : 'Register Ticket'}
             </button>
+            <button type="button" onClick={() => setShowMaintModal(false)} className="flex-1 btn-secondary py-4 text-base order-2 sm:order-1">Disregard</button>
           </div>
         </form>
       </Modal>
 
-      {/* ── Add / Edit Unit Modal ──────────────────────────────────────── */}
       <AddUnitModal
         isOpen={showAddUnit}
         onClose={() => { setShowAddUnit(false); setEditingUnit(null); }}
@@ -594,21 +663,62 @@ export default function PropertyDetailPage() {
         defaultRent={property?.RentPrice || ''}
       />
 
-      {/* ── Move-out Confirmation ─────────────────────────────────── */}
-      <Modal isOpen={showRemoveConfirm} onClose={() => setShowRemoveConfirm(false)} title="Terminate Lease" size="sm">
-        <div className="space-y-4">
-          <div className="flex items-center gap-3 p-3 bg-rust/8 rounded-xl border border-rust/20">
-            <UserMinus size={18} className="text-rust flex-shrink-0" />
-            <p className="font-body text-sm text-rust">
-              Move out <strong>{removeUnit?.tenantName || 'tenant'}</strong> from <strong>{removeUnit?.unitName || removeUnit?.name}</strong>?
-              Payment history will be kept, and their status will change to <strong>FORMER</strong>.
+      <Modal isOpen={showRemoveConfirm} onClose={() => setShowRemoveConfirm(false)} title="Registry Termination" size="sm">
+        <div className="p-2 space-y-6">
+          <div className="p-6 rounded-[2rem] bg-[#fff5f5] border border-[#fee2e2] text-center">
+            <div className="w-16 h-16 bg-white border border-[#fee2e2] rounded-3xl mx-auto flex items-center justify-center text-[#e74c3c] mb-4 shadow-sm">
+              <UserMinus size={32} />
+            </div>
+            <h4 className="font-fraunces text-[#1a2e22] text-xl font-black italic mb-2">Move Out Tenant?</h4>
+            <p className="text-sm text-[#94a3a8] font-medium leading-relaxed">
+              Confirming this will move <span className="text-[#1a2e22] font-black">{removeUnit?.tenantName || 'Resident'}</span> from <span className="text-[#1a2e22] font-black">{removeUnit?.name}</span>. Historical data remains protected.
             </p>
           </div>
-          <div className="flex gap-3 justify-end">
-            <button onClick={() => setShowRemoveConfirm(false)} className="btn-secondary">Cancel</button>
-            <button onClick={handleMoveOutTenant} disabled={unitSaving} className="btn-danger">
-              {unitSaving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Confirm Move-out'}
+          <div className="flex flex-col gap-3">
+            <button onClick={handleMoveOutTenant} disabled={unitSaving} className="w-full btn-danger py-4 text-sm font-black uppercase tracking-widest shadow-xl">
+              {unitSaving ? 'Processing...' : 'Confirm Termination'}
             </button>
+            <button onClick={() => setShowRemoveConfirm(false)} className="w-full btn-secondary py-4 text-sm font-black uppercase tracking-widest border-transparent hover:bg-gray-100">Disregard</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title="Registry Deletion" size="sm">
+        <div className="p-2 space-y-6">
+          <div className="p-6 rounded-[2rem] bg-[#fff5f5] border border-[#fee2e2] text-center">
+            <div className="w-16 h-16 bg-white border border-[#fee2e2] rounded-3xl mx-auto flex items-center justify-center text-[#e74c3c] mb-4 shadow-sm">
+              <Trash2 size={32} />
+            </div>
+            <h4 className="font-fraunces text-[#1a2e22] text-xl font-black italic mb-2">Delete Unit?</h4>
+            <p className="text-sm text-[#94a3a8] font-medium leading-relaxed">
+              Are you sure you want to delete <span className="text-[#1a2e22] font-black">{unitToDelete?.name}</span>? This action is permanent and only possible for unoccupied units.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            <button onClick={handleDeleteUnit} disabled={unitSaving} className="w-full btn-danger py-4 text-sm font-black uppercase tracking-widest shadow-xl">
+              {unitSaving ? 'Deleting...' : 'Delete Permanently'}
+            </button>
+            <button onClick={() => setShowDeleteConfirm(false)} className="w-full btn-secondary py-4 text-sm font-black uppercase tracking-widest border-transparent hover:bg-gray-100">Cancel</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={showPropDeleteConfirm} onClose={() => setShowPropDeleteConfirm(false)} title="Final Confirmation" size="sm">
+        <div className="p-2 space-y-6">
+          <div className="p-6 rounded-[2rem] bg-[#fff5f5] border border-[#fee2e2] text-center">
+            <div className="w-16 h-16 bg-white border border-[#fee2e2] rounded-3xl mx-auto flex items-center justify-center text-[#e74c3c] mb-4 shadow-sm">
+              <Trash2 size={32} />
+            </div>
+            <h4 className="font-fraunces text-[#1a2e22] text-xl font-black italic mb-2">Delete Property?</h4>
+            <p className="text-sm text-[#6b8a7a] font-medium leading-relaxed">
+              Are you sure you want to delete <span className="text-[#1a2e22] font-black">{property?.name}</span>? This action is permanent and cannot be undone. All units and data associated will be removed.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            <button onClick={handleDeleteProperty} disabled={saving} className="w-full btn-danger py-4 text-sm font-black uppercase tracking-widest shadow-xl">
+              {saving ? 'Deleting...' : 'Confirm Deletion'}
+            </button>
+            <button onClick={() => setShowPropDeleteConfirm(false)} className="w-full btn-secondary py-4 text-sm font-black uppercase tracking-widest border-transparent hover:bg-gray-100">Disregard</button>
           </div>
         </div>
       </Modal>
@@ -616,36 +726,13 @@ export default function PropertyDetailPage() {
   );
 }
 
-function Stat({ label, value, accent }) {
+function HeroStat({ label, value, accent, color }) {
   return (
-    <div>
-      <p className="font-body text-xs text-stone-500 mb-0.5">{label}</p>
-      <p className={`font-display font-semibold text-xl ${accent ? 'text-sage' : 'text-cream'}`}>{value}</p>
-    </div>
-  );
-}
-function InfoCard({ title, children }) {
-  return (
-    <div className="bg-stone-50 rounded-xl p-4 border border-stone-100">
-      <p className="font-body text-xs font-semibold text-stone-400 uppercase tracking-wider mb-3">{title}</p>
-      <div className="space-y-2">{children}</div>
-    </div>
-  );
-}
-function InfoRow({ label, value }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="font-body text-xs text-stone-400 flex-shrink-0">{label}</span>
-      <span className="font-body text-sm text-ink font-medium text-right">{value}</span>
-    </div>
-  );
-}
-function EmptyState({ icon: Icon, title, sub }) {
-  return (
-    <div className="flex flex-col items-center text-center py-12">
-      <Icon size={32} className="text-stone-300 mb-3" />
-      <p className="font-body font-medium text-stone-500 text-sm">{title}</p>
-      <p className="font-body text-xs text-stone-300 mt-1">{sub}</p>
+    <div className="flex flex-col gap-1">
+      <p className="text-[9px] font-black text-[#94a3a8] uppercase tracking-[0.2em]">{label}</p>
+      <p className={`font-fraunces text-2xl font-black italic leading-none truncate ${accent ? '' : 'text-[#1a2e22]'}`} style={accent ? { color } : {}}>
+        {value}
+      </p>
     </div>
   );
 }

@@ -2,31 +2,29 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutGrid, Building2, Bell, CreditCard, Settings, LogOut, Menu, X, KeyRound, ChevronRight, Crown, User, AlertTriangle, Archive } from 'lucide-react';
+import { LayoutGrid, Bell, Building2, Archive, AlertTriangle, CreditCard, User, Settings, Crown, KeyRound, ChevronRight, LogOut, Menu, X, Wrench } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { db, subscribeUnreadNotificationsCount, subscribePendingUnitsCount } from '../services/firebase';
+import { subscribeUnreadNotificationsCount, subscribePendingUnitsCount } from '../services/firebase';
 import { getFlag } from '../utils/countries';
 import toast from 'react-hot-toast';
 import { PLANS } from '../services/subscription';
 
 const LANDLORD_NAV = [
   { to: '/dashboard', icon: LayoutGrid, label: 'Dashboard' },
-  { to: '/notifications', icon: Bell, label: 'Activity' },
   { to: '/properties', icon: Building2, label: 'Properties' },
   { to: '/archive', icon: Archive, label: 'Archive' },
   { to: '/reminders', icon: AlertTriangle, label: 'Reminders' },
   { to: '/payments', icon: CreditCard, label: 'Payments' },
-  { to: '/profile', icon: User, label: 'Profile' },
   { to: '/settings', icon: Settings, label: 'Settings' },
   { to: '/subscription', icon: Crown, label: 'Subscription' },
 ];
 
 const TENANT_NAV = [
-  { to: '/tenant', icon: LayoutGrid, label: 'My Homes' },
+  { to: '/tenant', icon: LayoutGrid, label: 'My Home' },
   { to: '/tenant/reminders', icon: Bell, label: 'Reminders' },
   { to: '/tenant/payments', icon: CreditCard, label: 'Payments' },
-  { to: '/profile', icon: User, label: 'Profile' },
+  { to: '/tenant/maintenance', icon: Wrench, label: 'Maintenance' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
@@ -44,30 +42,22 @@ export default function AppShell() {
   const userPlan = PLANS[profile?.subscription?.planId || 'free'] || PLANS.free;
 
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState(isTenant ? '/tenant' : '/dashboard');
+  const [activeTab, setActiveTab] = useState(location.pathname);
 
   useEffect(() => {
-    // Keep it synced with the actual URL if navigation happens outside sidebar clicks
-    // but default to exact match to prevent dual highlights
     setActiveTab(location.pathname);
   }, [location.pathname]);
 
-  // Real-time listener for pending unit join requests & notifications (landlords only)
   useEffect(() => {
     if (isTenant || !user?.uid) return;
-
-    // Joint request badge (on Properties)
     const unsubUnits = subscribePendingUnitsCount(user.uid, setPendingCount);
-
-    // Unread notifications badge (on Dashboard)
     const unsubNotifs = subscribeUnreadNotificationsCount(user.uid, setUnreadNotificationsCount);
-
     return () => { unsubUnits(); unsubNotifs(); };
   }, [user?.uid, isTenant]);
 
   const handleLogout = async () => {
     await logout();
-    toast.success('Signed out successfully');
+    toast.success('Signed out');
     navigate('/login');
   };
 
@@ -75,31 +65,32 @@ export default function AppShell() {
     .split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className="px-5 py-6 border-b border-[#1e2a2e]">
+    <div className="flex flex-col h-full bg-white">
+      {/* Brand */}
+      <div className="px-6 py-8 border-b border-[#f0f7f2]">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1a3c2e] to-[#52b788] flex items-center justify-center shadow-sm">
-            <KeyRound size={17} className="text-white opacity-90" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1a3c2e] to-[#2d6a4f] flex items-center justify-center shadow-lg transform -rotate-3">
+            <KeyRound size={20} className="text-white opacity-95" />
           </div>
           <div>
-            <div className="font-display font-bold text-[#e8e4de] text-lg leading-none tracking-tight">Gravlo</div>
-            <div className="text-[10px] text-[#4a5568] font-body mt-1 uppercase tracking-widest font-bold">Property Manager</div>
+            <div className="font-fraunces font-extrabold text-[#1a2e22] text-xl leading-none tracking-tight">Gravlo</div>
+            <div className="text-[10px] text-[#6b8a7a] font-bold mt-1.5 uppercase tracking-widest">Lease Simplified</div>
           </div>
         </div>
-        {/* Country pill */}
+
         {country && (
-          <div className="mt-4 flex items-center gap-1.5 px-2 py-1 bg-[#141b1e] rounded-lg border border-[#1e2a2e] w-fit">
-            <span className="text-sm">{getFlag(country.code)}</span>
-            <span className="font-body text-[10px] text-[#4a5568] font-bold uppercase tracking-wider">{country.currency} ({currencySymbol})</span>
+          <div className="mt-6 flex items-center gap-2 px-2.5 py-1.5 bg-[#f4fbf7] rounded-lg border border-[#ddf0e6] w-fit">
+            <span className="text-sm leading-none">{getFlag(country.code)}</span>
+            <span className="text-[11px] text-[#1a6a3c] font-extrabold tracking-wide uppercase">{country.currency}</span>
           </div>
         )}
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      {/* Navigation */}
+      <nav className="flex-1 px-3 py-6 space-y-1.5 overflow-y-auto">
         {NAV.map(({ to, icon: Icon, label }) => {
-          const isActive = activeTab === to;
+          const isActive = activeTab === to || activeTab.startsWith(to + '/');
+
           return (
             <Link
               key={to}
@@ -108,20 +99,23 @@ export default function AppShell() {
                 setActiveTab(to);
                 setSidebarOpen(false);
               }}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${isActive
-                  ? 'bg-[#1a3c2e] text-[#52b788]'
-                  : 'text-[#4a5568] hover:bg-[#141b1e] hover:text-[#8a9ba8]'
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${isActive
+                ? 'bg-[#e8f5ee] text-[#1a6a3c] shadow-sm'
+                : 'text-[#6b8a7a] hover:bg-[#f4fbf7] hover:text-[#1a6a3c]'
                 }`}
             >
-              <Icon size={17} className={isActive ? 'text-[#52b788]' : 'text-[#4a5568] group-hover:text-[#8a9ba8]'} />
-              <span className={`font-body text-sm ${isActive ? 'font-semibold' : 'font-medium'}`}>{label}</span>
-              {label === 'Dashboard' && unreadNotificationsCount > 0 && (
-                <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-[#e74c3c] text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
+              <div className={`p-1.5 rounded-lg transition-colors ${isActive ? 'bg-white shadow-xs' : 'bg-transparent'}`}>
+                <Icon size={18} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-[#1a6a3c]' : 'text-[#94a3a8] group-hover:text-[#1a6a3c]'} />
+              </div>
+              <span className={`text-sm tracking-tight ${isActive ? 'font-bold' : 'font-semibold'}`}>{label}</span>
+
+              {(label === 'Activity' || label === 'Dashboard') && unreadNotificationsCount > 0 && (
+                <span className="ml-auto min-w-[20px] h-[20px] px-1 rounded-full bg-[#e74c3c] text-white text-[10px] font-extrabold flex items-center justify-center animate-pulse border-2 border-white shadow-sm">
                   {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
                 </span>
               )}
               {label === 'Properties' && pendingCount > 0 && (
-                <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-[#e74c3c] text-white text-[9px] font-bold flex items-center justify-center">
+                <span className="ml-auto min-w-[20px] h-[20px] px-1 rounded-full bg-[#1a6a3c] text-white text-[10px] font-extrabold flex items-center justify-center border-2 border-white shadow-sm">
                   {pendingCount > 9 ? '9+' : pendingCount}
                 </span>
               )}
@@ -130,58 +124,92 @@ export default function AppShell() {
         })}
       </nav>
 
-      {/* User */}
-      <div className="px-3 py-4 border-t border-[#1e2a2e]">
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#141b1e] transition-colors cursor-pointer group"
+      {/* User Footer */}
+      <div className="p-4 border-t border-[#f0f7f2] bg-[#fcfdfc]">
+        <div className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-[#f4fbf7] transition-all cursor-pointer group border border-transparent hover:border-[#ddf0e6]"
           onClick={() => navigate('/profile')}>
-          <div className="w-8 h-8 rounded-full bg-[#1a3c2e] border border-[#2d6a4f] flex items-center justify-center flex-shrink-0">
-            <span className="font-body font-bold text-[#52b788] text-[10px]">{initials}</span>
+          <div className="w-10 h-10 rounded-full bg-[#1a3c2e] flex items-center justify-center flex-shrink-0 shadow-sm ring-2 ring-emerald-50">
+            <span className="font-bold text-[#52b788] text-xs">{initials}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-body font-semibold text-[#e8e4de] text-sm truncate">
+            <div className="font-bold text-[#1a2e22] text-sm truncate">
               {profile?.fullName || user?.displayName || 'User'}
             </div>
-            <div className="font-body text-[11px] text-[#4a5568] truncate">{user?.email}</div>
+            <div className="text-[11px] text-[#94a3a8] truncate font-medium">{user?.email}</div>
           </div>
-          <ChevronRight size={14} className="text-[#1e2a2e] group-hover:text-[#4a5568] transition-colors" />
+          <ChevronRight size={14} className="text-[#cce8d8] group-hover:text-[#1a6a3c] transition-colors" />
         </div>
+
         {!isTenant && (
-          <div className="px-3 mb-2 mt-1">
-            <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${userPlan.badgeColor.replace('bg-', 'bg-').replace('text-', 'text-')}`}>
-              <Crown size={10} />
+          <div className="px-2.5 mt-2">
+            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-widest shadow-xs ${userPlan.badgeColor} ${userPlan.badgeColor.replace('bg-', 'text-').replace('-100', '-700')}`}>
+              <Crown size={11} strokeWidth={3} />
               {userPlan.badge}
             </div>
           </div>
         )}
-        <button onClick={handleLogout} className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-[#6b6460] hover:bg-[#2d1a1a] hover:text-[#e74c3c] transition-all duration-200">
-          <LogOut size={16} />
-          <span className="font-body text-sm font-medium">Sign Out</span>
+
+        <button onClick={handleLogout} className="flex items-center gap-3 w-full mt-4 px-4 py-3 rounded-xl text-[#94a3a8] hover:bg-[#fff5f5] hover:text-[#e74c3c] transition-all duration-300 group">
+          <LogOut size={18} className="group-hover:translate-x-0.5 transition-transform" />
+          <span className="text-sm font-bold">Sign Out</span>
         </button>
       </div>
     </div>
   );
 
   return (
-    <div className="flex min-h-screen bg-[#0a0f12]">
+    <div className="flex min-h-screen bg-[#f4fbf7]">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-60 bg-[#0d1215] border-r border-[#1e2a2e] fixed inset-y-0 left-0 z-40">
+      <aside className="hidden lg:flex flex-col w-64 bg-white border-r border-[#ddf0e6] fixed inset-y-0 left-0 z-40 shadow-[4px_0_24px_rgba(26,60,46,0.03)]">
         <SidebarContent />
       </aside>
 
-      {/* Mobile Overlay */}
+      {/* Mobile Wrapper */}
+      <main className="flex-1 lg:ml-64 flex flex-col min-h-screen relative overflow-hidden">
+        {/* Leaf Background Decorator */}
+        <div className="absolute top-[-50px] right-[-50px] opacity-[0.03] pointer-events-none rotate-45 transform">
+          <svg width="400" height="400" viewBox="0 0 100 100" fill="#1a3c2e"><path d="M50 0C50 0 20 20 20 50C20 80 50 100 50 100C50 100 80 80 80 50C80 20 50 0 50 0Z" /></svg>
+        </div>
+
+        {/* Mobile Header */}
+        <header className="lg:hidden flex items-center justify-between px-6 py-4 bg-white border-b border-[#ddf0e6] sticky top-0 z-30 shadow-sm">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSidebarOpen(true)} className="p-2.5 rounded-xl bg-[#f4fbf7] text-[#1a6a3c] hover:bg-[#e8f5ee] transition-all">
+              <Menu size={22} />
+            </button>
+            <div className="font-fraunces font-extrabold text-[#1a2e22] text-xl tracking-tight">Gravlo</div>
+          </div>
+          {country && (
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-[#f4fbf7] rounded-lg border border-[#ddf0e6]">
+              <span className="text-sm">{getFlag(country.code)}</span>
+              <span className="text-[10px] text-[#1a6a3c] font-extrabold uppercase">{country.currency}</span>
+            </div>
+          )}
+        </header>
+
+        {/* Page Content */}
+        <div className="flex-1 px-4 py-6 sm:px-8 sm:py-10 max-w-7xl w-full mx-auto relative z-10">
+          <Outlet />
+        </div>
+      </main>
+
+      {/* Mobile Sidebar Overlay */}
       <AnimatePresence>
         {sidebarOpen && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-ink/40 backdrop-blur-sm z-40 lg:hidden"
-              onClick={() => setSidebarOpen(false)} />
-            <motion.aside initial={{ x: -280 }} animate={{ x: 0 }} exit={{ x: -280 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="fixed inset-y-0 left-0 w-72 bg-[#0d1215] z-50 shadow-deep lg:hidden border-r border-[#1e2a2e]">
-              <div className="flex items-center justify-between px-5 pt-5 pb-0">
-                <div />
-                <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-stone-100 text-stone-400">
-                  <X size={18} />
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-[#1a3c2e]/40 backdrop-blur-md z-40 lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+            <motion.aside
+              initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 left-0 w-[280px] bg-white z-50 shadow-2xl lg:hidden ring-1 ring-black/5"
+            >
+              <div className="flex items-center justify-end px-4 pt-4">
+                <button onClick={() => setSidebarOpen(false)} className="p-2.5 rounded-xl bg-[#f4fbf7] text-[#1a6a3c] hover:bg-[#e8f5ee] transition-all">
+                  <X size={20} />
                 </button>
               </div>
               <SidebarContent />
@@ -189,26 +217,6 @@ export default function AppShell() {
           </>
         )}
       </AnimatePresence>
-
-      {/* Main */}
-      <main className="flex-1 lg:ml-60 flex flex-col min-h-screen">
-        {/* Mobile top bar */}
-        <div className="lg:hidden flex items-center gap-3 px-4 py-3 bg-[#0d1215] border-b border-[#1e2a2e] sticky top-0 z-30">
-          <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-[#141b1e] text-[#4a5568] transition-colors">
-            <Menu size={20} />
-          </button>
-          <div className="font-display font-bold text-[#e8e4de] text-lg tracking-tight">Gravlo</div>
-          {country && (
-            <span className="ml-auto flex items-center gap-1.5 px-2 py-0.5 bg-[#141b1e] rounded-lg border border-[#1e2a2e] font-body text-[10px] text-[#4a5568] font-bold uppercase tracking-wider">
-              {getFlag(country.code)} {country.currency}
-            </span>
-          )}
-        </div>
-
-        <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          <Outlet />
-        </div>
-      </main>
     </div>
   );
 }

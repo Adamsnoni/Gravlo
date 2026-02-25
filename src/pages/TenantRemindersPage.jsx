@@ -1,66 +1,116 @@
 // src/pages/TenantRemindersPage.jsx
-// Tenants set personalized rent reminders with custom lead times and notification channels
-// (email, SMS, in-app). All amounts use the user's locale/currency.
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Plus, Trash2, CheckCircle, Clock, Mail, MessageSquare, Smartphone } from 'lucide-react';
-import { format, differenceInDays, isPast } from 'date-fns';
-import { useAuth } from '../context/AuthContext';
-import { useLocale } from '../context/LocaleContext';
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Bell,
+  Plus,
+  Trash2,
+  CheckCircle,
+  Clock,
+  Mail,
+  MessageSquare,
+  Smartphone,
+  Hash,
+  Calendar,
+  ArrowRight,
+  X,
+  AlertTriangle,
+  Zap,
+  Activity,
+  Sparkles
+} from "lucide-react";
+import { format, differenceInDays, isPast } from "date-fns";
+import { useAuth } from "../context/AuthContext";
+import { useLocale } from "../context/LocaleContext";
 import {
   subscribeReminders,
   addReminder,
   updateReminder,
   deleteReminder,
-} from '../services/firebase';
-import { subscribeTenantTenancies } from '../services/tenancy';
+} from "../services/firebase";
+import { subscribeTenantTenancies } from "../services/tenancy";
 import {
   LEAD_TIME_OPTIONS,
-  getLeadTimeLabel,
   getReminderNotifyDate,
-  shouldNotifyToday,
-} from '../utils/reminderLeadTimes';
-import { getShortUnitId } from '../utils/unitDisplay';
-import Modal from '../components/Modal';
-import toast from 'react-hot-toast';
+} from "../utils/reminderLeadTimes";
+import Modal from "../components/Modal";
+import toast from "react-hot-toast";
+
+// ── Components ──────────────────────────────────────────────
+
+const CornerLeaf = ({ size = 64, opacity = 0.07, color = "#1a3c2e" }) => (
+  <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ position: "absolute", top: 0, right: 0, pointerEvents: "none" }}>
+    <path d="M64 0C64 0 42 6 36 22C32 34 40 46 40 46C40 46 56 34 64 18Z" fill={color} opacity={opacity} />
+    <path d="M64 0C64 0 58 24 46 32C38 38 26 36 26 36C26 36 40 20 64 0Z" fill={color} opacity={opacity * 0.6} />
+  </svg>
+);
+
+const StatCard = ({ label, value, sub, subColor, icon, accentBg, accentColor, borderColor, delay = 0 }) => {
+  const [hov, setHov] = useState(false);
+  return (
+    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{
+      background: "#fff", border: `1.5px solid ${hov ? accentColor + "55" : borderColor || "#e2ede8"}`,
+      borderRadius: 20, padding: "22px 24px", position: "relative", overflow: "hidden",
+      animation: `slideUp 0.5s ease ${delay}s both`,
+      boxShadow: hov ? `0 12px 32px ${accentColor}18` : "0 1px 8px rgba(26,60,46,0.06)",
+      transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
+      transform: hov ? "translateY(-3px)" : "translateY(0)", cursor: "default",
+    }}>
+      <CornerLeaf size={56} opacity={0.055} color="#1a3c2e" />
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, borderRadius: "20px 20px 0 0", background: `linear-gradient(90deg, ${accentColor}, ${accentColor}40)` }} />
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 14, background: accentBg, display: "flex", alignItems: "center", justifyContent: "center", color: accentColor }}>{icon}</div>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.06em", textTransform: "uppercase", paddingTop: 4 }}>{label}</span>
+      </div>
+      <p style={{ fontSize: 32, fontWeight: 900, color: "#0f2318", margin: "0 0 6px", fontFamily: "'Fraunces',serif", lineHeight: 1, letterSpacing: "-0.025em" }}>{value}</p>
+      {sub && <p style={{ fontSize: 12, color: subColor || "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 500 }}>{sub}</p>}
+    </div>
+  );
+};
 
 const URGENCY = {
-  overdue: { label: 'Overdue', color: 'text-rust', bg: 'bg-rust/10', dot: 'bg-rust' },
-  urgent: { label: 'Urgent', color: 'text-rust', bg: 'bg-rust/8', dot: 'bg-rust/70' },
-  soon: { label: 'Soon', color: 'text-amber', bg: 'bg-amber/10', dot: 'bg-amber' },
-  ok: { label: 'Upcoming', color: 'text-sage', bg: 'bg-sage/8', dot: 'bg-sage' },
-  paid: { label: 'Paid', color: 'text-stone-400', bg: 'bg-stone-100', dot: 'bg-stone-300' },
+  overdue: { label: "Settlement Overdue", color: "text-[#e74c3c]", bg: "bg-[#fff5f5]", border: "border-[#fee2e2]", icon: AlertTriangle },
+  urgent: { label: "High Priority", color: "text-[#e74c3c]", bg: "bg-[#fff5f5]", border: "border-[#fee2e2]", icon: Clock },
+  soon: { label: "Upcoming Date", color: "text-[#c8691a]", bg: "bg-[#fef9ed]", border: "border-[#f5e0b8]", icon: Bell },
+  ok: { label: "Routine Reminder", color: "text-[#1a6a3c]", bg: "bg-[#f4fbf7]", border: "border-[#ddf0e6]", icon: CheckCircle },
+  paid: { label: "Settled Record", color: "text-[#94a3a8]", bg: "bg-[#fcfdfc]", border: "border-[#f0f7f2]", icon: CheckCircle },
 };
 
 function getUrgency(r) {
-  if (r.status === 'paid') return 'paid';
+  if (r.status === "paid") return "paid";
   const d = r.dueDate?.toDate?.() ?? new Date(r.dueDate);
-  if (isPast(d)) return 'overdue';
+  if (isPast(d)) return "overdue";
   const days = differenceInDays(d, new Date());
-  if (days <= 3) return 'urgent';
-  if (days <= 7) return 'soon';
-  return 'ok';
+  if (days <= 3) return "urgent";
+  if (days <= 7) return "soon";
+  return "ok";
 }
 
+const fadeUp = (delay = 0) => ({
+  initial: { opacity: 0, y: 16 },
+  animate: { opacity: 1, y: 0 },
+  transition: { delay, duration: 0.35, ease: "easeOut" },
+});
+
 const emptyForm = {
-  propertyId: '',
-  dueDate: '',
-  amount: '',
+  propertyId: "",
+  dueDate: "",
+  amount: "",
   leadTimeDays: 7,
   recurring: false,
   notifyEmail: true,
   notifySms: false,
   notifyInApp: true,
-  notes: '',
+  notes: "",
 };
 
 export default function TenantRemindersPage() {
   const { user, profile } = useAuth();
-  const { fmt, currencySymbol } = useLocale();
+  const { fmt, country } = useLocale();
 
   const [reminders, setReminders] = useState([]);
   const [tenancies, setTenancies] = useState([]);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -70,14 +120,13 @@ export default function TenantRemindersPage() {
   useEffect(() => {
     if (!user) return;
     const u1 = subscribeReminders(user.uid, (d) => {
-      setReminders(d.filter((r) => r.createdBy === 'tenant'));
+      setReminders(d.filter((r) => r.createdBy === "tenant"));
       setLoading(false);
     });
 
-    // Use UID to fetch active tenancies
-    const u2 = user.uid ? subscribeTenantTenancies(user.uid, (data) => {
-      setTenancies(data.filter(t => t.status === 'active'));
-    }) : undefined;
+    const u2 = subscribeTenantTenancies(user.uid, (data) => {
+      setTenancies(data.filter((t) => t.status === "active"));
+    });
 
     return () => {
       u1?.();
@@ -85,315 +134,240 @@ export default function TenantRemindersPage() {
     };
   }, [user?.uid]);
 
-  const set = (k) => (e) =>
-    setForm((f) => ({
-      ...f,
-      [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value,
-    }));
-
   const handlePropertySelect = (e) => {
     const pid = e.target.value;
     const p = tenancies.find((x) => x.id === pid);
     setForm((f) => ({
       ...f,
-      propertyId: pid, // Using Tenancy ID here as the unique key for the dropdown
-      propertyName: p?.propertyName ?? '',
-      propertyUnitNumber: p?.unitName ?? '',
-      propertyBuildingName: '',
-      propertyFloor: '',
+      propertyId: pid,
+      propertyName: p?.propertyName ?? "",
+      propertyUnitNumber: p?.unitName ?? "",
       amount: p?.rentAmount != null ? String(p.rentAmount) : f.amount,
     }));
-  };
-
-  const openCreate = () => {
-    setEditingId(null);
-    const nextDue = new Date();
-    nextDue.setMonth(nextDue.getMonth() + 1);
-    setForm({
-      ...emptyForm,
-      dueDate: format(nextDue, 'yyyy-MM-dd'),
-      propertyId: tenancies[0]?.id ?? '',
-      propertyName: tenancies[0]?.propertyName ?? '',
-      amount: tenancies[0]?.rentAmount != null ? String(tenancies[0].rentAmount) : '',
-    });
-    setShowModal(true);
-  };
-
-  const openEdit = (r) => {
-    const d = r.dueDate?.toDate?.() ?? new Date(r.dueDate);
-    setEditingId(r.id);
-    setForm({
-      propertyId: r.propertyId ?? '',
-      propertyName: r.propertyName ?? '',
-      propertyUnitNumber: r.propertyUnitNumber ?? '',
-      propertyBuildingName: r.propertyBuildingName ?? '',
-      propertyFloor: r.propertyFloor ?? '',
-      dueDate: format(d, 'yyyy-MM-dd'),
-      amount: r.amount != null ? String(r.amount) : '',
-      leadTimeDays: r.leadTimeDays ?? 7,
-      recurring: !!r.recurring,
-      notifyEmail: r.notifyEmail !== false,
-      notifySms: !!r.notifySms,
-      notifyInApp: r.notifyInApp !== false,
-      notes: r.notes ?? '',
-    });
-    setShowModal(true);
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
     if (!form.propertyId || !form.amount || !form.dueDate) {
-      toast.error('Please select a home, amount, and due date.');
+      toast.error("Required fields: Residence, Valuation, and Maturity Date.");
       return;
     }
     setSaving(true);
     try {
       const prop = tenancies.find((p) => p.id === form.propertyId);
       const payload = {
-        propertyId: form.propertyId, // This is actually the tenancy ID in this context for unique tracking
+        propertyId: form.propertyId,
         propertyName: form.propertyName || prop?.propertyName,
-        propertyUnitNumber: form.propertyUnitNumber || prop?.unitName || '',
-        propertyBuildingName: form.propertyBuildingName || '',
-        propertyFloor: form.propertyFloor || '',
-        amount: parseInt(form.amount, 10) || 0,
+        propertyUnitNumber: form.propertyUnitNumber || prop?.unitName || "",
+        amount: parseFloat(form.amount) || 0,
         dueDate: new Date(form.dueDate),
         leadTimeDays: parseInt(form.leadTimeDays, 10) || 7,
         recurring: !!form.recurring,
         notifyEmail: !!form.notifyEmail,
         notifySms: !!form.notifySms,
         notifyInApp: !!form.notifyInApp,
-        notes: (form.notes || '').trim(),
-        createdBy: 'tenant',
-        tenantName: profile?.fullName || user?.displayName || '',
-        tenantEmail: user?.email || '',
+        notes: (form.notes || "").trim(),
+        createdBy: "tenant",
+        tenantName: profile?.fullName || user?.displayName || "",
+        tenantEmail: user?.email || "",
       };
       if (editingId) {
         await updateReminder(user.uid, editingId, payload);
-        toast.success('Reminder updated.');
+        toast.success("Sequence updated.");
       } else {
         await addReminder(user.uid, payload);
-        toast.success('Reminder created! You’ll get notified by your chosen channels.');
+        toast.success("Protocol established. Notifications assigned.");
       }
       setShowModal(false);
       setForm(emptyForm);
       setEditingId(null);
     } catch {
-      toast.error('Failed to save reminder.');
+      toast.error("Failed to commit protocol.");
     } finally {
       setSaving(false);
     }
   };
 
   const handleMarkPaid = async (r) => {
-    await updateReminder(user.uid, r.id, { status: 'paid', paidAt: new Date() });
-    toast.success('Marked as paid.');
+    await updateReminder(user.uid, r.id, { status: "paid", paidAt: new Date() });
+    toast.success("Settlement verified.");
   };
 
   const handleDelete = async (r) => {
-    if (!confirm(`Delete reminder for ${r.propertyName || 'this home'}?`)) return;
+    if (!confirm(`Archive alert for ${r.propertyName}?`)) return;
     await deleteReminder(user.uid, r.id);
-    toast.success('Reminder deleted.');
+    toast.success("Alert archived.");
   };
 
-  const filtered =
-    filter === 'all' ? reminders : reminders.filter((r) => getUrgency(r) === filter);
-  const counts = { overdue: 0, urgent: 0, soon: 0, ok: 0 };
+  const filtered = filter === "all" ? reminders : reminders.filter((r) => getUrgency(r) === filter);
+  const counts = { overdue: 0, urgent: 0, soon: 0, ok: 0, paid: 0 };
   reminders.forEach((r) => {
     const k = getUrgency(r);
-    if (counts[k] !== undefined) counts[k]++;
+    counts[k]++;
   });
-  const totalDue = reminders
-    .filter((r) => r.status !== 'paid')
-    .reduce((s, r) => s + (r.amount || 0), 0);
+
+  const symbol = country?.symbol || "₦";
+
+  if (loading) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#f4fbf7" }}>
+        <div style={{ width: 30, height: 30, border: "3px solid rgba(74,124,89,0.12)", borderTopColor: "#4A7C59", borderRadius: "50%", animation: "spin 0.8s linear infinite" }}></div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-start justify-between"
-      >
+    <div style={{ maxWidth: 1400, margin: "0 auto", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,800;9..144,900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @keyframes slideUp { from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)} }
+      `}</style>
+
+      {/* Page Header */}
+      <div style={{ marginBottom: 32, animation: "slideUp 0.5s ease both" }} className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="font-display text-ink text-3xl font-semibold">Rent reminders</h1>
-          <p className="font-body text-stone-400 text-sm mt-0.5">
-            Set custom lead times and get notified by email, SMS, or in-app. Your currency:{' '}
-            <strong className="text-sage">{currencySymbol}</strong>
-          </p>
+          <p style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500, margin: 0 }}>Internal Vigilance,</p>
+          <h1 style={{ fontSize: 32, fontWeight: 900, color: "#0f2318", fontFamily: "'Fraunces',serif", margin: 0, letterSpacing: "-0.015em" }}>Rent Reminders 🔔</h1>
         </div>
         <button
-          type="button"
-          onClick={openCreate}
+          onClick={() => {
+            setEditingId(null);
+            setForm({
+              ...emptyForm,
+              dueDate: format(new Date(), "yyyy-MM-dd"),
+              propertyId: tenancies[0]?.id ?? "",
+            });
+            setShowModal(true);
+          }}
           disabled={tenancies.length === 0}
           className="btn-primary"
+          style={{ padding: "12px 24px", borderRadius: 14, fontSize: 13, fontWeight: 800 }}
         >
-          <Plus size={16} /> New reminder
+          <Plus size={18} strokeWidth={3} className="mr-2 inline" /> Establish New Protocol
         </button>
-      </motion.div>
+      </div>
 
-      {tenancies.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex items-center gap-3 p-4 bg-amber/8 border border-amber/20 rounded-xl"
-        >
-          <Bell size={18} className="text-amber flex-shrink-0" />
-          <p className="font-body text-sm text-stone-600">
-            Add a home first: ask your landlord to link your email to a property. Then you can set
-            reminders here.
-          </p>
-        </motion.div>
-      )}
+      {/* Stats Grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20, marginBottom: 32 }}>
+        <StatCard
+          label="Active Alerts" value={reminders.filter(r => r.status !== 'paid').length}
+          sub="Scheduled for maturity"
+          icon={<Bell size={20} />} accentBg="#f5f0ff" accentColor="#7c3aed" borderColor="#ddd6fe" delay={0}
+        />
+        <StatCard
+          label="Critical Priority" value={counts.overdue + counts.urgent}
+          sub="Require immediate settlement"
+          icon={<AlertTriangle size={20} />} accentBg="#fff5f5" accentColor="#e74c3c" borderColor="#fecaca" delay={0.05}
+        />
+        <StatCard
+          label="Managed residencies" value={tenancies.length}
+          sub="Verified homes on portal"
+          icon={<Zap size={20} />} accentBg="#f4fbf7" accentColor="#1a6a3c" borderColor="#cce8d8" delay={0.1}
+        />
+        <StatCard
+          label="Settled" value={counts.paid}
+          sub="Archived protocols"
+          icon={<CheckCircle size={20} />} accentBg="#fcfdfc" accentColor="#94a3a8" borderColor="#f0f7f2" delay={0.15}
+        />
+      </div>
 
-      <div className="flex gap-2 flex-wrap">
+      {/* Filter Tabs */}
+      <div className="flex bg-white p-1.5 rounded-2xl border border-[#e2ede8] shadow-sm overflow-x-auto no-scrollbar max-w-fit mb-8">
         {[
-          { key: 'all', label: 'All', count: reminders.length },
-          { key: 'overdue', label: 'Overdue', count: counts.overdue },
-          { key: 'urgent', label: 'Urgent', count: counts.urgent },
-          { key: 'soon', label: 'Soon', count: counts.soon },
-          { key: 'ok', label: 'Upcoming', count: counts.ok },
+          { key: "all", label: "Entire Watchlist", count: reminders.length },
+          { key: "overdue", label: "Overdue", count: counts.overdue },
+          { key: "urgent", label: "High Priority", count: counts.urgent },
+          { key: "soon", label: "Upcoming", count: counts.soon },
+          { key: "ok", label: "Routine", count: counts.ok },
         ].map(({ key, label, count }) => (
           <button
             key={key}
-            type="button"
             onClick={() => setFilter(key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-body font-medium border transition-all ${filter === key
-              ? 'bg-ink text-cream border-ink'
-              : 'bg-white text-stone-500 border-stone-200 hover:border-stone-300'
-              }`}
+            className={`flex items-center gap-2 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${filter === key ? "bg-[#1a3c2e] text-white shadow-md" : "text-[#94a3b8] hover:text-[#1a6a3c]"}`}
           >
             {label}
-            {count > 0 && (
-              <span
-                className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${filter === key ? 'bg-white/15 text-cream' : 'bg-stone-100 text-stone-500'
-                  }`}
-              >
-                {count}
-              </span>
-            )}
+            {count > 0 && <span style={{ marginLeft: 6, opacity: 0.6 }}>{count}</span>}
           </button>
         ))}
       </div>
 
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="card h-20 animate-pulse bg-stone-100" />
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="card p-16 flex flex-col items-center text-center border-2 border-dashed border-stone-200">
-          <Bell size={40} className="text-stone-300 mb-3" />
-          <p className="font-body font-medium text-stone-500">
-            {filter === 'all' ? 'No reminders yet' : `No ${filter} reminders`}
-          </p>
-          <p className="font-body text-xs text-stone-300 mt-1">
-            {filter === 'all' && 'Create a reminder to get email, SMS, or in-app alerts before rent is due.'}
-          </p>
-          {tenancies.length > 0 && filter === 'all' && (
-            <button type="button" onClick={openCreate} className="btn-primary mt-4">
-              <Plus size={15} /> New reminder
-            </button>
-          )}
+      {/* Reminders Grid */}
+      {filtered.length === 0 ? (
+        <div style={{ background: "#fff", border: "2px dashed #e2ede8", borderRadius: 24, padding: 64, textAlign: "center", animation: "slideUp 0.5s ease both" }}>
+          <div className="w-16 h-16 rounded-full bg-[#f4fbf7] flex items-center justify-center text-[#cce8d8] mx-auto mb-6">
+            <Bell size={32} />
+          </div>
+          <h3 style={{ fontFamily: "'Fraunces',serif" }} className="text-xl font-bold text-[#1a2e22] mb-2 italic">Watchlist Empty</h3>
+          <p className="text-[#6b8a7a] font-medium max-w-sm mx-auto">No protocols found matching this scope. Establish a new one to begin monitoring.</p>
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          <AnimatePresence>
-            {filtered.map((r) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <AnimatePresence mode="popLayout">
+            {filtered.map((r, i) => {
               const urg = getUrgency(r);
               const U = URGENCY[urg];
               const d = r.dueDate?.toDate?.() ?? new Date(r.dueDate);
               const days = differenceInDays(d, new Date());
-              const isPaid = urg === 'paid';
-              const notifyDate = getReminderNotifyDate(d, r.leadTimeDays);
-              const showInAppToday = !isPaid && shouldNotifyToday(r.dueDate, r.leadTimeDays);
+              const isPaid = urg === "paid";
 
               return (
                 <motion.div
                   key={r.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: isPaid ? 0.6 : 1 }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="flex items-center gap-4 px-5 py-4 border-b border-stone-100 last:border-0 hover:bg-stone-50/70 transition-colors group"
+                  {...fadeUp(0.1 + i * 0.05)}
+                  layout
+                  style={{ background: "#fff", border: `1.5px solid ${isPaid ? '#f0f7f2' : '#e2ede8'}`, borderRadius: 24, padding: 24, position: "relative", overflow: "hidden" }}
+                  className="group hover:border-[#1a6a3c]/30 hover:shadow-xl transition-all"
                 >
-                  <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${U.dot}`} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="font-body font-semibold text-sm text-ink">
-                        {r.propertyName || 'Rent'}
-                        {r.propertyUnitNumber && (
-                          <span className="text-sage ml-1 font-normal">
-                            ({getShortUnitId({
-                              unitNumber: r.propertyUnitNumber,
-                              floor: r.propertyFloor,
-                            })})
-                          </span>
-                        )}
-                      </span>
+                  <div className={`absolute top-0 right-0 w-24 h-24 opacity-[0.02] transform translate-x-6 translate-y-[-6px] group-hover:scale-110 transition-transform duration-700 text-[#1a6a3c]`}>
+                    <U.icon size={100} />
+                  </div>
+
+                  <div className="flex items-start justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${U.bg} ${U.color} border ${U.border}`}>
+                        <U.icon size={22} strokeWidth={2.5} />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-[#1a2e22] leading-tight group-hover:text-[#1a6a3c] transition-colors">{r.propertyName || 'Remittance'}</h4>
+                        <span className="text-[9px] font-black text-[#94a3b8] uppercase tracking-widest">{r.propertyUnitNumber || 'Main Unit'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-6">
+                    <div className="p-3 rounded-xl bg-[#fcfdfc] border border-[#f0f7f2]">
+                      <p className="text-[8px] font-black text-[#94a3b8] uppercase tracking-widest mb-1">Maturity</p>
+                      <p className={`font-bold text-xs ${isPast(d) && !isPaid ? 'text-[#e74c3c]' : 'text-[#1a2e22]'}`}>{format(d, 'MMM d, yyyy')}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-[#fcfdfc] border border-[#f0f7f2]">
+                      <p className="text-[8px] font-black text-[#94a3b8] uppercase tracking-widest mb-1">Valuation</p>
+                      <p className="font-fraunces font-black text-[#1a2e22] text-sm leading-none">{fmt(r.amount || 0, symbol)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-5 border-t border-[#f0f7f2]">
+                    <div className="flex items-center gap-2">
+                      <div className="flex -space-x-1">
+                        {r.notifyEmail && <div className="w-7 h-7 rounded-lg bg-[#f4fbf7] flex items-center justify-center text-[#1a6a3c] border border-white shadow-xs" title="Email"><Mail size={12} /></div>}
+                        {r.notifyInApp && <div className="w-7 h-7 rounded-lg bg-[#e8f5ee] flex items-center justify-center text-[#1a6a3c] border border-white shadow-xs" title="In-App"><Smartphone size={12} /></div>}
+                      </div>
                       {r.recurring && (
-                        <span className="font-body text-xs px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">
-                          Monthly
-                        </span>
-                      )}
-                      {showInAppToday && (
-                        <span className="font-body text-xs px-2 py-0.5 rounded-full bg-amber/15 text-amber border border-amber/30">
-                          Reminder today
-                        </span>
+                        <span className="text-[8px] font-black text-[#1a6a3c] uppercase tracking-widest bg-[#e8f5ee] px-2 py-0.5 rounded-lg">Auto</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                      <span
-                        className={`font-body text-xs font-medium px-2 py-0.5 rounded-full border ${U.bg} ${U.color}`}
-                      >
-                        {isPaid
-                          ? 'Paid'
-                          : isPast(d)
-                            ? 'Overdue'
-                            : days === 0
-                              ? 'Due today'
-                              : days === 1
-                                ? 'Due tomorrow'
-                                : `Due in ${days}d`}
-                      </span>
-                      <span className="font-body text-xs text-stone-400">
-                        Notify: {getLeadTimeLabel(r.leadTimeDays)} ({format(notifyDate, 'MMM d')})
-                      </span>
-                      <span className="flex items-center gap-1.5 text-stone-400">
-                        {r.notifyEmail && <Mail size={11} title="Email" />}
-                        {r.notifySms && <MessageSquare size={11} title="SMS" />}
-                        {r.notifyInApp && <Smartphone size={11} title="In-app" />}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-display font-semibold text-lg text-ink">
-                      {fmt(r.amount || 0)}
-                    </p>
-                  </div>
-                  {!isPaid && (
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(r)}
-                        className="text-xs font-body font-medium px-3 py-1.5 rounded-lg bg-stone-100 text-stone-600 hover:bg-stone-200"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleMarkPaid(r)}
-                        className="flex items-center gap-1.5 text-xs font-body font-medium px-3 py-1.5 rounded-lg bg-sage/10 text-sage border border-sage/20 hover:bg-sage/20"
-                      >
-                        <CheckCircle size={13} /> Paid
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(r)}
-                        className="p-1.5 rounded-lg bg-rust/8 text-rust border border-rust/15 hover:bg-rust/15"
-                      >
-                        <Trash2 size={13} />
+
+                    <div className="flex items-center gap-2">
+                      {!isPaid && (
+                        <button onClick={() => handleMarkPaid(r)} className="p-2.5 rounded-xl bg-[#e8f5ee] text-[#1a6a3c] hover:bg-[#1a3c2e] hover:text-white transition-all shadow-sm">
+                          <CheckCircle size={16} strokeWidth={2.5} />
+                        </button>
+                      )}
+                      <button onClick={() => handleDelete(r)} className="p-2.5 rounded-xl bg-white border border-[#f0f7f2] text-[#94a3b8] hover:bg-[#e74c3c] hover:text-white transition-all shadow-sm">
+                        <Trash2 size={16} />
                       </button>
                     </div>
-                  )}
+                  </div>
                 </motion.div>
               );
             })}
@@ -401,150 +375,40 @@ export default function TenantRemindersPage() {
         </div>
       )}
 
-      <Modal
-        isOpen={showModal}
-        onClose={() => {
-          setShowModal(false);
-          setEditingId(null);
-          setForm(emptyForm);
-        }}
-        title={editingId ? 'Edit reminder' : 'New rent reminder'}
-        size="lg"
-      >
-        <form onSubmit={handleSave} className="space-y-4">
+      {/* Protocol Modal */}
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editingId ? 'Modify Sequence' : 'Establish Protocol'}>
+        <form onSubmit={handleSave} className="space-y-6 pt-2">
           <div>
-            <label className="label-xs">Home (property) *</label>
-            <select
-              className="input-base"
-              value={form.propertyId}
-              onChange={handlePropertySelect}
-              required
-            >
-              <option value="">— Select home —</option>
-              {tenancies.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.propertyName}{p.unitName ? ` - ${p.unitName}` : ''} — {fmt(p.rentAmount || 0)}/month
-                </option>
+            <label className="text-[10px] font-black text-[#94a3b8] uppercase tracking-widest mb-3 block">Target Residence *</label>
+            <select className="w-full bg-[#f4fbf7] border border-[#ddf0e6] rounded-xl px-4 py-3.5 text-sm font-bold text-[#1a2e22]" value={form.propertyId} onChange={handlePropertySelect} required>
+              <option value="">— Select Domain —</option>
+              {tenancies.map(p => (
+                <option key={p.id} value={p.id}>{p.propertyName} {p.unitName ? `· ${p.unitName}` : ''}</option>
               ))}
             </select>
           </div>
-          <div className="grid sm:grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="label-xs">Due date *</label>
-              <input
-                className="input-base"
-                type="date"
-                value={form.dueDate}
-                onChange={set('dueDate')}
-                required
-              />
+              <label className="text-[10px] font-black text-[#94a3b8] uppercase tracking-widest mb-3 block">Maturity Date *</label>
+              <input className="w-full bg-[#f4fbf7] border border-[#ddf0e6] rounded-xl px-4 py-3 text-sm font-bold text-[#1a2e22]" type="date" value={form.dueDate} onChange={(e) => setForm(f => ({ ...f, dueDate: e.target.value }))} required />
             </div>
             <div>
-              <label className="label-xs">Amount ({currencySymbol}) *</label>
-              <input
-                className="input-base"
-                type="number"
-                placeholder="e.g. 250000"
-                value={form.amount}
-                onChange={set('amount')}
-                required
-              />
+              <label className="text-[10px] font-black text-[#94a3b8] uppercase tracking-widest mb-3 block">Rent Value ({symbol}) *</label>
+              <input className="w-full bg-[#f4fbf7] border border-[#ddf0e6] rounded-xl px-4 py-3 text-sm font-black text-[#1a2e22]" type="number" value={form.amount} onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} required />
             </div>
           </div>
-          <div>
-            <label className="label-xs">Remind me</label>
-            <select
-              className="input-base"
-              value={form.leadTimeDays}
-              onChange={(e) => setForm((f) => ({ ...f, leadTimeDays: parseInt(e.target.value, 10) }))}
-            >
-              {LEAD_TIME_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <p className="font-body text-xs text-stone-400 mt-1">
-              You’ll get notified at this time before the due date.
-            </p>
-          </div>
-          <div>
-            <p className="label-xs mb-2">Notify me via</p>
-            <div className="flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.notifyEmail}
-                  onChange={set('notifyEmail')}
-                  className="w-4 h-4 rounded accent-sage"
-                />
-                <Mail size={14} className="text-stone-400" />
-                <span className="font-body text-sm">Email</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.notifySms}
-                  onChange={set('notifySms')}
-                  className="w-4 h-4 rounded accent-sage"
-                />
-                <MessageSquare size={14} className="text-stone-400" />
-                <span className="font-body text-sm">SMS</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.notifyInApp}
-                  onChange={set('notifyInApp')}
-                  className="w-4 h-4 rounded accent-sage"
-                />
-                <Smartphone size={14} className="text-stone-400" />
-                <span className="font-body text-sm">In-app</span>
-              </label>
+
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-[#f4fbf7]/50 border border-[#ddf0e6]">
+              <input type="checkbox" id="m-rec" checked={form.recurring} onChange={(e) => setForm(f => ({ ...f, recurring: e.target.checked }))} className="w-4 h-4 accent-[#1a6a3c]" />
+              <label htmlFor="m-rec" className="text-xs font-bold text-[#1a6a3c]">Replicate monthly (Recurring Protocol)</label>
             </div>
-            <p className="font-body text-xs text-stone-400 mt-1">
-              In-app alerts show when you open Gravlo. Email and SMS require your landlord to enable notifications.
-            </p>
           </div>
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="recurring-tenant"
-              checked={form.recurring}
-              onChange={set('recurring')}
-              className="w-4 h-4 rounded accent-sage"
-            />
-            <label htmlFor="recurring-tenant" className="font-body text-sm text-ink cursor-pointer">
-              Repeat every month (recurring reminder)
-            </label>
-          </div>
-          <div>
-            <label className="label-xs">Notes (optional)</label>
-            <input
-              className="input-base"
-              placeholder="e.g. Rent for March"
-              value={form.notes}
-              onChange={set('notes')}
-            />
-          </div>
-          <div className="flex gap-3 justify-end pt-2">
-            <button
-              type="button"
-              onClick={() => setShowModal(false)}
-              className="btn-secondary"
-            >
-              Cancel
-            </button>
-            <button type="submit" disabled={saving} className="btn-primary">
-              {saving ? (
-                <div className="w-4 h-4 border-2 border-cream border-t-transparent rounded-full animate-spin" />
-              ) : editingId ? (
-                'Save changes'
-              ) : (
-                <>
-                  <Plus size={15} /> Create reminder
-                </>
-              )}
+
+          <div className="flex gap-3 pt-4">
+            <button disabled={saving} type="submit" className="flex-1 btn-primary py-4 rounded-xl text-sm leading-none font-bold">
+              {saving ? '...' : editingId ? 'Update Sequence' : 'Commit Protocol'}
             </button>
           </div>
         </form>
