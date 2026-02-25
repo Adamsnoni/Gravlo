@@ -128,56 +128,58 @@ export default function SettingsPage() {
             </div>
           </motion.div>
 
-          {/* Payouts Section */}
-          <motion.div {...fadeUp(0.12)} className="card p-10 bg-white border-[#f0f7f2] shadow-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[#1a6a3c]/5 rounded-full blur-3xl opacity-50" />
+          {/* Payouts Section - Hidden for Tenants */}
+          {role !== 'tenant' && (
+            <motion.div {...fadeUp(0.12)} className="card p-10 bg-white border-[#f0f7f2] shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-[#1a6a3c]/5 rounded-full blur-3xl opacity-50" />
 
-            <div className="flex items-center gap-4 mb-8">
-              <div className="w-12 h-12 rounded-2xl bg-[#f4fbf7] border border-[#ddf0e6] flex items-center justify-center text-[#1a6a3c] shadow-sm">
-                <Banknote size={24} strokeWidth={2.5} />
-              </div>
-              <div>
-                <h3 className="font-fraunces text-xl font-black italic text-[#1a2e22]">Settlement & Payouts</h3>
-                <p className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mt-1">Bank Account & Disbursement</p>
-              </div>
-            </div>
-
-            <p className="text-sm text-[#6b8a7a] font-medium leading-relaxed mb-8 italic">
-              Configure your settlement destination to receive automated disbursements from Paystack. Verified accounts receive funds within 24 hours of collection.
-            </p>
-
-            <div className="p-6 rounded-2xl bg-[#fcfdfc] border border-[#f0f7f2] flex items-center justify-between mb-8 group">
-              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-transform ${profile?.payoutStatus === 'active' ? 'bg-[#f4fbf7] border border-[#ddf0e6] text-[#1a6a3c]' : 'bg-[#fff9f9] border border-[#fee2e2] text-[#dc2626]'}`}>
-                  {profile?.payoutStatus === 'active' ? <Check size={20} strokeWidth={3} /> : <AlertCircle size={20} />}
+              <div className="flex items-center gap-4 mb-8">
+                <div className="w-12 h-12 rounded-2xl bg-[#f4fbf7] border border-[#ddf0e6] flex items-center justify-center text-[#1a6a3c] shadow-sm">
+                  <Banknote size={24} strokeWidth={2.5} />
                 </div>
                 <div>
-                  <p className="text-[9px] font-black text-[#94a3a8] uppercase tracking-widest">Payout Identity Status</p>
-                  <p className="text-sm font-bold text-[#1a2e22]">
-                    {profile?.payoutStatus === 'active' ? 'Active & Linked' : 'Infrastructure Pending'}
-                  </p>
+                  <h3 className="font-fraunces text-xl font-black italic text-[#1a2e22]">Settlement & Payouts</h3>
+                  <p className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mt-1">Bank Account & Disbursement</p>
                 </div>
               </div>
 
-              {profile?.payoutStatus === 'active' && (
-                <div className="text-right">
-                  <p className="text-[9px] font-black text-[#94a3a8] uppercase tracking-widest">Connected Bank</p>
-                  <p className="text-xs font-bold text-[#1a6a3c]">{profile?.payoutMethod?.accountNumber?.replace(/.(?=.{4})/g, '•')}</p>
-                </div>
-              )}
-            </div>
+              <p className="text-sm text-[#6b8a7a] font-medium leading-relaxed mb-8 italic">
+                Configure your settlement destination to receive automated disbursements from Paystack. Verified accounts receive funds within 24 hours of collection.
+              </p>
 
-            <div className="flex justify-end">
-              <button
-                onClick={() => navigate('/settings/payouts')}
-                className="btn-primary px-10 py-4 shadow-xl shadow-[#1a6a3c]/20"
-              >
-                <span className="flex items-center gap-2">
-                  {profile?.payoutStatus === 'active' ? 'Update Settlement' : 'Setup Payouts'} <ChevronRight size={18} strokeWidth={3} />
-                </span>
-              </button>
-            </div>
-          </motion.div>
+              <div className="p-6 rounded-2xl bg-[#fcfdfc] border border-[#f0f7f2] flex items-center justify-between mb-8 group">
+                <div className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-transform ${profile?.payoutStatus === 'active' ? 'bg-[#f4fbf7] border border-[#ddf0e6] text-[#1a6a3c]' : 'bg-[#fff9f9] border border-[#fee2e2] text-[#dc2626]'}`}>
+                    {profile?.payoutStatus === 'active' ? <Check size={20} strokeWidth={3} /> : <AlertCircle size={20} />}
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-[#94a3a8] uppercase tracking-widest">Payout Identity Status</p>
+                    <p className="text-sm font-bold text-[#1a2e22]">
+                      {profile?.payoutStatus === 'active' ? 'Active & Linked' : 'Infrastructure Pending'}
+                    </p>
+                  </div>
+                </div>
+
+                {profile?.payoutStatus === 'active' && (
+                  <div className="text-right">
+                    <p className="text-[9px] font-black text-[#94a3a8] uppercase tracking-widest">Connected Bank</p>
+                    <p className="text-xs font-bold text-[#1a6a3c]">{profile?.payoutMethod?.accountNumber?.replace(/.(?=.{4})/g, '•')}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => navigate('/settings/payouts')}
+                  className="btn-primary px-10 py-4 shadow-xl shadow-[#1a6a3c]/20"
+                >
+                  <span className="flex items-center gap-2">
+                    {profile?.payoutStatus === 'active' ? 'Update Settlement' : 'Setup Payouts'} <ChevronRight size={18} strokeWidth={3} />
+                  </span>
+                </button>
+              </div>
+            </motion.div>
+          )}
 
           {/* Notifications Section */}
           <motion.div {...fadeUp(0.1)} className="card p-10 bg-white border-[#f0f7f2] shadow-xl">

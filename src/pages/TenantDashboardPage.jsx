@@ -98,10 +98,6 @@ export default function TenantDashboardPage() {
     };
   }, [user?.uid]);
 
-  const totalPaid = payments
-    .filter(p => p.status === 'paid')
-    .reduce((sum, p) => sum + (p.amount || 0), 0);
-
   const activeHomes = units.filter(h => h.status === 'active');
   const pastHomes = units.filter(h => h.status === 'former');
   const yearlyRent = activeHomes.reduce((s, h) => s + (h.rentAmount || 0), 0);
@@ -190,19 +186,9 @@ export default function TenantDashboardPage() {
       {/* Stat cards Grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, marginBottom: 32 }}>
         <StatCard
-          label="Active Leases" value={activeHomes.length}
-          sub={activeHomes.length === 1 ? activeHomes[0].propertyName : `${activeHomes.length} Managed Homes`}
-          icon={<Home size={20} strokeWidth={2.5} />} accentBg="#e8f5ee" accentColor="#1a6a3c" borderColor="#cce8d8" delay={0}
-        />
-        <StatCard
           label="Rent Obligations" value={fmt(yearlyRent, symbol)}
           sub="Total monthly commitment"
           icon={<CreditCard size={20} strokeWidth={2.5} />} accentBg="#fef9ed" accentColor="#c8691a" borderColor="#f5e0b8" delay={0.05}
-        />
-        <StatCard
-          label="Settled Records" value={fmt(totalPaid, symbol)}
-          sub="Lifetime platform remittances"
-          icon={<Sparkles size={20} strokeWidth={2.5} />} accentBg="#eff6ff" accentColor="#2563eb" borderColor="#bfdbfe" delay={0.1}
         />
       </div>
 
@@ -263,7 +249,6 @@ export default function TenantDashboardPage() {
                         <p style={{ fontFamily: "'Fraunces',serif" }} className="text-xl font-black text-[#1a2e22] mb-0.5">
                           {fmtRent(h.monthlyRent || h.rentAmount || 0, h.rentType || h.billingCycle || 'monthly')}
                         </p>
-                        <p className="text-[#6b8a7a] text-[10px] font-extrabold uppercase tracking-[0.15em]">Settlement Rate</p>
                       </div>
                     </div>
                   </motion.div>

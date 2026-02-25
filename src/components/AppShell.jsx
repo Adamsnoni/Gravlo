@@ -89,7 +89,10 @@ export default function AppShell() {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-6 space-y-1.5 overflow-y-auto">
         {NAV.map(({ to, icon: Icon, label }) => {
-          const isActive = activeTab === to || activeTab.startsWith(to + '/');
+          // Use strict matching for the base tenant route to prevent overlap with sub-routes
+          const isActive = to === '/tenant'
+            ? location.pathname === '/tenant'
+            : activeTab === to || activeTab.startsWith(to + '/');
 
           return (
             <Link
