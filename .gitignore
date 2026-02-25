@@ -1,1 +1,26 @@
+# IDE
+.vscode
+.idea
+.DS_Store
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependencies
+node_modules/
+
+# Build
+dist/
+dist-ssr/
+*.local
+
+# Firebase
+.firebase/
+firebug.log
+firebase-debug.log*
+ui-debug.log*
+
+# Vercel
 .vercel

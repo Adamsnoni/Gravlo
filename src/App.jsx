@@ -41,16 +41,16 @@ function LoadingSpinner() {
 }
 
 function ProtectedRoute({ children }) {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, hasProperties, loading } = useAuth();
   const location = useLocation();
 
-  if (loading || (user && profile === undefined)) return <LoadingSpinner />;
+  if (loading || (user && (profile === undefined || hasProperties === undefined))) return <LoadingSpinner />;
   if (!user) return <Navigate to="/login" replace />;
 
-  const role = profile?.role || 'landlord';
-  // If landlord hasn't completed onboarding and isn't already on the onboarding page
-  if (role === 'landlord' && !profile?.onboardingComplete && location.pathname !== '/onboarding') {
-    return <Navigate to="/onboarding" replace />;
+  // Landlords will now complete their profile during registration wizard
+  // The old OnboardingPage (property wizard) is now optional and accessible from the dashboard
+  if (location.pathname === '/onboarding') {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;
@@ -65,10 +65,10 @@ function PublicRoute({ children }) {
 }
 
 function AppRoutes() {
-  const { profile, loading, user } = useAuth();
+  const { profile, loading, user, hasProperties } = useAuth();
 
-  // Don't render any routes until profile has resolved — prevents role-based flash
-  if (loading || (user && profile === undefined)) return <LoadingSpinner />;
+  // Don't render any routes until all data has resolved — prevents role-based flash and race conditions
+  if (loading || (user && (profile === undefined || hasProperties === undefined))) return <LoadingSpinner />;
 
   const role = profile?.role || 'landlord';
 

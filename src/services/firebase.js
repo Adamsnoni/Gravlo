@@ -99,6 +99,16 @@ export const subscribeProperties = (uid, cb) =>
   onSnapshot(query(collection(db, 'users', uid, 'properties'), orderBy('createdAt', 'desc')), (snap) =>
     cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
 
+/**
+ * One-shot check if a landlord has any properties.
+ * Used for onboarding redirect logic.
+ */
+export const checkPropertiesExist = async (uid) => {
+  const qArr = query(collection(db, 'users', uid, 'properties'), limit(1));
+  const snap = await getDocs(qArr);
+  return !snap.empty;
+};
+
 // ════════════════════════════════════════════════════════════════════════════
 // PAYMENTS
 // ════════════════════════════════════════════════════════════════════════════

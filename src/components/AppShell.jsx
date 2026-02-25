@@ -77,87 +77,94 @@ export default function AppShell() {
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="px-5 py-6 border-b border-stone-100">
+      <div className="px-5 py-6 border-b border-[#1e2a2e]">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-sage flex items-center justify-center shadow-sm">
-            <KeyRound size={17} className="text-cream" />
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1a3c2e] to-[#52b788] flex items-center justify-center shadow-sm">
+            <KeyRound size={17} className="text-white opacity-90" />
           </div>
           <div>
-            <div className="font-display font-semibold text-ink text-lg leading-none">Gravlo</div>
-            <div className="text-xs text-stone-400 font-body mt-0.5 tracking-wide">Property Manager</div>
+            <div className="font-display font-bold text-[#e8e4de] text-lg leading-none tracking-tight">Gravlo</div>
+            <div className="text-[10px] text-[#4a5568] font-body mt-1 uppercase tracking-widest font-bold">Property Manager</div>
           </div>
         </div>
         {/* Country pill */}
         {country && (
-          <div className="mt-3 flex items-center gap-1.5 px-2 py-1 bg-stone-50 rounded-lg border border-stone-100 w-fit">
+          <div className="mt-4 flex items-center gap-1.5 px-2 py-1 bg-[#141b1e] rounded-lg border border-[#1e2a2e] w-fit">
             <span className="text-sm">{getFlag(country.code)}</span>
-            <span className="font-body text-xs text-stone-400">{country.currency} ({currencySymbol})</span>
+            <span className="font-body text-[10px] text-[#4a5568] font-bold uppercase tracking-wider">{country.currency} ({currencySymbol})</span>
           </div>
         )}
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {NAV.map(({ to, icon: Icon, label }) => (
-          <Link
-            key={to}
-            to={to}
-            onClick={() => {
-              setActiveTab(to);
-              setSidebarOpen(false);
-            }}
-            className={`nav-item ${activeTab === to ? 'active' : ''}`}
-          >
-            <Icon size={17} />
-            <span>{label}</span>
-            {label === 'Dashboard' && unreadNotificationsCount > 0 && (
-              <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-sage text-cream text-[10px] font-body font-bold flex items-center justify-center animate-pulse">
-                {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
-              </span>
-            )}
-            {label === 'Properties' && pendingCount > 0 && (
-              <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-rust text-cream text-[10px] font-body font-bold flex items-center justify-center">
-                {pendingCount > 9 ? '9+' : pendingCount}
-              </span>
-            )}
-          </Link>
-        ))}
+      <nav className="flex-1 px-3 py-4 space-y-1">
+        {NAV.map(({ to, icon: Icon, label }) => {
+          const isActive = activeTab === to;
+          return (
+            <Link
+              key={to}
+              to={to}
+              onClick={() => {
+                setActiveTab(to);
+                setSidebarOpen(false);
+              }}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${isActive
+                  ? 'bg-[#1a3c2e] text-[#52b788]'
+                  : 'text-[#4a5568] hover:bg-[#141b1e] hover:text-[#8a9ba8]'
+                }`}
+            >
+              <Icon size={17} className={isActive ? 'text-[#52b788]' : 'text-[#4a5568] group-hover:text-[#8a9ba8]'} />
+              <span className={`font-body text-sm ${isActive ? 'font-semibold' : 'font-medium'}`}>{label}</span>
+              {label === 'Dashboard' && unreadNotificationsCount > 0 && (
+                <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-[#e74c3c] text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
+                  {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                </span>
+              )}
+              {label === 'Properties' && pendingCount > 0 && (
+                <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-[#e74c3c] text-white text-[9px] font-bold flex items-center justify-center">
+                  {pendingCount > 9 ? '9+' : pendingCount}
+                </span>
+              )}
+            </Link>
+          );
+        })}
       </nav>
 
       {/* User */}
-      <div className="px-3 py-4 border-t border-stone-100">
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer group"
+      <div className="px-3 py-4 border-t border-[#1e2a2e]">
+        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#141b1e] transition-colors cursor-pointer group"
           onClick={() => navigate('/profile')}>
-          <div className="w-8 h-8 rounded-full bg-sage/15 border border-sage/30 flex items-center justify-center flex-shrink-0">
-            <span className="font-body font-semibold text-sage text-xs">{initials}</span>
+          <div className="w-8 h-8 rounded-full bg-[#1a3c2e] border border-[#2d6a4f] flex items-center justify-center flex-shrink-0">
+            <span className="font-body font-bold text-[#52b788] text-[10px]">{initials}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-body font-medium text-ink text-sm truncate">
+            <div className="font-body font-semibold text-[#e8e4de] text-sm truncate">
               {profile?.fullName || user?.displayName || 'User'}
             </div>
-            <div className="font-body text-xs text-stone-400 truncate">{user?.email}</div>
+            <div className="font-body text-[11px] text-[#4a5568] truncate">{user?.email}</div>
           </div>
-          <ChevronRight size={14} className="text-stone-300 group-hover:text-stone-400 transition-colors" />
+          <ChevronRight size={14} className="text-[#1e2a2e] group-hover:text-[#4a5568] transition-colors" />
         </div>
         {!isTenant && (
-          <div className="px-3 mb-1">
-            <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-body font-semibold ${userPlan.badgeColor}`}>
+          <div className="px-3 mb-2 mt-1">
+            <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${userPlan.badgeColor.replace('bg-', 'bg-').replace('text-', 'text-')}`}>
               <Crown size={10} />
               {userPlan.badge}
             </div>
           </div>
         )}
-        <button onClick={handleLogout} className="nav-item w-full mt-1 text-rust hover:bg-rust/8 hover:text-rust">
-          <LogOut size={16} /><span>Sign Out</span>
+        <button onClick={handleLogout} className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-[#6b6460] hover:bg-[#2d1a1a] hover:text-[#e74c3c] transition-all duration-200">
+          <LogOut size={16} />
+          <span className="font-body text-sm font-medium">Sign Out</span>
         </button>
       </div>
     </div>
   );
 
   return (
-    <div className="flex min-h-screen bg-stone-50/50">
+    <div className="flex min-h-screen bg-[#0a0f12]">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-60 bg-white border-r border-stone-100 fixed inset-y-0 left-0 z-40">
+      <aside className="hidden lg:flex flex-col w-60 bg-[#0d1215] border-r border-[#1e2a2e] fixed inset-y-0 left-0 z-40">
         <SidebarContent />
       </aside>
 
@@ -170,7 +177,7 @@ export default function AppShell() {
               onClick={() => setSidebarOpen(false)} />
             <motion.aside initial={{ x: -280 }} animate={{ x: 0 }} exit={{ x: -280 }}
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="fixed inset-y-0 left-0 w-72 bg-white z-50 shadow-deep lg:hidden">
+              className="fixed inset-y-0 left-0 w-72 bg-[#0d1215] z-50 shadow-deep lg:hidden border-r border-[#1e2a2e]">
               <div className="flex items-center justify-between px-5 pt-5 pb-0">
                 <div />
                 <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-stone-100 text-stone-400">
@@ -186,13 +193,13 @@ export default function AppShell() {
       {/* Main */}
       <main className="flex-1 lg:ml-60 flex flex-col min-h-screen">
         {/* Mobile top bar */}
-        <div className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-stone-100 sticky top-0 z-30">
-          <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-stone-100 text-stone-600 transition-colors">
+        <div className="lg:hidden flex items-center gap-3 px-4 py-3 bg-[#0d1215] border-b border-[#1e2a2e] sticky top-0 z-30">
+          <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-[#141b1e] text-[#4a5568] transition-colors">
             <Menu size={20} />
           </button>
-          <div className="font-display font-semibold text-ink text-lg">Gravlo</div>
+          <div className="font-display font-bold text-[#e8e4de] text-lg tracking-tight">Gravlo</div>
           {country && (
-            <span className="ml-auto text-sm flex items-center gap-1 font-body text-xs text-stone-400">
+            <span className="ml-auto flex items-center gap-1.5 px-2 py-0.5 bg-[#141b1e] rounded-lg border border-[#1e2a2e] font-body text-[10px] text-[#4a5568] font-bold uppercase tracking-wider">
               {getFlag(country.code)} {country.currency}
             </span>
           )}
