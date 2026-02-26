@@ -13,6 +13,8 @@ export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUn
         tenantEmail: '',
     });
 
+    const isOccupied = editUnit?.status === 'occupied' && editUnit?.tenantId;
+
     useEffect(() => {
         if (editUnit) {
             setForm({
@@ -102,20 +104,26 @@ export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUn
                             <div className="flex items-center gap-4 mb-4">
                                 <UserPlus size={20} className="text-[#cce8d8]" />
                                 <p className="text-xs text-[#6b8a7a] font-medium leading-relaxed italic">
-                                    Resident details are typically captured via the invitation portal. Direct assignment is preserved for legacy records.
+                                    {isOccupied
+                                        ? "Resident data is locked while occupied. To update this record, perform a 'Move Out' reset first."
+                                        : "Resident details are typically captured via the invitation portal. Direct assignment is preserved for legacy records."}
                                 </p>
                             </div>
 
                             <div className="grid sm:grid-cols-2 gap-4">
-                                <div className="space-y-2 opacity-60">
-                                    <label className="text-[9px] font-black text-[#94a3a8] uppercase tracking-widest">Active Resident</label>
-                                    <div className="w-full bg-white border border-[#f0f7f2] rounded-xl px-4 py-3 text-[#1a2e22] text-xs font-bold truncate">
+                                <div className={`space-y-2 ${isOccupied ? 'opacity-40' : 'opacity-60'}`}>
+                                    <label className="text-[9px] font-black text-[#94a3a8] uppercase tracking-widest flex items-center gap-1.5">
+                                        Active Resident {isOccupied && <span className="text-[8px] bg-[#94a3a8]/20 px-1 rounded lowercase">locked</span>}
+                                    </label>
+                                    <div className={`w-full bg-white border border-[#f0f7f2] rounded-xl px-4 py-3 text-[#1a2e22] text-xs font-bold truncate ${isOccupied ? 'cursor-not-allowed' : ''}`}>
                                         {form.tenantName || 'No resident assigned'}
                                     </div>
                                 </div>
-                                <div className="space-y-2 opacity-60">
-                                    <label className="text-[9px] font-black text-[#94a3a8] uppercase tracking-widest">Registered Email</label>
-                                    <div className="w-full bg-white border border-[#f0f7f2] rounded-xl px-4 py-3 text-[#1a2e22] text-xs font-bold truncate">
+                                <div className={`space-y-2 ${isOccupied ? 'opacity-40' : 'opacity-60'}`}>
+                                    <label className="text-[9px] font-black text-[#94a3a8] uppercase tracking-widest flex items-center gap-1.5">
+                                        Registered Email {isOccupied && <span className="text-[8px] bg-[#94a3a8]/20 px-1 rounded lowercase">locked</span>}
+                                    </label>
+                                    <div className={`w-full bg-white border border-[#f0f7f2] rounded-xl px-4 py-3 text-[#1a2e22] text-xs font-bold truncate ${isOccupied ? 'cursor-not-allowed' : ''}`}>
                                         {form.tenantEmail || 'None'}
                                     </div>
                                 </div>

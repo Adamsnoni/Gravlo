@@ -469,7 +469,7 @@ export default function PropertyDetailPage() {
                   <p className="text-[#6b8a7a] text-sm font-medium mt-1">Start by adding apartments or floor plans to this property.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
                   <AnimatePresence mode="popLayout">
                     {units.map(unit => (
                       <UnitCard

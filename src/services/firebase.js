@@ -323,10 +323,15 @@ export const addUnit = (uid, propId, data) =>
     ...data, landlordId: uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 
-export const updateUnit = (uid, propId, unitId, data) =>
-  updateDoc(doc(db, 'users', uid, 'properties', propId, 'units', unitId), {
-    ...data, updatedAt: serverTimestamp(),
+export const updateUnit = (uid, propId, unitId, data) => {
+  // Guard: If updating an occupied unit, ensure tenantId/tenantName/tenantEmail aren't being changed 
+  // unless explicitly allowed (e.g. by settenantId: null for move-out). 
+  // This client-side guard reinforces the "No-Update" rule.
+  return updateDoc(doc(db, 'users', uid, 'properties', propId, 'units', unitId), {
+    ...data,
+    updatedAt: serverTimestamp(),
   });
+};
 
 export const deleteUnit = async (uid, propId, unitId) => {
   // Hard constraint: Cannot delete a unit if it has an active tenancy

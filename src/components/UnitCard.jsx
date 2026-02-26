@@ -32,7 +32,7 @@ export default function UnitCard({ unit, fmtRent, onRemove, onMasterReset, onEdi
                     <div>
                         <h4 className="font-fraunces font-black text-[#1a2e22] text-lg tracking-tight group-hover:text-[#1a6a3c] transition-colors">{unit.name}</h4>
                         <div className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest mt-1 border ${isOccupied ? 'bg-[#e8f5ee] text-[#1a6a3c] border-[#ddf0e6]' : 'bg-[#fef9ed] text-[#c8691a] border-[#f5e0b8]'}`}>
-                            {isOccupied ? 'Leased' : 'Vacant'}
+                            {isOccupied ? 'Occupied' : 'Vacant'}
                         </div>
                     </div>
                 </div>
@@ -96,8 +96,8 @@ export default function UnitCard({ unit, fmtRent, onRemove, onMasterReset, onEdi
                         </button>
                     </>
                 ) : (
-                    <button onClick={handleShareVacancy} className="flex-1 btn-primary py-3 text-[10px] font-black uppercase bg-[#1a6a3c] shadow-lg shadow-[#1a6a3c]/10">
-                        <Send size={14} strokeWidth={3} /> Send Invitation
+                    <button onClick={() => onEdit(unit)} className="flex-1 btn-primary py-3 text-[10px] font-black uppercase bg-[#1a6a3c] shadow-lg shadow-[#1a6a3c]/10">
+                        <Send size={14} strokeWidth={3} /> Add Tenant
                     </button>
                 )}
             </div>
