@@ -14,12 +14,9 @@ import {
   sendPasswordResetEmail,
 } from 'firebase/auth';
 import {
-  getFirestore,
-  collection, collectionGroup, doc,
-  addDoc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
-  query, where, orderBy, onSnapshot, limit,
   serverTimestamp, Timestamp, writeBatch,
 } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 export { serverTimestamp };
 
@@ -36,6 +33,7 @@ const firebaseConfig = {
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const functions = getFunctions(app);
 
 // ════════════════════════════════════════════════════════════════════════════
 // AUTH
@@ -528,3 +526,17 @@ export const clearAllNotifications = async (uid) => {
   snap.docs.slice(0, 500).forEach(d => batchOp.delete(d.ref));
   await batchOp.commit();
 };
+
+// ════════════════════════════════════════════════════════════════════════════
+// CLOUD FUNCTIONS (Secure RPCs)
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Accept a unit invite link (Securely handled on server)
+ */
+export const callAcceptUnitInvite = (data) => httpsCallable(functions, 'acceptUnitInvite')(data);
+
+/**
+ * Approve a tenant join request (Securely handled on server)
+ */
+export const callApproveTenantRequest = (data) => httpsCallable(functions, 'approveTenantRequest')(data);
