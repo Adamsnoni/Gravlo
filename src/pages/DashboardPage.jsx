@@ -13,7 +13,7 @@ import {
   callApproveTenantRequest
 } from "../services/firebase";
 import { subscribeTenancies } from "../services/tenancy";
-import { toast } from "react-hot-toast";
+import toast from "react-hot-toast";
 import { CornerLeaf, Avatar } from "../components/Shared/Branding";
 import { StatCard } from "../components/Dashboard/StatCard";
 import { RevenueChart } from "../components/Dashboard/RevenueChart";

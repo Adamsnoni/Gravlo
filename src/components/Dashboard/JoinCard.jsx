@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Avatar } from '../Shared/Branding';
-import { toast } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 
 /**
  * Icon - Simple inline SVG icon wrapper.
