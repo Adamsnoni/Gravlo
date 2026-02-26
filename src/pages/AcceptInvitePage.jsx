@@ -81,6 +81,8 @@ export default function AcceptInvitePage() {
                 }
 
                 setInviteData(data);
+                // Save token for registration/login redirect survival
+                savePendingInvite(token);
 
                 // Decide starting step
                 if (data.unitId) {

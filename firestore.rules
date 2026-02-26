@@ -96,8 +96,8 @@ service cloud.firestore {
 
     // ── Invite tokens ─────────────────────────────────────────────────────────
     match /inviteTokens/{tokenId} {
-      // Allow targeted read for token verification, forbid sweeping `.get()` lists
-      allow get: if request.auth != null;
+      // Allow public get for unauthenticated prospects to verify links
+      allow get: if true;
       allow list: if false;
       // Allow ONLY the landlord to create/revoke tokens. Acceptance is handled by CF.
       allow create, delete: if request.auth != null && request.resource.data.landlordUid == request.auth.uid;

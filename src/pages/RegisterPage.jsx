@@ -260,7 +260,7 @@ const Screen1 = ({ data, onChange, errors }) => {
           fontFamily: "'DM Sans', sans-serif",
           transition: 'border-color 0.2s, box-shadow 0.2s',
         }}
-        onClick={() => toast.error('Google Sign-in is coming soon.')}
+        onClick={() => toast.error('Cloud identity integration is currently being optimized.')}
       >
         <GoogleIcon />
         Continue with Google

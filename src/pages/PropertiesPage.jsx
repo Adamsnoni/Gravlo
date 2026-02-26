@@ -1,7 +1,7 @@
 // src/pages/PropertiesPage.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
     Plus,
     Search,
@@ -54,6 +54,8 @@ export default function PropertiesPage() {
     const { user } = useAuth();
     const { fmt, country } = useLocale();
     const navigate = useNavigate();
+    const location = useLocation();
+    const queryParams = new URLSearchParams(location.search);
 
     const [properties, setProperties] = useState([]);
     const [allUnits, setAllUnits] = useState({}); // Map of propertyId -> units[]
@@ -116,6 +118,13 @@ export default function PropertiesPage() {
         return subscribeLandlordInvoices(user.uid, setInvoices);
     }, [user]);
 
+    // 6. Handle query params (auto-open form)
+    useEffect(() => {
+        if (queryParams.get('add') === 'true') {
+            setShowForm(true);
+        }
+    }, [location.search]);
+
     const propertiesWithCounts = useMemo(() => {
         return properties.map(p => {
             const units = allUnits[p.id] || [];
@@ -166,6 +175,11 @@ export default function PropertiesPage() {
             toast.success('Asset Initialized.');
             setShowForm(false);
             setForm({ name: '', address: '', type: 'Apartment', description: '', unitsCount: '' });
+
+            // Redirect back if coming from dashboard/empty state
+            if (queryParams.get('from') === 'dashboard') {
+                navigate('/dashboard');
+            }
         } catch (err) {
             toast.error('Failed to create property.');
         } finally {

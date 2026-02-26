@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { listenAuth, subscribeProfile, logoutUser, checkPropertiesExist } from '../services/firebase';
+import { listenAuth, subscribeProfile, logoutUser, checkPropertiesExist, subscribeProperties } from '../services/firebase';
 
 const AuthContext = createContext(null);
 
@@ -11,12 +11,11 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let unsubProfile = null;
+    let unsubProps = null;
     const unsubAuth = listenAuth(async (firebaseUser) => {
-      // Cleanup previous profile subscription if user changes
-      if (unsubProfile) {
-        unsubProfile();
-        unsubProfile = null;
-      }
+      // Cleanup previous subscriptions if user changes
+      if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+      if (unsubProps) { unsubProps(); unsubProps = null; }
 
       if (firebaseUser) {
         setLoading(true);
@@ -26,11 +25,15 @@ export function AuthProvider({ children }) {
         unsubProfile = subscribeProfile(firebaseUser.uid, async (prof) => {
           setProfile(prof || null);
 
-          // For landlords, check if they have any properties
+          // For landlords, subscribe to property existence
           if (prof?.role === 'landlord' || (!prof && !firebaseUser.isAnonymous)) {
-            const exists = await checkPropertiesExist(firebaseUser.uid);
-            setHasProperties(exists);
+            if (!unsubProps) {
+              unsubProps = subscribeProperties(firebaseUser.uid, (list) => {
+                setHasProperties(list.length > 0);
+              });
+            }
           } else {
+            if (unsubProps) { unsubProps(); unsubProps = null; }
             setHasProperties(false);
           }
 
@@ -53,6 +56,7 @@ export function AuthProvider({ children }) {
     return () => {
       unsubAuth();
       if (unsubProfile) unsubProfile();
+      if (unsubProps) unsubProps();
     };
   }, []);
 

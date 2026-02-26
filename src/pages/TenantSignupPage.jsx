@@ -7,6 +7,8 @@ import {
     ArrowRight, ChevronRight, Eye, EyeOff, ShieldCheck
 } from 'lucide-react';
 import { registerUser } from '../services/firebase';
+import { consumePendingInvite } from './AcceptInvitePage';
+import { acceptInviteToken } from '../services/inviteTokens';
 import toast from 'react-hot-toast';
 
 export default function TenantSignupPage() {
@@ -68,6 +70,24 @@ export default function TenantSignupPage() {
             });
 
             toast.success('Account created successfully!');
+
+            // Process pending invite if it exists
+            const pendingToken = consumePendingInvite();
+            if (pendingToken) {
+                try {
+                    await acceptInviteToken(pendingToken, {
+                        uid: user.uid,
+                        email: form.email.trim().toLowerCase(),
+                        displayName: form.fullName.trim()
+                    });
+                    toast.success('You have been added to your unit!');
+                } catch (inviteErr) {
+                    console.error('Pending invite accept failed:', inviteErr);
+                    // Non-blocking but warn user
+                    toast.error('Failed to auto-join unit. Redirecting to dashboard.');
+                }
+            }
+
             // Redirect back to context or tenant portal
             navigate(redirectPath);
         } catch (err) {

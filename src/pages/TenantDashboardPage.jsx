@@ -210,7 +210,7 @@ export default function TenantDashboardPage() {
             <div className="flex items-center justify-between mb-8">
               <h3 style={{ fontFamily: "'Fraunces',serif", color: "#1a2e22", fontSize: 20, fontWeight: 800, margin: 0 }} className="flex items-center gap-2">
                 <Building2 className="text-[#1a6a3c]" size={20} />
-                Your Active Property
+                Your Active Home
               </h3>
               {activeHomes.length > 0 && (
                 <Link to="/tenant/payments" style={{ fontSize: 13, fontWeight: 700, color: "#1a6a3c" }} className="hover:underline flex items-center gap-1">
@@ -224,7 +224,7 @@ export default function TenantDashboardPage() {
                 <div className="w-16 h-16 rounded-full bg-[#f4fbf7] flex items-center justify-center text-[#cce8d8] mb-4">
                   <Home size={32} />
                 </div>
-                <p className="text-[#6b8a7a] font-medium">No active properties found.</p>
+                <p className="text-[#6b8a7a] font-medium">No active Home found.</p>
                 <p className="text-[#94a3a8] text-sm mt-1">Once a landlord approves your request, it will appear here.</p>
               </div>
             ) : (

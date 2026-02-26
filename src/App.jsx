@@ -17,7 +17,8 @@ import SettingsPage from './pages/SettingsPage';
 import ProfilePage from './pages/ProfilePage';
 import PropertySuccessPage from './pages/PropertySuccessPage';
 import SubscriptionPage from './pages/SubscriptionPage';
-import OnboardingPage from './pages/OnboardingPage';
+
+import GravloLandlordEmptyState from './pages/GravloLandlordEmptyState';
 import TenantDashboardPage from './pages/TenantDashboardPage';
 import TenantPaymentsPage from './pages/TenantPaymentsPage';
 import TenantRemindersPage from './pages/TenantRemindersPage';
@@ -52,7 +53,6 @@ function ProtectedRoute({ children }) {
   if (!user) return <Navigate to="/login" replace />;
 
   // Landlords will now complete their profile during registration wizard
-  // The old OnboardingPage (property wizard) is now optional and accessible from the dashboard
   if (location.pathname === '/onboarding') {
     return <Navigate to="/dashboard" replace />;
   }
@@ -89,12 +89,19 @@ function AppRoutes() {
       {/* Public invite link — no auth required */}
       <Route path="/join/:token" element={<AcceptInvitePage />} />
 
-      <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
+
+
+      {/* Landlord Empty State (Outside AppShell) */}
+      {role === 'landlord' && !hasProperties && (
+        <Route path="/dashboard" element={<ProtectedRoute><GravloLandlordEmptyState /></ProtectedRoute>} />
+      )}
 
       <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
         {/* /dashboard is landlord-only; redirect tenants away immediately */}
         <Route path="/dashboard" element={
-          role === 'tenant' ? <Navigate to="/tenant" replace /> : <DashboardPage />
+          role === 'tenant' ? <Navigate to="/tenant" replace /> :
+            !hasProperties ? <Navigate to="/dashboard" replace /> : // Safety for path matching
+              <DashboardPage />
         } />
         <Route path="/tenant" element={<TenantDashboardPage />} />
         <Route path="/tenant/reminders" element={<TenantRemindersPage />} />
