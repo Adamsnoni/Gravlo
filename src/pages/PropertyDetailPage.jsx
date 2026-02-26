@@ -60,11 +60,9 @@ export default function PropertyDetailPage() {
   const [unitToDelete, setUnitToDelete] = useState(null);
   const [showPropDeleteConfirm, setShowPropDeleteConfirm] = useState(false);
 
-  // Remove tenant confirm
-  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-  const [removeUnit, setRemoveUnit] = useState(null);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [resetUnit, setResetUnit] = useState(null);
+  // Vacate unit confirm (Consolidated Move Out & Reset)
+  const [showVacateConfirm, setShowVacateConfirm] = useState(false);
+  const [vacateUnit, setVacateUnit] = useState(null);
 
   // Property invite link state
   const [propertyInviteLink, setPropertyInviteLink] = useState(null);
@@ -198,54 +196,16 @@ export default function PropertyDetailPage() {
     }
   };
 
-  const handleMoveOutTenant = async () => {
-    if (!removeUnit) return;
-    setUnitSaving(true);
-    try {
-      // 1. Terminate any active leases immediately (direct unit cleanup)
-      // We do this first to ensure the core logic executes even if invoice lookup fails
-      await terminateActiveLeasesForUnit(user.uid, id, removeUnit.id);
-
-      // 2. Clear unit record for immediate UI feedback
-      await updateUnit(user.uid, id, removeUnit.id, {
-        tenantId: null,
-        tenantName: '',
-        tenantEmail: '',
-        status: 'vacant',
-        rentStatus: null,
-      });
-
-      // 3. Attempt secondary cleanup (non-blocking)
-      try {
-        const activeTenancy = await getActiveTenancy(user.uid, id, removeUnit.id);
-        if (activeTenancy) {
-          await cancelPendingInvoices(user.uid, activeTenancy.id);
-        }
-      } catch (cleanupErr) {
-        console.warn("Non-blocking cleanup warning:", cleanupErr);
-        // We ignore this to ensure the main move-out succeeds
-      }
-
-      toast.success(`Tenant moved out. Unit is now vacant.`);
-      setShowRemoveConfirm(false);
-      setRemoveUnit(null);
-    } catch (err) {
-      console.error("Critical move-out error:", err);
-      toast.error('Error terminating lease. Please check your connection.');
-    } finally {
-      setUnitSaving(false);
-    }
-  };
-
-  const handleResetUnitTenantMaster = async () => {
-    if (!resetUnit) return;
+  const handleVacateUnit = async () => {
+    if (!vacateUnit) return;
     setUnitSaving(true);
     try {
       // 1. Master Reset Service call (Terminates all active leases without guards)
-      await resetUnitTenancyMaster(user.uid, id, resetUnit.id);
+      // This is the most reliable way to vacate a unit as it bypasses broken termination logic
+      await resetUnitTenancyMaster(user.uid, id, vacateUnit.id);
 
       // 2. Immediate Unit record update (Optimistic path)
-      await updateUnit(user.uid, id, resetUnit.id, {
+      await updateUnit(user.uid, id, vacateUnit.id, {
         tenantId: null,
         tenantName: '',
         tenantEmail: '',
@@ -254,12 +214,12 @@ export default function PropertyDetailPage() {
         billingCycle: 'yearly' // Reset to default
       });
 
-      toast.success(`Master Reset Successful: ${resetUnit.name} is now vacant.`);
-      setShowResetConfirm(false);
-      setResetUnit(null);
+      toast.success(`${vacateUnit.name} has been vacated and is now ready for new tenants.`);
+      setShowVacateConfirm(false);
+      setVacateUnit(null);
     } catch (err) {
-      console.error(err);
-      toast.error('Master Reset failed.');
+      console.error("Vacate Error:", err);
+      toast.error('Failed to vacate unit. Please try again.');
     } finally {
       setUnitSaving(false);
     }
@@ -498,8 +458,7 @@ export default function PropertyDetailPage() {
                         landlordUid={user.uid}
                         propertyId={id}
                         propertyName={property?.name || ''}
-                        onRemove={() => { setRemoveUnit(unit); setShowRemoveConfirm(true); }}
-                        onMasterReset={() => { setResetUnit(unit); setShowResetConfirm(true); }}
+                        onVacate={(u) => { setVacateUnit(u); setShowVacateConfirm(true); }}
                         onEdit={(u) => { setEditingUnit(u); setShowAddUnit(true); }}
                         onDelete={(u) => { setUnitToDelete(u); setShowDeleteConfirm(true); }}
                       />
@@ -693,22 +652,22 @@ export default function PropertyDetailPage() {
         defaultRent={property?.RentPrice || ''}
       />
 
-      <Modal isOpen={showRemoveConfirm} onClose={() => setShowRemoveConfirm(false)} title="Registry Termination" size="sm">
+      <Modal isOpen={showVacateConfirm} onClose={() => setShowVacateConfirm(false)} title="Registry Reset" size="sm">
         <div className="p-2 space-y-6">
           <div className="p-6 rounded-[2rem] bg-[#fff5f5] border border-[#fee2e2] text-center">
             <div className="w-16 h-16 bg-white border border-[#fee2e2] rounded-3xl mx-auto flex items-center justify-center text-[#e74c3c] mb-4 shadow-sm">
               <UserMinus size={32} />
             </div>
-            <h4 className="font-fraunces text-[#1a2e22] text-xl font-black italic mb-2">Move Out Tenant?</h4>
+            <h4 className="font-fraunces text-[#1a2e22] text-xl font-black italic mb-2">Vacate Unit?</h4>
             <p className="text-sm text-[#94a3a8] font-medium leading-relaxed">
-              Confirming this will move <span className="text-[#1a2e22] font-black">{removeUnit?.tenantName || 'Resident'}</span> from <span className="text-[#1a2e22] font-black">{removeUnit?.name}</span>. Historical data remains protected.
+              Confirming this will instantly remove <span className="text-[#1a2e22] font-black">{vacateUnit?.tenantName || 'Resident'}</span> from <span className="text-[#1a2e22] font-black">{vacateUnit?.name}</span> and mark the unit as vacant. This action is final and bypasses all termination guards.
             </p>
           </div>
           <div className="flex flex-col gap-3">
-            <button onClick={handleMoveOutTenant} disabled={unitSaving} className="w-full btn-danger py-4 text-sm font-black uppercase tracking-widest shadow-xl">
-              {unitSaving ? 'Processing...' : 'Confirm Termination'}
+            <button onClick={handleVacateUnit} disabled={unitSaving} className="w-full btn-danger py-4 text-sm font-black uppercase tracking-widest shadow-xl">
+              {unitSaving ? 'Wiping Registry...' : 'Vacate Immediately'}
             </button>
-            <button onClick={() => setShowRemoveConfirm(false)} className="w-full btn-secondary py-4 text-sm font-black uppercase tracking-widest border-transparent hover:bg-gray-100">Disregard</button>
+            <button onClick={() => setShowVacateConfirm(false)} className="w-full btn-secondary py-4 text-sm font-black uppercase tracking-widest border-transparent hover:bg-gray-100">Cancel</button>
           </div>
         </div>
       </Modal>
@@ -733,25 +692,6 @@ export default function PropertyDetailPage() {
         </div>
       </Modal>
 
-      <Modal isOpen={showResetConfirm} onClose={() => setShowResetConfirm(false)} title="Master Reset Registry" size="sm">
-        <div className="p-2 space-y-6">
-          <div className="p-6 rounded-[2rem] bg-[#f5f0ff] border border-[#ddd6fe] text-center">
-            <div className="w-16 h-16 bg-white border border-[#ddd6fe] rounded-3xl mx-auto flex items-center justify-center text-[#7c3aed] mb-4 shadow-sm">
-              <RefreshCw size={32} />
-            </div>
-            <h4 className="font-fraunces text-[#1a2e22] text-xl font-black italic mb-2">Forced Reset?</h4>
-            <p className="text-sm text-[#94a3a8] font-medium leading-relaxed">
-              This will instantly remove <span className="text-[#1a2e22] font-black">{resetUnit?.tenantName || 'Resident'}</span> from <span className="text-[#1a2e22] font-black">{resetUnit?.name}</span> and bypass all financial guards. This action is final.
-            </p>
-          </div>
-          <div className="flex flex-col gap-3">
-            <button onClick={handleResetUnitTenantMaster} disabled={unitSaving} className="w-full bg-[#7c3aed] text-white py-4 text-sm font-black uppercase tracking-widest shadow-xl rounded-xl hover:bg-[#6d28d9] transition-all">
-              {unitSaving ? 'Resetting...' : 'Execute Master Reset'}
-            </button>
-            <button onClick={() => setShowResetConfirm(false)} className="w-full btn-secondary py-4 text-sm font-black uppercase tracking-widest border-transparent hover:bg-gray-100">Disregard</button>
-          </div>
-        </div>
-      </Modal>
 
       <Modal isOpen={showPropDeleteConfirm} onClose={() => setShowPropDeleteConfirm(false)} title="Final Confirmation" size="sm">
         <div className="p-2 space-y-6">
