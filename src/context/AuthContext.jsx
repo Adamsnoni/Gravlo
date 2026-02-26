@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { listenAuth, getProfile, logoutUser, checkPropertiesExist } from '../services/firebase';
+import { listenAuth, subscribeProfile, logoutUser, checkPropertiesExist } from '../services/firebase';
 
 const AuthContext = createContext(null);
 
@@ -10,13 +10,20 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = listenAuth(async (firebaseUser) => {
+    let unsubProfile = null;
+    const unsubAuth = listenAuth(async (firebaseUser) => {
+      // Cleanup previous profile subscription if user changes
+      if (unsubProfile) {
+        unsubProfile();
+        unsubProfile = null;
+      }
+
       if (firebaseUser) {
         setLoading(true);
         setUser(firebaseUser);
 
-        try {
-          const prof = await getProfile(firebaseUser.uid);
+        // Real-time profile listener
+        unsubProfile = subscribeProfile(firebaseUser.uid, async (prof) => {
           setProfile(prof || null);
 
           // For landlords, check if they have any properties
@@ -33,19 +40,20 @@ export function AuthProvider({ children }) {
               localStorage.setItem('gravlo_locale', JSON.stringify({ countryCode: prof.countryCode }));
             } catch { /* ignore */ }
           }
-        } catch (err) {
-          console.error('Auth check error:', err);
-          setProfile(null);
-          setHasProperties(false);
-        }
+          setLoading(false);
+        });
       } else {
         setUser(null);
         setProfile(null);
         setHasProperties(false);
+        setLoading(false);
       }
-      setLoading(false);
     });
-    return unsub;
+
+    return () => {
+      unsubAuth();
+      if (unsubProfile) unsubProfile();
+    };
   }, []);
 
   const logout = () => logoutUser();

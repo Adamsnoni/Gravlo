@@ -52,7 +52,7 @@ export async function createInvoice({
     tenantEmail = '',
     amount,
     currency = 'NGN',
-    billingCycle = 'monthly',
+    billingCycle = 'yearly',
     dueDate,
 }) {
     const invoiceNumber = generateInvoiceNumber();

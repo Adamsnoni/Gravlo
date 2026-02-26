@@ -25,6 +25,13 @@ import toast from "react-hot-toast";
 
 // ── Components ──────────────────────────────────────────────
 
+function getSafeDate(d) {
+    if (!d) return null;
+    const date = d.toDate?.() || new Date(d);
+    return isNaN(date.getTime()) ? null : date;
+}
+
+
 const CornerLeaf = ({ size = 64, opacity = 0.07, color = "#1a3c2e" }) => (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ position: "absolute", top: 0, right: 0, pointerEvents: "none" }}>
         <path d="M64 0C64 0 42 6 36 22C32 34 40 46 40 46C40 46 56 34 64 18Z" fill={color} opacity={opacity} />
@@ -79,16 +86,33 @@ export default function TenantMaintenancePage() {
 
     useEffect(() => {
         if (!user?.uid) return;
+
+        // Safety timeout to ensure loading is cleared
+        const safetyTimer = setTimeout(() => {
+            setLoading(false);
+        }, 7000);
+
         const unsubTickets = subscribeTenantMaintenance(user.uid, (data) => {
             setTickets(data);
             setLoading(false);
+        }, (err) => {
+            console.error("Maintenance subscription failed:", err);
+            setLoading(false);
         });
+
         const unsubTenancies = subscribeTenantTenancies(user.uid, (data) => {
-            setTenancies(data.filter(t => t.status === 'active'));
+            const active = data.filter(t => t.status === 'active');
+            setTenancies(active);
+            setLoading(false);
+        }, (err) => {
+            console.error("Tenancies subscription failed:", err);
+            setLoading(false);
         });
+
         return () => {
-            unsubTickets();
-            unsubTenancies();
+            unsubTickets?.();
+            unsubTenancies?.();
+            clearTimeout(safetyTimer);
         };
     }, [user?.uid]);
 
@@ -234,7 +258,12 @@ export default function TenantMaintenancePage() {
                                             <p className="text-sm text-[#6b8a7a] mb-2 line-clamp-2">{t.description || "No description provided."}</p>
                                             <div className="flex items-center gap-4 text-[10px] font-black text-[#94a3b8] uppercase tracking-widest">
                                                 <span className="flex items-center gap-1"><Hash size={12} /> {t.unitName}</span>
-                                                <span className="flex items-center gap-1"><Clock size={12} /> {t.createdAt ? format(t.createdAt?.toDate?.() || new Date(t.createdAt), 'MMM d, yyyy') : 'No date'}</span>
+                                                <span className="flex items-center gap-1">
+                                                    <Clock size={12} /> {(() => {
+                                                        const d = getSafeDate(t.createdAt);
+                                                        return d ? format(d, 'MMM d, yyyy') : 'No date';
+                                                    })()}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>

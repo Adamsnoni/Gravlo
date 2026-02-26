@@ -71,7 +71,7 @@ export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUn
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         {/* Rent Val */}
                         <div>
-                            <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-3 block">Standard Rent ({currencySymbol}) *</label>
+                            <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-3 block">Yearly Rent ({currencySymbol}) *</label>
                             <div className="relative">
                                 <div className="absolute left-5 top-1/2 -translate-y-1/2 text-[#1a6a3c] font-black text-sm pointer-events-none">
                                     {currencySymbol}
@@ -87,21 +87,7 @@ export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUn
                             </div>
                         </div>
 
-                        {/* Frequency */}
-                        <div>
-                            <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-3 block">Billing Frequency</label>
-                            <div className="relative">
-                                <Calendar size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-[#cce8d8] pointer-events-none" />
-                                <select
-                                    className="w-full bg-[#f4fbf7] border border-[#ddf0e6] rounded-2xl pl-12 pr-5 py-4 text-[#1a2e22] font-semibold text-sm focus:ring-4 focus:ring-[#1a6a3c]/5 focus:border-[#1a6a3c] transition-all appearance-none cursor-pointer"
-                                    value={form.billingCycle}
-                                    onChange={set('billingCycle')}
-                                >
-                                    <option value="monthly">Monthly Cycle</option>
-                                    <option value="yearly">Yearly Cycle</option>
-                                </select>
-                            </div>
-                        </div>
+                        {/* Frequency removed - yearly only */}
                     </div>
 
                     {/* Resident Status */}

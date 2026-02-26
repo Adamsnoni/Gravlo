@@ -21,10 +21,7 @@ import { RENT_TYPES } from '../utils/formatRent';
 import toast from 'react-hot-toast';
 
 const TYPES = ['Apartment', 'House', 'Studio', 'Duplex', 'Commercial', 'Other'];
-const BILLING = [
-    { value: 'monthly', label: 'Monthly' },
-    { value: 'yearly', label: 'Yearly' },
-];
+// Yearly-only system
 
 const makeUnit = (idx, prefix = 'Unit') => ({
     id: crypto.randomUUID(),
@@ -127,7 +124,7 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
                 await addUnit(user.uid, createdPropertyId, {
                     unitName: u.unitName.trim(),
                     rentAmount: parseInt(u.rentAmount) || 0,
-                    billingCycle: u.billingCycle || 'monthly',
+                    billingCycle: 'yearly',
                     status: u.tenantName || u.tenantEmail ? 'occupied' : 'vacant',
                     tenantId: null,
                     tenantName: u.tenantName || '',
@@ -321,8 +318,7 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
                         {/* Column headers */}
                         <div className="grid grid-cols-12 gap-2 px-1">
                             <span className="col-span-3 font-body text-[11px] font-semibold text-stone-400 uppercase tracking-wider">Unit Name</span>
-                            <span className="col-span-3 font-body text-[11px] font-semibold text-stone-400 uppercase tracking-wider">Rent ({currencySymbol})</span>
-                            <span className="col-span-3 font-body text-[11px] font-semibold text-stone-400 uppercase tracking-wider">Billing</span>
+                            <span className="col-span-6 font-body text-[11px] font-semibold text-stone-400 uppercase tracking-wider">Yearly Rent ({currencySymbol})</span>
                             <span className="col-span-3 font-body text-[11px] font-semibold text-stone-400 uppercase tracking-wider">Tenant (opt.)</span>
                         </div>
 
@@ -346,24 +342,14 @@ export default function CreatePropertyWithUnitsModal({ isOpen, onClose, property
                                             />
                                         </div>
                                         {/* Rent */}
-                                        <div className="col-span-3">
+                                        <div className="col-span-6">
                                             <input
                                                 className="input-base text-sm h-9"
                                                 type="number"
-                                                placeholder="e.g. 150000"
+                                                placeholder="e.g. 1500000"
                                                 value={unit.rentAmount}
                                                 onChange={e => setUnit(unit.id, 'rentAmount', e.target.value)}
                                             />
-                                        </div>
-                                        {/* Billing */}
-                                        <div className="col-span-3">
-                                            <select
-                                                className="input-base text-sm h-9"
-                                                value={unit.billingCycle}
-                                                onChange={e => setUnit(unit.id, 'billingCycle', e.target.value)}
-                                            >
-                                                {BILLING.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-                                            </select>
                                         </div>
                                         {/* Tenant toggle */}
                                         <div className="col-span-3 flex items-center gap-1">

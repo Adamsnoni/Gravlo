@@ -107,7 +107,7 @@ export default function DashboardPage() {
   const symbol = country?.symbol || "₦";
   const totalUnits = properties.reduce((acc, p) => acc + (p.unitsCount || 0), 0);
   const occupiedCount = properties.reduce((acc, p) => acc + (p.occupiedCount || 0), 0);
-  const revenue = properties.reduce((acc, p) => acc + (p.monthlyRevenue || 0), 0);
+  const revenue = properties.reduce((acc, p) => acc + (p.monthlyRevenue || 0), 0); // Using monthlyRevenue field as Yearly total
   const occupancyRate = totalUnits > 0 ? Math.round((occupiedCount / totalUnits) * 100) : 0;
 
   const urgentReminders = reminders.filter(r => {
@@ -198,7 +198,7 @@ export default function DashboardPage() {
       {/* Stat cards Grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20, marginBottom: 24 }}>
         <StatCard
-          label="Monthly Revenue" value={fmtShort(revenue, symbol)}
+          label="Yearly Revenue" value={fmtShort(revenue, symbol)}
           sub="Current period" subColor="#1a6a3c"
           icon={<Icon d={Icons.trending} size={20} />} accentBg="#e8f5ee" accentColor="#1a6a3c" borderColor="#cce8d8" delay={0}
         />
@@ -227,7 +227,7 @@ export default function DashboardPage() {
             <div>
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94a3b8", margin: "0 0 6px", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Revenue Trend</p>
               <p style={{ fontSize: 32, fontWeight: 900, color: "#0f2318", margin: "0 0 4px", fontFamily: "'Fraunces',serif", lineHeight: 1, letterSpacing: "-0.025em" }}>{fmt(revenue, symbol)}</p>
-              <p style={{ fontSize: 13, color: "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Current monthly billing</p>
+              <p style={{ fontSize: 13, color: "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Current yearly billing</p>
             </div>
           </div>
           <RevenueChart data={mockHistory} symbol={symbol} />
@@ -289,7 +289,7 @@ export default function DashboardPage() {
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
                     <p style={{ fontSize: 15, fontWeight: 800, color: "#1a6a3c", margin: "0 0 2px", fontFamily: "'Fraunces',serif" }}>{fmtShort(prop.monthlyRevenue || 0, symbol)}</p>
-                    <p style={{ fontSize: 10, color: "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>/month</p>
+                    <p style={{ fontSize: 10, color: "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>/year</p>
                   </div>
                 </div>
               );

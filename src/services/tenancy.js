@@ -33,7 +33,7 @@ export async function createTenancy({
     unitName = '',
     propertyName = '',
     rentAmount,
-    billingCycle = 'monthly',
+    billingCycle = 'yearly',
     currency = 'NGN',
     ...rest
 }) {
@@ -57,7 +57,7 @@ export async function createTenancy({
         endDate: null,
         closedAt: null,
         invoiceSchedulingEnabled: true,
-        nextInvoiceDate: calculateNextInvoiceDate(billingCycle),
+        nextInvoiceDate: calculateNextInvoiceDate(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         ...rest
@@ -132,13 +132,17 @@ export function subscribeTenancies(landlordId, cb, onError) {
 }
 
 /** Subscribe to all tenancies for a specific tenant (active + former). */
-export function subscribeTenantTenancies(tenantId, cb) {
+export function subscribeTenantTenancies(tenantId, cb, errCb) {
     return onSnapshot(
         query(collection(db, 'tenancies'), where('tenantId', '==', tenantId)),
         (snap) => {
             cb(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         },
-        (error) => console.error("Error in subscribeTenantTenancies:", error)
+        (error) => {
+            console.error("Error in subscribeTenantTenancies:", error);
+            if (errCb) errCb(error);
+            else cb([]); // Resolve with empty array on error
+        }
     );
 }
 
@@ -159,13 +163,9 @@ export function subscribeUnitTenancyHistory(propertyId, unitId, cb) {
 // HELPERS
 // ════════════════════════════════════════════════════════════════════════════
 
-function calculateNextInvoiceDate(billingCycle) {
+function calculateNextInvoiceDate() {
     const now = new Date();
-    switch (billingCycle) {
-        case 'yearly': return Timestamp.fromDate(new Date(now.getFullYear() + 1, now.getMonth(), 1));
-        case 'weekly': return Timestamp.fromDate(new Date(now.getTime() + 7 * 86400000));
-        case 'daily': return Timestamp.fromDate(new Date(now.getTime() + 86400000));
-        case 'monthly':
-        default: return Timestamp.fromDate(new Date(now.getFullYear(), now.getMonth() + 1, 1));
-    }
+    // Start date = confirmed yearly payment date.
+    // End date = payment date + 365 days.
+    return Timestamp.fromDate(new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000));
 }

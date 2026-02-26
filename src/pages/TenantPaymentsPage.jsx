@@ -26,6 +26,13 @@ import toast from "react-hot-toast";
 
 // ── Components ──────────────────────────────────────────────
 
+function getPaymentDate(p) {
+  const d = p?.paidDate || p?.recordedAt || p?.createdAt || p?.timestamp;
+  if (!d) return new Date();
+  const date = d.toDate?.() || new Date(d);
+  return isNaN(date.getTime()) ? new Date() : date;
+}
+
 const CornerLeaf = ({ size = 64, opacity = 0.07, color = "#1a3c2e" }) => (
   <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ position: "absolute", top: 0, right: 0, pointerEvents: "none" }}>
     <path d="M64 0C64 0 42 6 36 22C32 34 40 46 40 46C40 46 56 34 64 18Z" fill={color} opacity={opacity} />
@@ -75,8 +82,16 @@ export default function TenantPaymentsPage() {
   useEffect(() => {
     if (!user?.uid) return;
 
+    // Safety timeout to ensure loading is cleared
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 7000);
+
     const u1 = subscribeTenantPayments(user.uid, (d) => {
       setPayments(d);
+      setLoading(false);
+    }, (err) => {
+      console.error("Payments subscription failed:", err);
       setLoading(false);
     });
 
@@ -86,11 +101,16 @@ export default function TenantPaymentsPage() {
       if (active.length > 0 && !selectedTenancyId) {
         setSelectedTenancyId(active[0].id);
       }
+      setLoading(false);
+    }, (err) => {
+      console.error("Tenancies subscription failed:", err);
+      setLoading(false);
     });
 
     return () => {
       u1?.();
       u2?.();
+      clearTimeout(safetyTimer);
     };
   }, [user?.uid]);
 
@@ -176,7 +196,7 @@ export default function TenantPaymentsPage() {
         />
         <StatCard
           label="Last Payment" value={lastPayment ? fmt(lastPayment.amount, symbol) : "—"}
-          sub={lastPayment ? format(lastPayment.createdAt?.toDate?.() || new Date(lastPayment.createdAt), "MMM d, yyyy") : "No history found"}
+          sub={lastPayment ? format(getPaymentDate(lastPayment), "MMM d, yyyy") : "No history found"}
           icon={<Clock size={20} />} accentBg="#eff6ff" accentColor="#2563eb" borderColor="#bfdbfe" delay={0.05}
         />
         <StatCard
@@ -205,7 +225,7 @@ export default function TenantPaymentsPage() {
             ) : (
               <div className="space-y-4">
                 {payments.map((p, i) => {
-                  const date = p.createdAt?.toDate?.() || new Date(p.createdAt);
+                  const date = getPaymentDate(p);
                   return (
                     <motion.div
                       key={p.id}
@@ -264,7 +284,7 @@ export default function TenantPaymentsPage() {
               </div>
               <h3 style={{ fontFamily: "'Fraunces',serif" }} className="text-2xl font-black mb-3 italic">Instant Rent Settlement</h3>
               <p className="text-white/60 text-sm font-medium mb-8 leading-relaxed">
-                Choose your residence to process your monthly remittance through our secure verified gateways.
+                Choose your residence to process your yearly remittance through our secure verified gateways.
               </p>
 
               <div className="space-y-4">

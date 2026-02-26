@@ -26,6 +26,16 @@ import { subscribeTenantPayments, subscribeReminders } from "../services/firebas
 import { subscribeTenantTenancies } from "../services/tenancy";
 
 // ── Components ──────────────────────────────────────────────
+function getSafeDate(d) {
+  if (!d) return new Date();
+  const date = d.toDate?.() || new Date(d);
+  return isNaN(date.getTime()) ? new Date() : date;
+}
+
+function getPaymentDate(p) {
+  const d = p?.paidDate || p?.recordedAt || p?.createdAt || p?.timestamp;
+  return getSafeDate(d);
+}
 
 const CornerLeaf = ({ size = 64, opacity = 0.07, color = "#1a3c2e" }) => (
   <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ position: "absolute", top: 0, right: 0, pointerEvents: "none" }}>
@@ -187,7 +197,7 @@ export default function TenantDashboardPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, marginBottom: 32 }}>
         <StatCard
           label="Rent Obligations" value={fmt(yearlyRent, symbol)}
-          sub="Total monthly commitment"
+          sub="Total yearly commitment"
           icon={<CreditCard size={20} strokeWidth={2.5} />} accentBg="#fef9ed" accentColor="#c8691a" borderColor="#f5e0b8" delay={0.05}
         />
       </div>
@@ -247,7 +257,7 @@ export default function TenantDashboardPage() {
                       </div>
                       <div className="text-left md:text-right border-t md:border-0 pt-4 md:pt-0 border-[#f0f7f2]">
                         <p style={{ fontFamily: "'Fraunces',serif" }} className="text-xl font-black text-[#1a2e22] mb-0.5">
-                          {fmtRent(h.monthlyRent || h.rentAmount || 0, h.rentType || h.billingCycle || 'monthly')}
+                          {fmtRent(h.monthlyRent || h.rentAmount || 0, 'yearly')}
                         </p>
                       </div>
                     </div>
@@ -298,7 +308,7 @@ export default function TenantDashboardPage() {
             ) : (
               <div className="space-y-3">
                 {reminders.slice(0, 3).map(r => {
-                  const due = r.dueDate?.toDate?.() ?? new Date(r.dueDate);
+                  const due = getSafeDate(r.dueDate);
                   return (
                     <div key={r.id} className="p-4 rounded-2xl bg-white border border-[#f5e0b8] shadow-sm relative overflow-hidden group">
                       <div className="absolute top-0 left-0 w-1 h-full bg-[#c8691a]" />

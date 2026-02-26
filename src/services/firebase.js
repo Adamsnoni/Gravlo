@@ -80,6 +80,9 @@ export const getProfile = async (uid) => {
   return snap.exists() ? snap.data() : null;
 };
 
+export const subscribeProfile = (uid, cb) =>
+  onSnapshot(doc(db, 'users', uid), (snap) => cb(snap.exists() ? snap.data() : null));
+
 export const updateUserProfile = (uid, data) =>
   updateDoc(doc(db, 'users', uid), { ...data, updatedAt: serverTimestamp() });
 
@@ -144,7 +147,7 @@ export const subscribePayments = (uid, propId, cb) =>
     cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
 
 // For tenants: watch all payments across landlords/properties for this tenant UID
-export const subscribeTenantPayments = (tenantId, cb) =>
+export const subscribeTenantPayments = (tenantId, cb, errCb) =>
   onSnapshot(
     query(
       collectionGroup(db, 'payments'),
@@ -152,10 +155,20 @@ export const subscribeTenantPayments = (tenantId, cb) =>
     ),
     (snap) => {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      docs.sort((a, b) => (b.paidDate?.toMillis?.() || 0) - (a.paidDate?.toMillis?.() || 0));
+      docs.sort((a, b) => {
+        const da = a.paidDate || a.recordedAt || a.createdAt || a.timestamp;
+        const db = b.paidDate || b.recordedAt || b.createdAt || b.timestamp;
+        const ta = da?.toMillis?.() || (da instanceof Date ? da.getTime() : new Date(da).getTime()) || 0;
+        const tb = db?.toMillis?.() || (db instanceof Date ? db.getTime() : new Date(db).getTime()) || 0;
+        return tb - ta;
+      });
       cb(docs);
     },
-    (error) => console.error("Error subscribing to payments:", error)
+    (error) => {
+      console.error("Error subscribing to payments:", error);
+      if (errCb) errCb(error);
+      else cb([]);
+    }
   );
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -294,6 +307,11 @@ export const subscribeTenantMaintenance = (tenantId, cb) =>
       });
       docs.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
       cb(docs);
+    },
+    (error) => {
+      console.error("Error subscribing to maintenance tickets:", error);
+      if (errCb) errCb(error);
+      else cb([]); // Resolve with empty array on error to prevent infinite loading
     }
   );
 

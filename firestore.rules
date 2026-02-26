@@ -14,6 +14,20 @@ service cloud.firestore {
       );
     }
 
+    match /{path=**}/payments/{payId} {
+      allow read: if request.auth != null && (
+        resource.data.landlordId == request.auth.uid || 
+        resource.data.tenantId == request.auth.uid
+      );
+    }
+
+    match /{path=**}/maintenance/{ticketId} {
+      allow read: if request.auth != null && (
+        resource.data.landlordId == request.auth.uid || 
+        resource.data.tenantId == request.auth.uid
+      );
+    }
+
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
 
@@ -41,7 +55,10 @@ service cloud.firestore {
 
         // ── Maintenance ───────────────────────────────────────────────────────────
         match /maintenance/{ticketId} {
-          allow read, write: if request.auth != null && request.auth.uid == uid;
+          allow read: if request.auth != null && (request.auth.uid == uid || resource.data.tenantId == request.auth.uid);
+          allow write: if request.auth != null && request.auth.uid == uid;
+          // Tenants can create maintenance tickets
+          allow create: if request.auth != null && request.resource.data.tenantId == request.auth.uid;
         }
       }
 

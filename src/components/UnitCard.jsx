@@ -57,14 +57,14 @@ export default function UnitCard({ unit, fmtRent, onRemove, onEdit, onDelete, pr
                 <div>
                     <label className="text-[9px] font-black text-[#94a3a8] uppercase tracking-[0.15em] mb-1 block">Rental Amount</label>
                     <p className="font-fraunces font-black text-[#1a2e22] tracking-tight">
-                        {fmtRent ? fmtRent(unit.rentAmount || 0, unit.billingCycle || 'monthly') : `${currencySymbol}${unit.rentAmount || 0}`}
+                        {fmtRent ? fmtRent(unit.rentAmount || 0, 'yearly') : `${currencySymbol}${unit.rentAmount || 0}`}
                     </p>
                 </div>
                 <div className="text-right">
-                    <label className="text-[9px] font-black text-[#94a3a8] uppercase tracking-[0.15em] mb-1 block">Billing Cycle</label>
+                    <label className="text-[9px] font-black text-[#94a3a8] uppercase tracking-[0.15em] mb-1 block">Billing Context</label>
                     <div className="flex items-center justify-end gap-1.5 text-[#1a2e22] font-bold text-xs capitalize">
                         <Calendar size={12} className="text-[#1a6a3c]" />
-                        {unit.billingCycle || 'Monthly'}
+                        Yearly Cycle
                     </div>
                 </div>
             </div>

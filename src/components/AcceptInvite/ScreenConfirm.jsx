@@ -69,7 +69,7 @@ export const ScreenConfirm = ({ data, unit, propertyName, landlordName }) => (
             {[
                 { label: 'Unit', value: unit?.name },
                 { label: 'Floor', value: unit?.floor || 'Ground Floor' },
-                { label: 'Monthly Rent', value: fmt(unit?.rentAmount || unit?.rent || 0, unit?.currencySymbol || unit?.symbol || '₦'), highlight: true },
+                { label: 'Yearly Rent', value: fmt(unit?.rentAmount || unit?.rent || 0, unit?.currencySymbol || unit?.symbol || '₦'), highlight: true },
                 { label: 'Your Name', value: data.fullName },
                 { label: 'Your Email', value: data.email },
                 { label: 'Your Phone', value: data.phone },

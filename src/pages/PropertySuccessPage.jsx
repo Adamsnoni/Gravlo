@@ -27,12 +27,12 @@ export default function PropertySuccessPage() {
     const { fmt, currencySymbol } = useLocale();
 
     // Data passed via navigate state from PropertiesPage
-    const { propertyId, propertyName, inviteCode, monthlyRent = 0, rentType = 'monthly' } = location.state || {};
+    const { propertyId, propertyName, inviteCode, monthlyRent = 0, rentType = 'yearly' } = location.state || {};
 
     // Invoice preview computations
     const securityDeposit = monthlyRent; // Default: 1× rent
     const totalDue = monthlyRent + securityDeposit;
-    const dueDate = format(addDays(new Date(), 30), 'MMM d, yyyy');
+    const dueDate = format(addDays(new Date(), 365), 'MMM d, yyyy');
 
     const [view, setView] = useState('main'); // 'main' | 'invite' | 'units'
     const [code, setCode] = useState(inviteCode || '');
@@ -45,7 +45,7 @@ export default function PropertySuccessPage() {
     const [prefix, setPrefix] = useState('1');
     const [generating, setGenerating] = useState(false);
     const [unitsCreated, setUnitsCreated] = useState(0); // 0 = not yet, >0 = count created
-    const [billingCycle, setBillingCycle] = useState('monthly');
+    const [billingCycle, setBillingCycle] = useState('yearly');
     const [rentPrice, setRentPrice] = useState('');
 
     // Safety: if someone lands here directly without state, redirect
@@ -226,8 +226,8 @@ export default function PropertySuccessPage() {
 
                                     {/* Line items */}
                                     <div className="divide-y divide-stone-100">
-                                        <InvoiceRow label="Rent Amount" value={fmt(monthlyRent)} />
-                                        <InvoiceRow label="Security Deposit" value={fmt(securityDeposit)} sub="1× monthly rent" />
+                                        <InvoiceRow label="Rent Amount" value={fmt(monthlyRent)} sub="Yearly Valuation" />
+                                        <InvoiceRow label="Security Deposit" value={fmt(securityDeposit)} sub="1× yearly rent" />
                                         <InvoiceRow
                                             label="Due Date"
                                             value={dueDate}
@@ -383,37 +383,7 @@ export default function PropertySuccessPage() {
                                     </p>
                                 </div>
 
-                                {/* Payment Frequency */}
-                                <div>
-                                    <label className="block font-body text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2">
-                                        Payment Frequency
-                                    </label>
-                                    <div className="flex bg-stone-100 p-1 rounded-xl">
-                                        <button
-                                            type="button"
-                                            onClick={() => setBillingCycle('monthly')}
-                                            className={`flex-1 py-2 text-sm font-body font-medium rounded-lg transition-all ${billingCycle === 'monthly'
-                                                ? 'bg-white text-ink shadow-sm'
-                                                : 'text-stone-500 hover:text-ink hover:bg-white/50'
-                                                }`}
-                                        >
-                                            Monthly
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setBillingCycle('yearly')}
-                                            className={`flex-1 py-2 text-sm font-body font-medium rounded-lg transition-all ${billingCycle === 'yearly'
-                                                ? 'bg-white text-ink shadow-sm'
-                                                : 'text-stone-500 hover:text-ink hover:bg-white/50'
-                                                }`}
-                                        >
-                                            Yearly
-                                        </button>
-                                    </div>
-                                    <p className="font-body text-xs text-stone-400 mt-2">
-                                        This applies to all units generated below.
-                                    </p>
-                                </div>
+                                {/* Payment Frequency removed - yearly only */}
 
                                 {/* Live preview */}
                                 <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">

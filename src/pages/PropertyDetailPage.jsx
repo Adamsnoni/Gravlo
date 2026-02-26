@@ -301,7 +301,7 @@ export default function PropertyDetailPage() {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-6 p-6 bg-[#fcfdfc] rounded-[2rem] border border-[#f0f7f2] flex-shrink-0 w-full lg:w-80">
-              <HeroStat label="Valuation" value={fmtRent(property.monthlyRent, property.rentType)} accent color="#1a6a3c" />
+              <HeroStat label="Valuation" value={fmtRent(property.monthlyRent, 'yearly')} accent color="#1a6a3c" />
               <HeroStat label="Occupancy" value={`${occupiedCount}/${units.length}`} accent color="#c8691a" />
               <HeroStat label="Collected" value={fmt(totalPaid)} />
               <HeroStat label="Active Units" value={units.length} />
