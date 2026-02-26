@@ -202,20 +202,39 @@ export default function PropertyDetailPage() {
     if (!removeUnit) return;
     setUnitSaving(true);
     try {
-      const activeTenancy = await getActiveTenancy(user.uid, id, removeUnit.id);
-      if (activeTenancy) {
-        await terminateActiveLeasesForUnit(user.uid, id, removeUnit.id);
-        await cancelPendingInvoices(user.uid, activeTenancy.id);
-      }
+      // 1. Terminate any active leases immediately (direct unit cleanup)
+      // We do this first to ensure the core logic executes even if invoice lookup fails
+      await terminateActiveLeasesForUnit(user.uid, id, removeUnit.id);
+
+      // 2. Clear unit record for immediate UI feedback
       await updateUnit(user.uid, id, removeUnit.id, {
-        tenantId: null, tenantName: '', tenantEmail: '', status: 'vacant',
+        tenantId: null,
+        tenantName: '',
+        tenantEmail: '',
+        status: 'vacant',
         rentStatus: null,
       });
+
+      // 3. Attempt secondary cleanup (non-blocking)
+      try {
+        const activeTenancy = await getActiveTenancy(user.uid, id, removeUnit.id);
+        if (activeTenancy) {
+          await cancelPendingInvoices(user.uid, activeTenancy.id);
+        }
+      } catch (cleanupErr) {
+        console.warn("Non-blocking cleanup warning:", cleanupErr);
+        // We ignore this to ensure the main move-out succeeds
+      }
+
       toast.success(`Tenant moved out. Unit is now vacant.`);
       setShowRemoveConfirm(false);
       setRemoveUnit(null);
-    } catch (err) { toast.error('Error terminating lease.'); }
-    finally { setUnitSaving(false); }
+    } catch (err) {
+      console.error("Critical move-out error:", err);
+      toast.error('Error terminating lease. Please check your connection.');
+    } finally {
+      setUnitSaving(false);
+    }
   };
 
   const handleResetUnitTenantMaster = async () => {
