@@ -28,7 +28,7 @@ const TENANT_NAV = [
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
-export default function AppShell() {
+export default function AppShell({ children }) {
   const { user, profile, logout } = useAuth();
   const { country, currencySymbol } = useLocale();
   const navigate = useNavigate();
@@ -192,7 +192,7 @@ export default function AppShell() {
 
         {/* Page Content */}
         <div className="flex-1 px-4 py-6 sm:px-8 sm:py-10 max-w-7xl w-full mx-auto relative z-10">
-          <Outlet />
+          {children || <Outlet />}
         </div>
       </main>
 

@@ -68,11 +68,28 @@ function PublicRoute({ children }) {
   return <Navigate to={role === 'tenant' ? '/tenant' : '/dashboard'} replace />;
 }
 
+function DashboardResolver() {
+  const { profile, hasProperties } = useAuth();
+  const role = profile?.role || 'landlord';
+
+  if (role === 'tenant') return <Navigate to="/tenant" replace />;
+
+  if (!hasProperties) {
+    return <GravloLandlordEmptyState />;
+  }
+
+  return (
+    <AppShell>
+      <DashboardPage />
+    </AppShell>
+  );
+}
+
 function AppRoutes() {
-  const { profile, loading, user, hasProperties } = useAuth();
+  const { profile, loading, user, hasProperties, propertyLoading } = useAuth();
 
   // Don't render any routes until all data has resolved — prevents role-based flash and race conditions
-  if (loading || (user && (profile === undefined || hasProperties === undefined))) return <LoadingSpinner />;
+  if (loading || (user && (profile === undefined || propertyLoading))) return <LoadingSpinner />;
 
   const role = profile?.role || 'landlord';
 
@@ -89,22 +106,12 @@ function AppRoutes() {
       {/* Public invite link — no auth required */}
       <Route path="/join/:token" element={<AcceptInvitePage />} />
 
-
-
-      {/* Landlord Empty State (Outside AppShell) */}
-      {role === 'landlord' && !hasProperties && (
-        <Route path="/dashboard" element={<ProtectedRoute><GravloLandlordEmptyState /></ProtectedRoute>} />
-      )}
+      <Route path="/dashboard" element={<ProtectedRoute><DashboardResolver /></ProtectedRoute>} />
 
       <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
-        {/* /dashboard is landlord-only; redirect tenants away immediately */}
-        <Route path="/dashboard" element={
-          role === 'tenant' ? <Navigate to="/tenant" replace /> :
-            !hasProperties ? <Navigate to="/dashboard" replace /> : // Safety for path matching
-              <DashboardPage />
-        } />
         <Route path="/tenant" element={<TenantDashboardPage />} />
         <Route path="/tenant/reminders" element={<TenantRemindersPage />} />
+
         <Route path="/tenant/maintenance" element={<TenantMaintenancePage />} />
         <Route path="/properties" element={<PropertiesPage />} />
         <Route path="/properties/:id" element={<PropertyDetailPage />} />
