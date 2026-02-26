@@ -29,6 +29,8 @@ import AcceptInvitePage from './pages/AcceptInvitePage';
 import NotificationsPage from './pages/NotificationsPage';
 import ArchivedTenantsPage from './pages/ArchivedTenantsPage';
 import RequestApprovalPage from './pages/RequestApprovalPage';
+import TenantSignupPage from './pages/TenantSignupPage';
+import ApplyPortalPage from './pages/ApplyPortalPage';
 
 // Full-page spinner used while auth/profile resolves
 function LoadingSpinner() {
@@ -80,6 +82,8 @@ function AppRoutes() {
 
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+      <Route path="/signup-tenant" element={<PublicRoute><TenantSignupPage /></PublicRoute>} />
+      <Route path="/apply/:propertyId/:unitId" element={<ApplyPortalPage />} />
       <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
 
       {/* Public invite link — no auth required */}
