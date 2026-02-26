@@ -58,8 +58,8 @@ const Icons = {
 export default function DashboardPage() {
   const { user, profile } = useAuth();
   const { country } = useLocale();
-  const navigate = useNavigate();
   const role = profile?.role || 'landlord';
+  const navigate = useNavigate();
 
   const [properties, setProperties] = useState([]);
   const [reminders, setReminders] = useState([]);

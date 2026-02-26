@@ -19,6 +19,7 @@ export default function SettingsPage() {
   const { user, profile } = useAuth();
   const { country, countries, changeCountry, currencySymbol } = useLocale();
   const navigate = useNavigate();
+  const role = profile?.role || 'landlord';
   const [savingLocale, setSavingLocale] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState(profile?.countryCode || country.code);
 

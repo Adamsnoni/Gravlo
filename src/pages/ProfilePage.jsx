@@ -20,6 +20,7 @@ export default function ProfilePage() {
     const { user, profile, logout } = useAuth();
     const { country, currencyName, currencySymbol } = useLocale();
     const navigate = useNavigate();
+    const role = profile?.role || 'landlord';
     const [resetSent, setResetSent] = React.useState(false);
 
     const handleLogout = async () => {
@@ -45,7 +46,7 @@ export default function ProfilePage() {
         ? new Date(user.metadata.creationTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
         : '—';
 
-    const role = profile?.role || 'landlord';
+
     const userPlan = PLANS[profile?.subscription?.planId || 'free'] || PLANS.free;
 
     return (
