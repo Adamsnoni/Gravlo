@@ -71,6 +71,8 @@ export default function PropertyDetailPage() {
 
   // Settings tab state
   const [rentSetting, setRentSetting] = useState('');
+  const [serviceChargeEnabled, setServiceChargeEnabled] = useState(false);
+  const [serviceChargeAmount, setServiceChargeAmount] = useState('');
   const [settingsSaving, setSettingsSaving] = useState(false);
 
   useEffect(() => {
@@ -78,7 +80,11 @@ export default function PropertyDetailPage() {
     const u1 = subscribeProperties(user.uid, props => {
       const p = props.find(x => x.id === id);
       setProperty(p || null);
-      if (p) setRentSetting(p.RentPrice?.toString() || '');
+      if (p) {
+        setRentSetting(p.RentPrice?.toString() || '');
+        setServiceChargeEnabled(p.serviceCharge?.enabled || false);
+        setServiceChargeAmount(p.serviceCharge?.amount?.toString() || '');
+      }
       setLoading(false);
     });
     const u2 = subscribePayments(user.uid, id, setPayments);
@@ -143,11 +149,17 @@ export default function PropertyDetailPage() {
     finally { setGeneratingInvite(false); }
   };
 
-  const handleUpdateRentPrice = async () => {
+  const handleUpdateSettings = async () => {
     setSettingsSaving(true);
     try {
-      await updateProperty(user.uid, id, { RentPrice: rentSetting ? Number(rentSetting) : null });
-      toast.success('Default settings updated!');
+      await updateProperty(user.uid, id, {
+        RentPrice: rentSetting ? Number(rentSetting) : null,
+        serviceCharge: {
+          enabled: serviceChargeEnabled,
+          amount: Number(serviceChargeAmount) || 0,
+        }
+      });
+      toast.success('Property settings updated!');
     } catch { toast.error('Update failed.'); }
     finally { setSettingsSaving(false); }
   };
@@ -554,10 +566,10 @@ export default function PropertyDetailPage() {
                   </p>
 
                   <div className="space-y-6">
-                    <div>
-                      <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-3 block">Base Rent Valuation</label>
-                      <div className="flex gap-4">
-                        <div className="relative flex-1">
+                    <div className="space-y-8">
+                      <div>
+                        <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-3 block">Base Rent Valuation</label>
+                        <div className="relative">
                           <div className="absolute left-5 top-1/2 -translate-y-1/2 text-[#1a6a3c] font-black text-sm">
                             {currencySymbol}
                           </div>
@@ -569,12 +581,58 @@ export default function PropertyDetailPage() {
                             onChange={e => setRentSetting(e.target.value)}
                           />
                         </div>
+                      </div>
+
+                      <div className="p-6 rounded-2xl bg-[#f8faf9] border border-[#edf3f0] space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-white border border-[#edf3f0] flex items-center justify-center text-[#1a6a3c] shadow-sm">
+                              <CreditCard size={18} />
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-black text-[#1a2e22] uppercase tracking-tighter">Service Charge Billing</p>
+                              <p className="text-[9px] text-[#94a3a8] font-bold">Automated secondary invoice stream</p>
+                            </div>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={serviceChargeEnabled}
+                              onChange={e => setServiceChargeEnabled(e.target.checked)}
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1a6a3c]"></div>
+                          </label>
+                        </div>
+
+                        {serviceChargeEnabled && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="space-y-3 pt-2"
+                          >
+                            <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest block">Standard Yearly Service Charge ({currencySymbol})</label>
+                            <div className="relative">
+                              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#1a6a3c] font-black text-xs">{currencySymbol}</div>
+                              <input
+                                placeholder="0"
+                                type="number"
+                                className="w-full bg-white border border-[#ddf0e6] rounded-xl pl-10 pr-4 py-4 text-sm font-black text-[#1a2e22] outline-none"
+                                value={serviceChargeAmount}
+                                onChange={e => setServiceChargeAmount(e.target.value)}
+                              />
+                            </div>
+                          </motion.div>
+                        )}
+                      </div>
+
+                      <div className="pt-2">
                         <button
-                          onClick={handleUpdateRentPrice}
+                          onClick={handleUpdateSettings}
                           disabled={settingsSaving}
-                          className="btn-primary px-10 shadow-xl"
+                          className="w-full btn-primary py-4 rounded-2xl shadow-xl shadow-[#1a3c2e]/10"
                         >
-                          {settingsSaving ? <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" /> : 'Commit Update'}
+                          {settingsSaving ? <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin mx-auto" /> : <span className="flex items-center justify-center gap-2">Commit Property Standards <ArrowRight size={16} /></span>}
                         </button>
                       </div>
                     </div>
@@ -650,6 +708,7 @@ export default function PropertyDetailPage() {
         editUnit={editingUnit}
         currencySymbol={currencySymbol}
         defaultRent={property?.RentPrice || ''}
+        defaultServiceCharge={property?.serviceCharge?.amount || ''}
       />
 
       <Modal isOpen={showVacateConfirm} onClose={() => setShowVacateConfirm(false)} title="Registry Reset" size="sm">

@@ -90,6 +90,7 @@ export async function processPaymentWebhook({
     unitName,
     amount,
     currency,
+    type = 'rent', // 'rent' or 'service_charge'
     billingCycle = 'monthly',
     gatewayReference,
     method = 'online',
@@ -108,6 +109,7 @@ export async function processPaymentWebhook({
         propertyId,
         amount,
         currency,
+        type,
         invoiceId,
         gatewayReference,
         tenantName,
@@ -128,6 +130,7 @@ export async function processPaymentWebhook({
             landlordId,
             amount: Number(amount),
             currency,
+            type: type || 'rent',
             status: 'paid',
             method,
             gatewayReference,
@@ -135,24 +138,35 @@ export async function processPaymentWebhook({
         });
     }
 
-    // ── 3. Mark unit rent as PAID / update unit status ────────────────────
+    // ── 3. Mark unit as PAID / update unit status ────────────────────
     if (unitId) {
-        await updateUnit(landlordId, propertyId, unitId, {
-            lastPaymentId: paymentId,
-            lastPaymentDate: serverTimestamp(),
-            lastPaymentAmount: Number(amount),
-            rentStatus: 'paid',
-        });
+        const updateData = type === 'service_charge'
+            ? {
+                lastServiceChargeId: paymentId,
+                lastServiceChargeDate: serverTimestamp(),
+                lastServiceChargeAmount: Number(amount),
+                serviceChargeStatus: 'paid',
+            }
+            : {
+                lastPaymentId: paymentId,
+                lastPaymentDate: serverTimestamp(),
+                lastPaymentAmount: Number(amount),
+                rentStatus: 'paid',
+            };
+
+        await updateUnit(landlordId, propertyId, unitId, updateData);
     }
 
-    // ── 4. Reset / advance rent reminder ──────────────────────────────────
+    // ── 4. Reset / advance reminder ──────────────────────────────────
     const nextDueDate = getNextDueDate(billingCycle);
     try {
-        // Find and mark existing rent reminders as paid
+        // Find and mark existing reminders of the same type as paid
         const remSnap = await getDocs(
             query(
                 collection(db, 'users', landlordId, 'reminders'),
                 where('propertyId', '==', propertyId),
+                where('unitId', '==', unitId || null),
+                where('type', '==', type),
                 where('status', '!=', 'paid'),
             )
         );
@@ -162,13 +176,13 @@ export async function processPaymentWebhook({
 
         // Create next cycle's reminder
         await addReminder(landlordId, {
-            title: `Rent due — ${unitName || propertyName}`,
+            title: `${type === 'service_charge' ? 'Service Charge' : 'Rent'} due — ${unitName || propertyName}`,
             propertyId,
             unitId: unitId || null,
             dueDate: nextDueDate,
             amount: Number(amount),
             currency,
-            type: 'rent',
+            type: type,
             tenantName,
             tenantEmail,
         });

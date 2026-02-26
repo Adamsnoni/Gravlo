@@ -62,10 +62,19 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  const refreshProperties = async () => {
+    if (!user) return;
+    setPropertyLoading(true);
+    const exists = await checkPropertiesExist(user.uid);
+    setHasProperties(exists);
+    setPropertyLoading(false);
+    return exists;
+  };
+
   const logout = () => logoutUser();
 
   return (
-    <AuthContext.Provider value={{ user, profile, hasProperties, propertyLoading, loading, logout }}>
+    <AuthContext.Provider value={{ user, profile, hasProperties, propertyLoading, loading, logout, refreshProperties }}>
       {children}
     </AuthContext.Provider>
   );

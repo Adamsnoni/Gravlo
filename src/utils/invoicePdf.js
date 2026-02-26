@@ -41,8 +41,9 @@ export function generateInvoicePdf(payment) {
 
   let y = 20;
 
+  const typeLabel = payment.type === 'service_charge' ? 'Service Charge' : 'Rent';
   doc.setFontSize(18);
-  doc.text('Gravlo Rent Invoice', 20, y);
+  doc.text(`Gravlo ${typeLabel} Invoice`, 20, y);
   y += 8;
 
   doc.setFontSize(11);
@@ -108,6 +109,8 @@ export function generateInvoicePdf(payment) {
   y += 7;
   doc.setFontSize(11);
   doc.text(`Amount: ${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`, 20, y);
+  y += 5;
+  doc.text(`Type: ${typeLabel}`, 20, y);
   y += 5;
   doc.text(`Status: ${status}`, 20, y);
   y += 5;

@@ -111,6 +111,7 @@ export default function TenantDashboardPage() {
   const activeHomes = units.filter(h => h.status === 'active');
   const pastHomes = units.filter(h => h.status === 'former');
   const yearlyRent = activeHomes.reduce((s, h) => s + (h.rentAmount || 0), 0);
+  const yearlyServiceCharge = activeHomes.reduce((s, h) => s + (h.serviceChargeAmount || 0), 0);
   const symbol = country?.symbol || '₦';
 
   const [dismissedWelcome, setDismissedWelcome] = useState(() => {
@@ -194,12 +195,19 @@ export default function TenantDashboardPage() {
       </div>
 
       {/* Stat cards Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, marginBottom: 32 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20, marginBottom: 32 }}>
         <StatCard
           label="Rent Obligations" value={fmt(yearlyRent, symbol)}
           sub="Total yearly commitment"
-          icon={<CreditCard size={20} strokeWidth={2.5} />} accentBg="#fef9ed" accentColor="#c8691a" borderColor="#f5e0b8" delay={0.05}
+          icon={<CreditCard size={20} strokeWidth={2.5} />} accentBg="#f4fbf7" accentColor="#1a6a3c" borderColor="#cce8d8" delay={0.05}
         />
+        {yearlyServiceCharge > 0 && (
+          <StatCard
+            label="Service Charge" value={fmt(yearlyServiceCharge, symbol)}
+            sub="Modular services billing"
+            icon={<Sparkles size={20} strokeWidth={2.5} />} accentBg="#fef9ed" accentColor="#c8691a" borderColor="#f5e0b8" delay={0.1}
+          />
+        )}
       </div>
 
       {/* Main Content Grid */}
@@ -259,6 +267,11 @@ export default function TenantDashboardPage() {
                         <p style={{ fontFamily: "'Fraunces',serif" }} className="text-xl font-black text-[#1a2e22] mb-0.5">
                           {fmtRent(h.monthlyRent || h.rentAmount || 0, 'yearly')}
                         </p>
+                        {h.serviceChargeAmount > 0 && (
+                          <p className="text-[11px] font-bold text-[#c8691a] uppercase tracking-wider">
+                            + {fmtRent(h.serviceChargeAmount, 'yearly')} Service Charge
+                          </p>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -318,7 +331,10 @@ export default function TenantDashboardPage() {
                         </span>
                         <p style={{ fontFamily: "'Fraunces',serif" }} className="font-black text-[#1a2e22] leading-none">{fmt(r.amount || 0, symbol)}</p>
                       </div>
-                      <p className="text-sm font-bold text-[#1a2e22] truncate">{r.propertyName || 'Upcoming Rent'}</p>
+                      <p className="text-sm font-bold text-[#1a2e22] truncate">
+                        {r.propertyName || 'Upcoming Payment'}
+                        <span className="text-[10px] opacity-60 ml-2">({r.type === 'service_charge' ? 'S.C' : 'Rent'})</span>
+                      </p>
                       <p className="text-[10px] text-[#94a3a8] mt-1 font-bold uppercase tracking-wider italic">{r.unitName || 'Main Unit'}</p>
                     </div>
                   );

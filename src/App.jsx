@@ -69,12 +69,14 @@ function PublicRoute({ children }) {
 }
 
 function DashboardResolver() {
-  const { profile, hasProperties } = useAuth();
+  const { profile, hasProperties, propertyLoading } = useAuth();
   const role = profile?.role || 'landlord';
 
   if (role === 'tenant') return <Navigate to="/tenant" replace />;
 
-  if (!hasProperties) {
+  if (propertyLoading) return <LoadingSpinner />;
+
+  if (hasProperties === false) {
     return <GravloLandlordEmptyState />;
   }
 

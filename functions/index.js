@@ -41,19 +41,14 @@ exports.generateRecurringInvoices = onSchedule('every day 12:00', async (event) 
 
     for (const tenancyDoc of tenancies.docs) {
         const t = tenancyDoc.data();
-
-        // Generate invoice number
         const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-        const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
-        const invoiceNumber = `INV-${date}-${rand}`;
-
-        // Calculate due date (same as next invoice date)
         const dueDate = t.nextInvoiceDate;
 
-        // Create invoice document
-        const invoiceRef = db.collection('invoices').doc();
-        batch.set(invoiceRef, {
-            invoiceNumber,
+        // 1. Create Rent Invoice
+        const rentInvoiceNumber = `INV-R-${date}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+        const rentInvoiceRef = db.collection('invoices').doc();
+        batch.set(rentInvoiceRef, {
+            invoiceNumber: rentInvoiceNumber,
             tenancyId: tenancyDoc.id,
             tenantId: t.tenantId || null,
             landlordId: t.landlordId,
@@ -66,6 +61,7 @@ exports.generateRecurringInvoices = onSchedule('every day 12:00', async (event) 
             amount: t.rentAmount,
             currency: t.currency || 'NGN',
             billingCycle: t.billingCycle || 'monthly',
+            type: 'rent',
             status: 'sent',
             dueDate: dueDate,
             paidDate: null,
@@ -75,6 +71,38 @@ exports.generateRecurringInvoices = onSchedule('every day 12:00', async (event) 
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+        count++;
+
+        // 2. Create Service Charge Invoice (if enabled)
+        if (t.serviceChargeAmount && t.serviceChargeAmount > 0) {
+            const scInvoiceNumber = `INV-SC-${date}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+            const scInvoiceRef = db.collection('invoices').doc();
+            batch.set(scInvoiceRef, {
+                invoiceNumber: scInvoiceNumber,
+                tenancyId: tenancyDoc.id,
+                tenantId: t.tenantId || null,
+                landlordId: t.landlordId,
+                propertyId: t.propertyId,
+                unitId: t.unitId || null,
+                propertyName: t.propertyName || '',
+                unitName: t.unitName || '',
+                tenantName: t.tenantName || '',
+                tenantEmail: t.tenantEmail || '',
+                amount: t.serviceChargeAmount,
+                currency: t.currency || 'NGN',
+                billingCycle: t.billingCycle || 'monthly',
+                type: 'service_charge',
+                status: 'sent',
+                dueDate: dueDate,
+                paidDate: null,
+                paymentId: null,
+                gatewayReference: null,
+                pdfUrl: null,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            count++;
+        }
 
         // Advance nextInvoiceDate on the tenancy
         const nextDate = calculateNextDate(t.billingCycle, dueDate.toDate());
@@ -82,8 +110,6 @@ exports.generateRecurringInvoices = onSchedule('every day 12:00', async (event) 
             nextInvoiceDate: admin.firestore.Timestamp.fromDate(nextDate),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-
-        count++;
     }
 
     if (count > 0) {
@@ -219,11 +245,11 @@ exports.scheduleReminders = onSchedule('every day 08:00', async (event) => {
 
             if (!existingReminder.empty) continue;
 
-            const label = daysBefore === 1 ? 'tomorrow' : daysBefore === 7 ? 'in 7 days' : 'in 30 days';
+            const typeLabel = inv.type === 'service_charge' ? 'Service Charge' : 'Rent';
 
             // Create landlord reminder
             await db.collection('users').doc(inv.landlordId).collection('reminders').add({
-                title: `Rent due ${label} — ${inv.unitName || inv.propertyName}`,
+                title: `${typeLabel} due ${label} — ${inv.unitName || inv.propertyName}`,
                 propertyId: inv.propertyId,
                 unitId: inv.unitId || null,
                 invoiceId: invoiceDoc.id,
@@ -231,7 +257,7 @@ exports.scheduleReminders = onSchedule('every day 08:00', async (event) => {
                 dueDate: inv.dueDate,
                 amount: inv.amount,
                 currency: inv.currency || 'NGN',
-                type: 'rent',
+                type: inv.type || 'rent',
                 daysBefore,
                 tenantName: inv.tenantName || '',
                 tenantEmail: inv.tenantEmail || '',
@@ -242,7 +268,7 @@ exports.scheduleReminders = onSchedule('every day 08:00', async (event) => {
             // Create tenant reminder (if tenantId exists)
             if (inv.tenantId) {
                 await db.collection('users').doc(inv.tenantId).collection('reminders').add({
-                    title: `Rent payment due ${label} — ${inv.unitName || inv.propertyName}`,
+                    title: `${typeLabel} payment due ${label} — ${inv.unitName || inv.propertyName}`,
                     propertyId: inv.propertyId,
                     unitId: inv.unitId || null,
                     invoiceId: invoiceDoc.id,
@@ -250,7 +276,7 @@ exports.scheduleReminders = onSchedule('every day 08:00', async (event) => {
                     dueDate: inv.dueDate,
                     amount: inv.amount,
                     currency: inv.currency || 'NGN',
-                    type: 'rent',
+                    type: inv.type || 'rent',
                     daysBefore,
                     status: 'pending',
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -293,7 +319,12 @@ exports.createCheckoutSession = onRequest(async (req, res) => {
                         amount: Math.round(safeAmount * 100), // Paystack expects kobo/cents
                         currency: currency.toUpperCase(),
                         callback_url: successUrl,
-                        metadata: { landlordId, propertyId, ...metadata },
+                        metadata: {
+                            landlordId,
+                            propertyId,
+                            type: metadata.type || 'rent',
+                            ...metadata
+                        },
                     })
                 });
                 const data = await response.json();
@@ -340,6 +371,7 @@ exports.paystackWebhook = onRequest({ cors: false }, async (req, res) => {
             unitId: metadata.unitId || metadata.unit_id,
             amount: data.amount / 100,
             currency: (data.currency || 'NGN').toUpperCase(),
+            type: metadata.type || 'rent',
             gatewayReference: data.reference,
             gateway: 'paystack',
         });
@@ -386,7 +418,7 @@ exports.onTenancyClosed = onDocumentUpdated('tenancies/{tenancyId}', async (even
 // ════════════════════════════════════════════════════════════════════════════
 async function handleSuccessfulPayment({
     invoiceId, tenantId, landlordId, propertyId, unitId,
-    amount, currency, gatewayReference, gateway,
+    amount, currency, type = 'rent', gatewayReference, gateway,
 }) {
     // 0) Idempotency Check — protect against duplicate webhooks
     if (gatewayReference) {
@@ -400,7 +432,7 @@ async function handleSuccessfulPayment({
         }
     }
 
-    const paymentId = `PAY-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const paymentId = `PAY-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
     // 1) Mark invoice as paid
     if (invoiceId) {
@@ -440,6 +472,7 @@ async function handleSuccessfulPayment({
         unitId: unitId || null,
         amount: Number(amount),
         currency,
+        type: type || 'rent',
         status: 'paid',
         gateway,
         gatewayReference,
@@ -471,16 +504,26 @@ async function handleSuccessfulPayment({
 
     // 4) Update unit status
     if (landlordId && propertyId && unitId) {
-        await db.collection('users').doc(landlordId)
-            .collection('properties').doc(propertyId)
-            .collection('units').doc(unitId)
-            .update({
+        const unitUpdate = type === 'service_charge'
+            ? {
+                lastServiceChargeId: paymentId,
+                lastServiceChargeDate: admin.firestore.FieldValue.serverTimestamp(),
+                lastServiceChargeAmount: Number(amount),
+                serviceChargeStatus: 'paid',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }
+            : {
                 lastPaymentId: paymentId,
                 lastPaymentDate: admin.firestore.FieldValue.serverTimestamp(),
                 lastPaymentAmount: Number(amount),
                 rentStatus: 'paid',
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
+            };
+
+        await db.collection('users').doc(landlordId)
+            .collection('properties').doc(propertyId)
+            .collection('units').doc(unitId)
+            .update(unitUpdate);
     }
 
     // 5) Mark existing rent reminders as paid

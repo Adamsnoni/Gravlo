@@ -4,10 +4,11 @@ import { DoorOpen, Hash, Calendar, UserPlus, ArrowRight } from 'lucide-react';
 import Modal from './Modal';
 import toast from 'react-hot-toast';
 
-export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUnit = null, currencySymbol = '₦', defaultRent = '' }) {
+export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUnit = null, currencySymbol = '₦', defaultRent = '', defaultServiceCharge = '' }) {
     const [form, setForm] = useState({
         unitName: '',
         rentAmount: '',
+        serviceChargeAmount: '',
         billingCycle: 'yearly',
         tenantName: '',
         tenantEmail: '',
@@ -20,14 +21,22 @@ export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUn
             setForm({
                 unitName: editUnit.unitName || '',
                 rentAmount: editUnit.rentAmount?.toString() || '',
+                serviceChargeAmount: editUnit.serviceChargeAmount?.toString() || '',
                 billingCycle: editUnit.billingCycle || 'yearly',
                 tenantName: editUnit.tenantName || '',
                 tenantEmail: editUnit.tenantEmail || '',
             });
         } else {
-            setForm({ unitName: '', rentAmount: defaultRent ? defaultRent.toString() : '', billingCycle: 'yearly', tenantName: '', tenantEmail: '' });
+            setForm({
+                unitName: '',
+                rentAmount: defaultRent ? defaultRent.toString() : '',
+                serviceChargeAmount: defaultServiceCharge ? defaultServiceCharge.toString() : '',
+                billingCycle: 'yearly',
+                tenantName: '',
+                tenantEmail: ''
+            });
         }
-    }, [editUnit, isOpen, defaultRent]);
+    }, [editUnit, isOpen, defaultRent, defaultServiceCharge]);
 
     const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -39,6 +48,7 @@ export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUn
         onSubmit({
             unitName: form.unitName.trim(),
             rentAmount: parseFloat(form.rentAmount),
+            serviceChargeAmount: parseFloat(form.serviceChargeAmount) || 0,
             billingCycle: form.billingCycle,
             tenantName: form.tenantName.trim(),
             tenantEmail: form.tenantEmail.trim(),
@@ -89,7 +99,22 @@ export default function AddUnitModal({ isOpen, onClose, onSubmit, saving, editUn
                             </div>
                         </div>
 
-                        {/* Frequency removed - yearly only */}
+                        {/* Service Charge Val */}
+                        <div>
+                            <label className="text-[10px] font-black text-[#94a3a8] uppercase tracking-widest mb-3 block">Yearly S.C ({currencySymbol})</label>
+                            <div className="relative">
+                                <div className="absolute left-5 top-1/2 -translate-y-1/2 text-[#c8691a] font-black text-sm pointer-events-none">
+                                    {currencySymbol}
+                                </div>
+                                <input
+                                    className="w-full bg-[#f4fbf7] border border-[#ddf0e6] rounded-2xl pl-12 pr-5 py-4 text-[#1a2e22] font-black text-lg focus:ring-4 focus:ring-[#c8691a]/5 focus:border-[#c8691a] transition-all"
+                                    type="number"
+                                    placeholder="0"
+                                    value={form.serviceChargeAmount}
+                                    onChange={set('serviceChargeAmount')}
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     {/* Resident Status */}

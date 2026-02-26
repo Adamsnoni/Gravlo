@@ -50,6 +50,7 @@ export async function createTenancy({
         unitName,
         propertyName,
         rentAmount: Number(rentAmount) || 0,
+        serviceChargeAmount: Number(rest.serviceChargeAmount) || 0,
         billingCycle,
         currency,
         status: 'active',
@@ -60,7 +61,6 @@ export async function createTenancy({
         nextInvoiceDate: calculateNextInvoiceDate(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        ...rest
     };
 
     const docRef = await addDoc(collection(db, 'tenancies'), tenancyData);

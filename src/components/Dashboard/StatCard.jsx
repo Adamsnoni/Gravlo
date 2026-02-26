@@ -4,7 +4,7 @@ import { CornerLeaf } from '../Shared/Branding';
 /**
  * StatCard - A high-fidelity card for displaying metrics.
  */
-export const StatCard = ({ label, value, sub, subColor, icon, accentBg, accentColor, borderColor, delay = 0 }) => {
+export const StatCard = ({ label, value, sub, subColor, icon, accentBg, accentColor, borderColor, delay = 0, isLarge = false }) => {
     const [hov, setHov] = useState(false);
 
     return (
@@ -14,13 +14,13 @@ export const StatCard = ({ label, value, sub, subColor, icon, accentBg, accentCo
             style={{
                 background: "#fff",
                 border: `1.5px solid ${hov ? accentColor + "55" : borderColor || "#e2ede8"}`,
-                borderRadius: 20,
-                padding: "22px 24px",
+                borderRadius: 24,
+                padding: isLarge ? "32px 36px" : "22px 24px",
                 position: "relative",
                 overflow: "hidden",
                 animation: `slideUp 0.5s ease ${delay}s both`,
-                boxShadow: hov ? `0 12px 32px ${accentColor}18` : "0 1px 8px rgba(26,60,46,0.06)",
-                transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                boxShadow: hov ? `0 20px 48px ${accentColor}25` : "0 2px 12px rgba(26,60,46,0.06)",
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 transform: hov ? "translateY(-3px)" : "translateY(0)",
                 cursor: "default",
             }}
@@ -36,9 +36,18 @@ export const StatCard = ({ label, value, sub, subColor, icon, accentBg, accentCo
                 borderRadius: "20px 20px 0 0",
                 background: `linear-gradient(90deg, ${accentColor}, ${accentColor}40)`
             }} />
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 14, background: accentBg, display: "flex", alignItems: "center", justifyContent: "center", color: accentColor }}>
-                    {icon}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: isLarge ? 24 : 16 }}>
+                <div style={{
+                    width: isLarge ? 56 : 44,
+                    height: isLarge ? 56 : 44,
+                    borderRadius: isLarge ? 18 : 14,
+                    background: accentBg,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: accentColor
+                }}>
+                    {React.cloneElement(icon, { size: isLarge ? 24 : 20 })}
                 </div>
                 <span style={{
                     fontSize: 11,
@@ -51,7 +60,7 @@ export const StatCard = ({ label, value, sub, subColor, icon, accentBg, accentCo
                 }}>{label}</span>
             </div>
             <p style={{
-                fontSize: 32,
+                fontSize: isLarge ? 42 : 32,
                 fontWeight: 900,
                 color: "#0f2318",
                 margin: "0 0 6px",

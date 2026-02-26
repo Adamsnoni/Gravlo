@@ -48,6 +48,15 @@ export default function PaymentRow({ payment, isLast, showProperty, onDownloadIn
           <div className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest border ${s.bg} ${s.border} ${s.color}`}>
             {s.label}
           </div>
+          {payment.type === 'service_charge' ? (
+            <div className="inline-flex items-center px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest border bg-[#fcf3e8] border-[#f5e0b8] text-[#c8691a]">
+              S.C
+            </div>
+          ) : (
+            <div className="inline-flex items-center px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest border bg-[#f0f7f4] border-[#e2ede8] text-[#1a3c2e]">
+              Rent
+            </div>
+          )}
         </div>
 
         {showProperty && payment.propertyName ? (

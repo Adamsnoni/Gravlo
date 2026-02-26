@@ -78,6 +78,7 @@ export default function TenantPaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [selectedTenancyId, setSelectedTenancyId] = useState("");
+  const [selectedType, setSelectedType] = useState("rent"); // 'rent' or 'service_charge'
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -129,9 +130,12 @@ export default function TenantPaymentsPage() {
     const tenancy = tenancies.find((t) => t.id === selectedTenancyId);
     if (!tenancy) return;
 
-    const amount = tenancy.rentAmount || 0;
+    const amount = selectedType === 'service_charge'
+      ? (tenancy.serviceChargeAmount || 0)
+      : (tenancy.rentAmount || 0);
+
     if (!amount) {
-      toast.error("This residence has no rent valuation configured.");
+      toast.error(`This residence has no ${selectedType.replace('_', ' ')} valuation configured.`);
       return;
     }
 
@@ -150,6 +154,7 @@ export default function TenantPaymentsPage() {
         tenantName: profile?.fullName || user.displayName || "",
         amount,
         currency: tenancy.currency || "NGN",
+        type: selectedType,
       });
 
       if (res && res.url) {
@@ -246,6 +251,9 @@ export default function TenantPaymentsPage() {
                             <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${p.status === 'paid' ? 'bg-[#e8f5ee] text-[#1a6a3c]' : 'bg-[#fff5f5] text-[#e74c3c]'}`}>
                               {p.status}
                             </span>
+                            <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest border ${p.type === 'service_charge' ? 'bg-[#fcf3e8] border-[#f5e0b8] text-[#c8691a]' : 'bg-[#f4fbf7] border-[#ddf0e6] text-[#1a6a3c]'}`}>
+                              {p.type === 'service_charge' ? 'S.C' : 'Rent'}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -295,7 +303,10 @@ export default function TenantPaymentsPage() {
                     <select
                       className="w-full bg-white/10 border border-white/20 rounded-xl pl-11 pr-4 py-4 text-white font-bold text-sm focus:ring-4 focus:ring-white/5 focus:border-white/40 transition-all appearance-none cursor-pointer"
                       value={selectedTenancyId}
-                      onChange={e => setSelectedTenancyId(e.target.value)}
+                      onChange={e => {
+                        setSelectedTenancyId(e.target.value);
+                        setSelectedType("rent"); // Reset to rent on change
+                      }}
                       disabled={!hasActiveHomes}
                     >
                       <option value="" className="text-black">
@@ -303,12 +314,44 @@ export default function TenantPaymentsPage() {
                       </option>
                       {tenancies.map(t => (
                         <option key={t.id} value={t.id} className="text-black">
-                          {t.propertyName} ({fmt(t.rentAmount || 0, symbol)})
+                          {t.propertyName} · {t.unitName}
                         </option>
                       ))}
                     </select>
                   </div>
                 </div>
+
+                {selectedTenancyId && tenancies.find(t => t.id === selectedTenancyId)?.serviceChargeAmount > 0 && (
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                    <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 block">Settlement Class</label>
+                    <div className="grid grid-cols-2 gap-2 bg-white/5 p-1 rounded-xl border border-white/10">
+                      <button
+                        onClick={() => setSelectedType("rent")}
+                        className={`py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedType === 'rent' ? 'bg-white text-[#1a3c2e] shadow-lg' : 'text-white/40 hover:text-white/70'}`}
+                      >
+                        Base Rent
+                      </button>
+                      <button
+                        onClick={() => setSelectedType("service_charge")}
+                        className={`py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedType === 'service_charge' ? 'bg-[#c8691a] text-white shadow-lg' : 'text-white/40 hover:text-white/70'}`}
+                      >
+                        Service Charge
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {selectedTenancyId && (
+                  <div className="p-5 rounded-2xl bg-white/5 border border-white/10 mt-2">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Target Amount ({symbol})</p>
+                    <p className="text-2xl font-black text-white font-fraunces">
+                      {fmt(selectedType === 'service_charge'
+                        ? tenancies.find(t => t.id === selectedTenancyId)?.serviceChargeAmount
+                        : tenancies.find(t => t.id === selectedTenancyId)?.rentAmount,
+                        symbol)}
+                    </p>
+                  </div>
+                )}
 
                 <button
                   onClick={handleCreatePayment}

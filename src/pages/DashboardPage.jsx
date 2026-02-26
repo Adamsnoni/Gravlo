@@ -10,7 +10,8 @@ import {
   subscribeReminders,
   subscribePendingUnits,
   subscribeNotifications,
-  callApproveTenantRequest
+  callApproveTenantRequest,
+  subscribeUnits
 } from "../services/firebase";
 import { subscribeTenancies } from "../services/tenancy";
 import toast from "react-hot-toast";
@@ -65,6 +66,7 @@ export default function DashboardPage() {
   const [reminders, setReminders] = useState([]);
   const [pendingUnits, setPendingUnits] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [allUnits, setAllUnits] = useState({});
   const [approvingSaving, setApprovingSaving] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [greeting, setGreeting] = useState("Good morning");
@@ -87,6 +89,20 @@ export default function DashboardPage() {
     return () => { u1(); u2(); u3(); u4(); };
   }, [user]);
 
+  // Subscribe to Units for each property to calculate accurate revenue
+  useEffect(() => {
+    if (!user || properties.length === 0) return;
+    const unsubs = properties.map(p =>
+      subscribeUnits(user.uid, p.id, (units) => {
+        setAllUnits(prev => ({
+          ...prev,
+          [p.id]: units.map(u => ({ ...u, propertyId: p.id }))
+        }));
+      })
+    );
+    return () => unsubs.forEach(u => u());
+  }, [user, properties.length]);
+
   const approvePending = async (unit) => {
     setApprovingSaving(true);
     try {
@@ -107,7 +123,16 @@ export default function DashboardPage() {
   const symbol = country?.symbol || "₦";
   const totalUnits = properties.reduce((acc, p) => acc + (p.unitsCount || 0), 0);
   const occupiedCount = properties.reduce((acc, p) => acc + (p.occupiedCount || 0), 0);
-  const revenue = properties.reduce((acc, p) => acc + (p.monthlyRevenue || 0), 0); // Using monthlyRevenue field as Yearly total
+
+  // Dynamic Revenue Aggregation
+  const { rentRevenue, scRevenue } = Object.values(allUnits).flat().reduce((acc, unit) => {
+    const prop = properties.find(p => p.id === unit.propertyId);
+    acc.rentRevenue += (unit.rentAmount || unit.price || 0);
+    acc.scRevenue += (unit.serviceChargeAmount ?? prop?.serviceCharge?.amount ?? 0);
+    return acc;
+  }, { rentRevenue: 0, scRevenue: 0 });
+
+  const totalRevenue = rentRevenue + scRevenue;
   const occupancyRate = totalUnits > 0 ? Math.round((occupiedCount / totalUnits) * 100) : 0;
 
   const urgentReminders = reminders.filter(r => {
@@ -118,12 +143,12 @@ export default function DashboardPage() {
   }).slice(0, 5);
 
   const mockHistory = [
-    { month: "Sep", amount: revenue * 0.7 },
-    { month: "Oct", amount: revenue * 0.82 },
-    { month: "Nov", amount: revenue * 0.78 },
-    { month: "Dec", amount: revenue * 0.95 },
-    { month: "Jan", amount: revenue * 0.88 },
-    { month: "Feb", amount: revenue },
+    { month: "Sep", amount: totalRevenue * 0.7 },
+    { month: "Oct", amount: totalRevenue * 0.82 },
+    { month: "Nov", amount: totalRevenue * 0.78 },
+    { month: "Dec", amount: totalRevenue * 0.95 },
+    { month: "Jan", amount: totalRevenue * 0.88 },
+    { month: "Feb", amount: totalRevenue },
   ];
 
   if (dataLoading) {
@@ -195,27 +220,38 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      {/* Stat cards Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20, marginBottom: 24 }}>
+      {/* Financial Metrics — Primary Focus */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 24, marginBottom: 32 }}>
         <StatCard
-          label="Yearly Revenue" value={fmtShort(revenue, symbol)}
-          sub="Current period" subColor="#1a6a3c"
+          label="Rent Revenue" value={fmtShort(rentRevenue, symbol)}
+          sub="Yearly Projected" subColor="#1a6a3c"
           icon={<Icon d={Icons.trending} size={20} />} accentBg="#e8f5ee" accentColor="#1a6a3c" borderColor="#cce8d8" delay={0}
+          isLarge={true}
         />
+        <StatCard
+          label="Service Charge" value={fmtShort(scRevenue, symbol)}
+          sub="Yearly Projected" subColor="#c8691a"
+          icon={<Icon d="M21 12V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h7 M16 19l2 2 4-4" size={20} />} accentBg="#fcf3e8" accentColor="#c8691a" borderColor="#f5e0b8" delay={0.05}
+          isLarge={true}
+        />
+      </div>
+
+      {/* Operational Stats — Secondary Focus */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20, marginBottom: 32 }}>
         <StatCard
           label="Total Units" value={totalUnits}
           sub={`Across ${properties.length} properties`}
-          icon={<Icon d={Icons.building} size={20} />} accentBg="#fef9ed" accentColor="#c8691a" borderColor="#f5e0b8" delay={0.05}
+          icon={<Icon d={Icons.building} size={20} />} accentBg="#f0f7f4" accentColor="#1a3c2e" borderColor="#e2ede8" delay={0.1}
         />
         <StatCard
           label="Occupancy" value={`${occupancyRate}%`}
           sub={`${occupiedCount} occupied · ${totalUnits - occupiedCount} vacant`}
-          icon={<Icon d={Icons.users} size={20} />} accentBg="#eff6ff" accentColor="#2563eb" borderColor="#bfdbfe" delay={0.1}
+          icon={<Icon d={Icons.users} size={20} />} accentBg="#eff6ff" accentColor="#2563eb" borderColor="#bfdbfe" delay={0.15}
         />
         <StatCard
           label="Recent Alerts" value={urgentReminders.length + pendingUnits.length}
           sub="Require attention" icon={<Icon d={Icons.bell} size={20} />}
-          accentBg="#f5f0ff" accentColor="#7c3aed" borderColor="#ddd6fe" delay={0.15}
+          accentBg="#f5f0ff" accentColor="#7c3aed" borderColor="#ddd6fe" delay={0.2}
         />
       </div>
 
@@ -225,9 +261,9 @@ export default function DashboardPage() {
           <CornerLeaf size={80} opacity={0.06} color="#1a3c2e" />
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
             <div>
-              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94a3b8", margin: "0 0 6px", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Revenue Trend</p>
-              <p style={{ fontSize: 32, fontWeight: 900, color: "#0f2318", margin: "0 0 4px", fontFamily: "'Fraunces',serif", lineHeight: 1, letterSpacing: "-0.025em" }}>{fmt(revenue, symbol)}</p>
-              <p style={{ fontSize: 13, color: "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Current yearly billing</p>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94a3b8", margin: "0 0 6px", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Combined Portfolio Yield</p>
+              <p style={{ fontSize: 32, fontWeight: 900, color: "#0f2318", margin: "0 0 4px", fontFamily: "'Fraunces',serif", lineHeight: 1, letterSpacing: "-0.025em" }}>{fmt(totalRevenue, symbol)}</p>
+              <p style={{ fontSize: 13, color: "#94a3a8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Rent + Service Charge projection</p>
             </div>
           </div>
           <RevenueChart data={mockHistory} symbol={symbol} />
@@ -318,7 +354,10 @@ export default function DashboardPage() {
                     <p style={{ fontSize: 11, color: "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.propertyName} · {t.unitName}</p>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 800, color: "#dc2626", margin: "0 0 3px", fontFamily: "'Fraunces',serif" }}>{fmt(t.amount, symbol)}</p>
+                    <p style={{ fontSize: 14, fontWeight: 800, color: "#dc2626", margin: "0 0 3px", fontFamily: "'Fraunces',serif" }}>
+                      {fmt(t.amount, symbol)}
+                      <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 4 }}>({t.type === 'service_charge' ? 'S.C' : 'Rent'})</span>
+                    </p>
                     <span style={{ fontSize: 10, fontWeight: 700, color: "#dc2626", background: "#fef2f2", padding: "2px 7px", borderRadius: 99, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? "Due today" : `${days}d left`}</span>
                   </div>
                 </div>

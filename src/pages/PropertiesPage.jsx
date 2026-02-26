@@ -51,7 +51,7 @@ import { PropertyThumb } from '../components/Properties/PropertyThumb';
 // ── Main Page Component ─────────────────────────────────────
 
 export default function PropertiesPage() {
-    const { user } = useAuth();
+    const { user, refreshProperties } = useAuth();
     const { fmt, country } = useLocale();
     const navigate = useNavigate();
     const location = useLocation();
@@ -69,7 +69,15 @@ export default function PropertiesPage() {
     const [invitingPropId, setInvitingPropId] = useState(null);
     const [deletingPropId, setDeletingPropId] = useState(null);
     const [deletingUnitId, setDeletingUnitId] = useState(null);
-    const [form, setForm] = useState({ name: '', address: '', type: 'Apartment', description: '', unitsCount: '' });
+    const [form, setForm] = useState({
+        name: '',
+        address: '',
+        type: 'Apartment',
+        description: '',
+        unitsCount: '',
+        serviceChargeEnabled: false,
+        serviceChargeAmount: ''
+    });
     const [saving, setSaving] = useState(false); // Added saving state for addProperty
     const [showDeletePropConfirm, setShowDeletePropConfirm] = useState(false);
     const [propertyToDelete, setPropertyToDelete] = useState(null);
@@ -171,13 +179,26 @@ export default function PropertiesPage() {
                 type: form.type,
                 description: form.description,
                 status: 'vacant',
+                serviceCharge: {
+                    enabled: form.serviceChargeEnabled,
+                    amount: Number(form.serviceChargeAmount) || 0,
+                }
             });
             toast.success('Asset Initialized.');
             setShowForm(false);
-            setForm({ name: '', address: '', type: 'Apartment', description: '', unitsCount: '' });
+            setForm({
+                name: '',
+                address: '',
+                type: 'Apartment',
+                description: '',
+                unitsCount: '',
+                serviceChargeEnabled: false,
+                serviceChargeAmount: ''
+            });
 
             // Redirect back if coming from dashboard/empty state
             if (queryParams.get('from') === 'dashboard') {
+                if (refreshProperties) await refreshProperties();
                 navigate('/dashboard');
             }
         } catch (err) {
@@ -394,7 +415,7 @@ export default function PropertiesPage() {
 
                                             <td className="px-8 py-6">
                                                 <div className="font-black text-[#1a2e22] mb-1">{fmt(unit.price || unit.rentAmount || 0)}</div>
-                                                {isRentPaid ? (
+                                                {unit.rentStatus === 'paid' ? (
                                                     <span className="px-2 py-0.5 bg-[#e8f5ee] text-[#1a6a3c] rounded-md text-[9px] font-black uppercase tracking-wider border border-[#ddf0e6]">
                                                         Paid via Paystack
                                                     </span>
@@ -408,8 +429,10 @@ export default function PropertiesPage() {
                                             </td>
 
                                             <td className="px-8 py-6">
-                                                <div className="font-black text-[#1a2e22] mb-1">{fmt(selectedProperty.yearlyServiceCharge || 0)}</div>
-                                                {isScPaid ? (
+                                                <div className="font-black text-[#1a2e22] mb-1">
+                                                    {fmt(unit.serviceChargeAmount ?? selectedProperty.serviceCharge?.amount ?? 0)}
+                                                </div>
+                                                {unit.serviceChargeStatus === 'paid' ? (
                                                     <span className="px-2 py-0.5 bg-[#e8f5ee] text-[#1a6a3c] rounded-md text-[9px] font-black uppercase tracking-wider border border-[#ddf0e6]">
                                                         Paid via Paystack
                                                     </span>
@@ -627,6 +650,49 @@ export default function PropertiesPage() {
                                 onChange={e => setForm({ ...form, unitsCount: e.target.value })}
                             />
                         </div>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-[#f8faf9] border border-[#edf3f0] space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-white border border-[#edf3f0] flex items-center justify-center text-[#1a6a3c]">
+                                    <CreditCard size={14} />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-[#1a2e22] uppercase tracking-tighter">Service Charge</p>
+                                    <p className="text-[9px] text-[#94a3a8] font-bold">Additional modular billing</p>
+                                </div>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="sr-only peer"
+                                    checked={form.serviceChargeEnabled}
+                                    onChange={e => setForm({ ...form, serviceChargeEnabled: e.target.checked })}
+                                />
+                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1a6a3c]"></div>
+                            </label>
+                        </div>
+
+                        {form.serviceChargeEnabled && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="space-y-3 pt-2"
+                            >
+                                <label className="text-[10px] font-black text-[#94a3b8] uppercase tracking-widest block">Yearly Service Charge ({country?.currencySymbol || '₦'})</label>
+                                <div className="relative">
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#1a6a3c] font-black text-xs">{country?.currencySymbol || '₦'}</div>
+                                    <input
+                                        placeholder="0"
+                                        type="number"
+                                        className="w-full bg-white border border-[#ddf0e6] rounded-xl pl-10 pr-4 py-3 text-sm font-black text-[#1a2e22] outline-none"
+                                        value={form.serviceChargeAmount}
+                                        onChange={e => setForm({ ...form, serviceChargeAmount: e.target.value })}
+                                    />
+                                </div>
+                            </motion.div>
+                        )}
                     </div>
 
                     <div className="pt-4 border-t border-[#f0f9f4]">

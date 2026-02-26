@@ -198,7 +198,7 @@ export const subscribeTenantPayments = (tenantId, cb, errCb) =>
  */
 export const savePaymentInvoice = async ({
   landlordId, paymentId, tenantId, unitId, propertyId,
-  amount, currency, invoiceId, gatewayReference,
+  amount, currency, type, invoiceId, gatewayReference,
   tenantName = '', tenantEmail = '', unitName = '', propertyName = '',
 }) => {
   const invoiceData = {
@@ -209,6 +209,7 @@ export const savePaymentInvoice = async ({
     landlordId,
     amount: Number(amount),
     currency,
+    type: type || 'rent', // 'rent' or 'service_charge'
     invoiceId,
     status: 'paid',
     timestamp: serverTimestamp(),
