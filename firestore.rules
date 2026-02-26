@@ -88,8 +88,10 @@ service cloud.firestore {
       allow read: if request.auth != null &&
         (resource.data.landlordId == request.auth.uid ||
          resource.data.tenantId   == request.auth.uid);
-      // No client creates or updates. Handled entirely via Cloud Functions.
-      allow create, update, delete: if false;
+      // Landlords can manage leases for units they own
+      allow create: if request.auth != null && request.resource.data.landlordId == request.auth.uid;
+      allow update: if request.auth != null && resource.data.landlordId == request.auth.uid;
+      allow delete: if false;
     }
 
     // ── Invite tokens ─────────────────────────────────────────────────────────

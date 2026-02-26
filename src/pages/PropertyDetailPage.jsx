@@ -7,7 +7,7 @@ import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { subscribeProperties, subscribePayments, subscribeMaintenance, addMaintenance, updateMaintenance, subscribeUnits, addUnit, updateUnit, deleteUnit, clearUnitRequestNotifications, updateProperty, callApproveTenantRequest } from '../services/firebase';
-import { subscribeUnitTenancyHistory } from '../services/tenancy';
+import { subscribeUnitTenancyHistory, resetUnitTenancyMaster } from '../services/tenancy';
 import { cancelPendingInvoices } from '../services/invoices';
 import { generateInvoicePdf } from '../utils/invoicePdf';
 import { formatUnitDisplay } from '../utils/unitDisplay';
@@ -63,6 +63,8 @@ export default function PropertyDetailPage() {
   // Remove tenant confirm
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [removeUnit, setRemoveUnit] = useState(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetUnit, setResetUnit] = useState(null);
 
   // Property invite link state
   const [propertyInviteLink, setPropertyInviteLink] = useState(null);
@@ -214,6 +216,34 @@ export default function PropertyDetailPage() {
       setRemoveUnit(null);
     } catch (err) { toast.error('Error terminating lease.'); }
     finally { setUnitSaving(false); }
+  };
+
+  const handleResetUnitTenantMaster = async () => {
+    if (!resetUnit) return;
+    setUnitSaving(true);
+    try {
+      // 1. Master Reset Service call (Terminates all active leases without guards)
+      await resetUnitTenancyMaster(user.uid, id, resetUnit.id);
+
+      // 2. Immediate Unit record update (Optimistic path)
+      await updateUnit(user.uid, id, resetUnit.id, {
+        tenantId: null,
+        tenantName: '',
+        tenantEmail: '',
+        status: 'vacant',
+        rentStatus: null,
+        billingCycle: 'yearly' // Reset to default
+      });
+
+      toast.success(`Master Reset Successful: ${resetUnit.name} is now vacant.`);
+      setShowResetConfirm(false);
+      setResetUnit(null);
+    } catch (err) {
+      console.error(err);
+      toast.error('Master Reset failed.');
+    } finally {
+      setUnitSaving(false);
+    }
   };
 
   const handleApproveRequest = async (unit) => {
@@ -449,9 +479,10 @@ export default function PropertyDetailPage() {
                         landlordUid={user.uid}
                         propertyId={id}
                         propertyName={property?.name || ''}
-                        onRemove={handleOpenRemove}
-                        onEdit={handleOpenEdit}
-                        onDelete={handleOpenDelete}
+                        onRemove={() => { setRemoveUnit(unit); setShowRemoveConfirm(true); }}
+                        onMasterReset={() => { setResetUnit(unit); setShowResetConfirm(true); }}
+                        onEdit={(u) => { setEditingUnit(u); setShowAddUnit(true); }}
+                        onDelete={(u) => { setUnitToDelete(u); setShowDeleteConfirm(true); }}
                       />
                     ))}
                   </AnimatePresence>
@@ -679,6 +710,26 @@ export default function PropertyDetailPage() {
               {unitSaving ? 'Deleting...' : 'Delete Permanently'}
             </button>
             <button onClick={() => setShowDeleteConfirm(false)} className="w-full btn-secondary py-4 text-sm font-black uppercase tracking-widest border-transparent hover:bg-gray-100">Cancel</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={showResetConfirm} onClose={() => setShowResetConfirm(false)} title="Master Reset Registry" size="sm">
+        <div className="p-2 space-y-6">
+          <div className="p-6 rounded-[2rem] bg-[#f5f0ff] border border-[#ddd6fe] text-center">
+            <div className="w-16 h-16 bg-white border border-[#ddd6fe] rounded-3xl mx-auto flex items-center justify-center text-[#7c3aed] mb-4 shadow-sm">
+              <RefreshCw size={32} />
+            </div>
+            <h4 className="font-fraunces text-[#1a2e22] text-xl font-black italic mb-2">Forced Reset?</h4>
+            <p className="text-sm text-[#94a3a8] font-medium leading-relaxed">
+              This will instantly remove <span className="text-[#1a2e22] font-black">{resetUnit?.tenantName || 'Resident'}</span> from <span className="text-[#1a2e22] font-black">{resetUnit?.name}</span> and bypass all financial guards. This action is final.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            <button onClick={handleResetUnitTenantMaster} disabled={unitSaving} className="w-full bg-[#7c3aed] text-white py-4 text-sm font-black uppercase tracking-widest shadow-xl rounded-xl hover:bg-[#6d28d9] transition-all">
+              {unitSaving ? 'Resetting...' : 'Execute Master Reset'}
+            </button>
+            <button onClick={() => setShowResetConfirm(false)} className="w-full btn-secondary py-4 text-sm font-black uppercase tracking-widest border-transparent hover:bg-gray-100">Disregard</button>
           </div>
         </div>
       </Modal>

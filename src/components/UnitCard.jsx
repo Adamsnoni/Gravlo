@@ -1,9 +1,9 @@
 // src/components/UnitCard.jsx
 import React from 'react';
 import { motion } from 'framer-motion';
-import { DoorOpen, UserMinus, Pencil, Hash, User, Send, Calendar, Trash2 } from 'lucide-react';
+import { DoorOpen, UserMinus, Pencil, Hash, User, Send, Calendar, Trash2, RefreshCw } from 'lucide-react';
 
-export default function UnitCard({ unit, fmtRent, onRemove, onEdit, onDelete, propertyId, propertyName, currencySymbol = '$' }) {
+export default function UnitCard({ unit, fmtRent, onRemove, onMasterReset, onEdit, onDelete, propertyId, propertyName, currencySymbol = '₦' }) {
     const isOccupied = unit.status === 'occupied' && unit.tenantId;
 
     const handleShareVacancy = () => {
@@ -87,9 +87,14 @@ export default function UnitCard({ unit, fmtRent, onRemove, onEdit, onDelete, pr
             {/* Contextual Actions */}
             <div className="flex gap-2 pt-2">
                 {isOccupied ? (
-                    <button onClick={() => onRemove(unit)} className="flex-1 btn-secondary py-3 text-[10px] font-black uppercase text-[#e74c3c] border-transparent hover:bg-red-50 hover:border-[#fee2e2] transition-all">
-                        <UserMinus size={14} strokeWidth={3} /> Move-out
-                    </button>
+                    <>
+                        <button onClick={() => onRemove(unit)} className="flex-1 btn-secondary py-3 text-[10px] font-black uppercase text-[#e74c3c] border-transparent hover:bg-red-50 hover:border-[#fee2e2] transition-all">
+                            <UserMinus size={14} strokeWidth={3} /> Move-out
+                        </button>
+                        <button onClick={() => onMasterReset(unit)} className="px-4 btn-secondary py-3 text-[10px] font-black uppercase text-[#94a3a8] border-transparent hover:text-red-600 hover:bg-red-50 transition-all" title="Master Reset Registry">
+                            <RefreshCw size={14} strokeWidth={3} /> Reset
+                        </button>
+                    </>
                 ) : (
                     <button onClick={handleShareVacancy} className="flex-1 btn-primary py-3 text-[10px] font-black uppercase bg-[#1a6a3c] shadow-lg shadow-[#1a6a3c]/10">
                         <Send size={14} strokeWidth={3} /> Send Invitation

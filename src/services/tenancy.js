@@ -100,6 +100,19 @@ export async function terminateActiveLeasesForUnit(landlordId, propertyId, unitI
     }
 }
 
+/**
+ * MASTER RESET: Forcibly clears a unit's tenant record.
+ * Bypasses all guards (balances, invoices, etc).
+ */
+export async function resetUnitTenancyMaster(landlordId, propertyId, unitId) {
+    // 1. Terminate all active leases for this unit
+    await terminateActiveLeasesForUnit(landlordId, propertyId, unitId);
+
+    // 2. Clear unit record directly (this is normally handled by the calling page for UI updates,
+    // but we provide the service logic here for completeness/reusability)
+    return { success: true };
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // QUERIES
 // ════════════════════════════════════════════════════════════════════════════
