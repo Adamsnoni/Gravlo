@@ -717,3 +717,103 @@ exports.acceptUnitInvite = onCall({ enforceAppCheck: false }, async (request) =>
     return { success: true, propertyId, unitId, landlordUid, tenancyId: tenancyRef.id };
 });
 
+// ════════════════════════════════════════════════════════════════════════════
+// 9. APPROVE TENANT REQUEST — Callable Function
+//    Called by Landlords from PropertiesPage or Dashboard.
+//    Atomicly sets unit to occupied, creates tenancy, and clears notifications.
+// ════════════════════════════════════════════════════════════════════════════
+exports.approveTenantRequest = onCall({ enforceAppCheck: false }, async (request) => {
+    const { propertyId, unitId, tenantId } = request.data;
+    const landlordUid = request.auth?.uid;
+
+    if (!landlordUid) throw new HttpsError('unauthenticated', 'You must be signed in.');
+    if (!propertyId || !unitId || !tenantId) throw new HttpsError('invalid-argument', 'Missing fields.');
+
+    const unitRef = db.collection('users').doc(landlordUid)
+        .collection('properties').doc(propertyId)
+        .collection('units').doc(unitId);
+
+    const unitSnap = await unitRef.get();
+    if (!unitSnap.exists) throw new HttpsError('not-found', 'Unit not found.');
+
+    const unitData = unitSnap.data();
+    if (unitData.landlordId !== landlordUid) throw new HttpsError('permission-denied', 'Ownership mismatch.');
+    if (unitData.pendingTenantId !== tenantId) throw new HttpsError('failed-precondition', 'Tenant ID mismatch or request no longer pending.');
+
+    // Fetch tenant display info
+    const tenantRecord = await admin.auth().getUser(tenantId);
+    const tenantEmail = tenantRecord.email || '';
+    const tenantName = tenantRecord.displayName || '';
+
+    // Fetch property info for denormalization
+    const propSnap = await db.collection('users').doc(landlordUid).collection('properties').doc(propertyId).get();
+    const propData = propSnap.exists ? propSnap.data() : {};
+
+    // Atomic Batch
+    const batch = db.batch();
+
+    // 1) Update Unit
+    batch.update(unitRef, {
+        status: 'occupied',
+        tenantId: tenantId,
+        tenantName: tenantName,
+        tenantEmail: tenantEmail,
+        pendingTenantId: null,
+        pendingTenantName: null,
+        pendingTenantEmail: null,
+        pendingRequestedAt: null,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // 2) Create Tenancy
+    const billingCycle = unitData.billingCycle || 'monthly';
+    const now = new Date();
+    let nextInvoiceDate;
+    switch (billingCycle) {
+        case 'yearly': nextInvoiceDate = new Date(now.getFullYear() + 1, now.getMonth(), 1); break;
+        case 'weekly': nextInvoiceDate = new Date(now.getTime() + 7 * 86400000); break;
+        case 'daily': nextInvoiceDate = new Date(now.getTime() + 86400000); break;
+        default: nextInvoiceDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    }
+
+    const tenancyRef = db.collection('tenancies').doc();
+    batch.set(tenancyRef, {
+        tenantId: tenantId,
+        landlordId: landlordUid,
+        propertyId,
+        unitId,
+        tenantName: tenantName,
+        tenantEmail: tenantEmail,
+        unitName: unitData.name || unitData.unitNumber || '',
+        propertyName: propData.name || '',
+        address: propData.address || '',
+        rentAmount: unitData.price || unitData.rentAmount || 0,
+        billingCycle: billingCycle,
+        currency: unitData.currency || propData.currency || 'NGN',
+        status: 'active',
+        startDate: admin.firestore.FieldValue.serverTimestamp(),
+        endDate: null,
+        closedAt: null,
+        invoiceSchedulingEnabled: true,
+        nextInvoiceDate: admin.firestore.Timestamp.fromDate(nextInvoiceDate),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        welcomeMessageSent: true,
+        welcomeMessageDate: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // 3) Clear Notifications for this specific request
+    const notifSnap = await db.collection('users').doc(landlordUid).collection('notifications')
+        .where('type', '==', 'unit_request')
+        .where('unitId', '==', unitId)
+        .where('tenantId', '==', tenantId)
+        .get();
+
+    notifSnap.docs.forEach(d => batch.delete(d.ref));
+
+    await batch.commit();
+
+    console.log(`Landlord ${landlordUid} approved request for unit ${unitId} by tenant ${tenantId}. Tenancy ${tenancyRef.id} created.`);
+    return { success: true, tenancyId: tenancyRef.id };
+});
+

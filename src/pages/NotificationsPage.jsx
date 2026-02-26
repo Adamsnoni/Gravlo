@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { subscribeNotifications, subscribeReminders, markNotificationRead, deleteNotification, markAllNotificationsRead, clearAllNotifications } from '../services/firebase';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import Modal from '../components/Modal';
 
 const safeToDate = (d) => {
     if (!d) return null;
@@ -28,6 +29,7 @@ export default function NotificationsPage() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState('all');
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
 
     useEffect(() => {
         if (!user) return;
@@ -90,13 +92,16 @@ export default function NotificationsPage() {
 
     const handleClearInbox = async () => {
         if (notifications.length === 0) return;
-        if (window.confirm("Archive all activity logs? Historical reminders will be preserved.")) {
-            try {
-                setNotifications([]);
-                await clearAllNotifications(user.uid);
-                toast.success('Inbox cleared.');
-            } catch (e) { toast.error('Archive failed.'); }
-        }
+        setShowClearConfirm(true);
+    };
+
+    const confirmClearInbox = async () => {
+        setShowClearConfirm(false);
+        try {
+            setNotifications([]);
+            await clearAllNotifications(user.uid);
+            toast.success('Inbox cleared.');
+        } catch (e) { toast.error('Archive failed.'); }
     };
 
     return (
@@ -273,6 +278,27 @@ export default function NotificationsPage() {
                     </AnimatePresence>
                 </div>
             )}
+
+            {/* Archive Confirmation Modal */}
+            <Modal isOpen={showClearConfirm} onClose={() => setShowClearConfirm(false)} title="System Archive" size="sm">
+                <div className="p-8 text-center">
+                    <div className="w-16 h-16 bg-[#fff5f5] text-[#e74c3c] rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shadow-sm">
+                        <Trash2 size={32} strokeWidth={2.5} />
+                    </div>
+                    <h3 className="font-fraunces text-2xl font-black text-[#1a2e22] mb-3 italic">Clean Sweep?</h3>
+                    <p className="text-[#6b8a7a] font-medium text-sm mb-8 leading-relaxed">
+                        Are you sure you want to archive all activity logs? Historical rent reminders and financial data will be preserved, but your inbox stream will be cleared.
+                    </p>
+                    <div className="flex flex-col gap-3">
+                        <button onClick={confirmClearInbox} className="w-full btn-primary py-4 bg-[#e74c3c] border-[#e74c3c] hover:bg-black hover:border-black text-white shadow-xl shadow-red-100 uppercase tracking-widest text-[10px]">
+                            Proceed with Archive
+                        </button>
+                        <button onClick={() => setShowClearConfirm(false)} className="w-full btn-secondary py-4 text-[10px] font-black uppercase tracking-widest border-transparent hover:bg-gray-100">
+                            Keep my logs
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

@@ -18,6 +18,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { regenerateInviteCode } from '../services/inviteCodes';
 import { addUnitsBatch, updateProperty } from '../services/firebase';
+import Modal from '../components/Modal';
 
 export default function PropertySuccessPage() {
     const navigate = useNavigate();
@@ -37,6 +38,7 @@ export default function PropertySuccessPage() {
     const [code, setCode] = useState(inviteCode || '');
     const [copied, setCopied] = useState(false);
     const [regenerating, setRegenerating] = useState(false);
+    const [showRegenConfirm, setShowRegenConfirm] = useState(false);
 
     // ── Quick-Add Units state ────────────────────────────────────────────────
     const [unitCount, setUnitCount] = useState(5);
@@ -68,7 +70,11 @@ export default function PropertySuccessPage() {
 
     /* ── Regenerate handler ────────────────────────────────────────────────── */
     const handleRegenerate = async () => {
-        if (!confirm('Regenerate invite code? The current code will stop working.')) return;
+        setShowRegenConfirm(true);
+    };
+
+    const confirmRegenerate = async () => {
+        setShowRegenConfirm(false);
         setRegenerating(true);
         try {
             const newCode = await regenerateInviteCode(user.uid, propertyId, propertyName);
@@ -546,6 +552,27 @@ export default function PropertySuccessPage() {
                 )}
 
             </AnimatePresence>
+
+            {/* Regeneration Confirmation */}
+            <Modal isOpen={showRegenConfirm} onClose={() => setShowRegenConfirm(false)} title="Security Update" size="sm">
+                <div className="p-8 text-center font-body">
+                    <div className="w-16 h-16 bg-sage/10 text-sage rounded-2xl flex items-center justify-center mx-auto mb-6 border border-sage/20 shadow-sm">
+                        <RefreshCw size={32} />
+                    </div>
+                    <h3 className="font-display text-2xl font-semibold text-ink mb-3 italic">Rotate Access?</h3>
+                    <p className="text-stone-400 text-sm mb-8 leading-relaxed">
+                        Regenerating this code will immediately <span className="font-bold text-ink">disable the current sequence</span>. New tenants will need the new code to link to <span className="font-semibold text-ink">{propertyName}</span>.
+                    </p>
+                    <div className="flex flex-col gap-3">
+                        <button onClick={confirmRegenerate} className="w-full btn-primary py-3.5 justify-center shadow-lg shadow-sage/20">
+                            Regenerate Code
+                        </button>
+                        <button onClick={() => setShowRegenConfirm(false)} className="w-full btn-secondary py-3.5 justify-center text-sm border-transparent hover:bg-stone-50">
+                            Disregard
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

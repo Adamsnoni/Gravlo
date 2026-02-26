@@ -8,12 +8,15 @@ import {
     createInviteCode,
     regenerateInviteCode,
 } from '../services/inviteCodes';
+import Modal from './Modal';
+import { RefreshCw as RefreshIcon, Trash2 } from 'lucide-react';
 
 export default function InviteCodeCard({ landlordUid, propertyId, propertyName }) {
     const [code, setCode] = useState(null);
     const [loading, setLoading] = useState(true);
     const [copied, setCopied] = useState(false);
     const [regenerating, setRegenerating] = useState(false);
+    const [showRegenConfirm, setShowRegenConfirm] = useState(false);
 
     // Fetch or auto-generate on mount
     useEffect(() => {
@@ -48,7 +51,11 @@ export default function InviteCodeCard({ landlordUid, propertyId, propertyName }
     };
 
     const handleRegenerate = async () => {
-        if (!confirm('Regenerate invite code? The current code will stop working.')) return;
+        setShowRegenConfirm(true);
+    };
+
+    const confirmRegenerate = async () => {
+        setShowRegenConfirm(false);
         setRegenerating(true);
         try {
             const newCode = await regenerateInviteCode(landlordUid, propertyId, propertyName);
@@ -129,6 +136,27 @@ export default function InviteCodeCard({ landlordUid, propertyId, propertyName }
                     Regenerate
                 </button>
             </div>
+
+            {/* Regeneration Confirmation */}
+            <Modal isOpen={showRegenConfirm} onClose={() => setShowRegenConfirm(false)} title="System Rotation" size="sm">
+                <div className="p-8 text-center">
+                    <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-amber-100">
+                        <RefreshCw size={32} strokeWidth={2.5} />
+                    </div>
+                    <h3 className="font-fraunces text-2xl font-black text-[#1a2e22] mb-3 italic">Rotate Access Code?</h3>
+                    <p className="text-[#6b8a7a] font-medium text-sm mb-8 leading-relaxed">
+                        Generating a new code will immediately <span className="font-bold text-[#e74c3c]">invalidate</span> the current one. Any tenants using the legacy code will be unable to join.
+                    </p>
+                    <div className="flex flex-col gap-3">
+                        <button onClick={confirmRegenerate} className="w-full btn-primary py-4 bg-[#1a3c2e] border-[#1a3c2e] hover:bg-black hover:border-black text-white shadow-xl shadow-stone-200 uppercase tracking-widest text-[10px] font-black">
+                            Authorize Rotation
+                        </button>
+                        <button onClick={() => setShowRegenConfirm(false)} className="w-full btn-secondary py-4 text-[10px] font-black uppercase tracking-widest border-transparent hover:bg-gray-100">
+                            Maintain Current
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

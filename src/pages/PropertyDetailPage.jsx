@@ -6,8 +6,8 @@ import { ArrowLeft, Bed, Bath, MapPin, User, Mail, Phone, Plus, Wrench, CreditCa
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { subscribeProperties, subscribePayments, subscribeMaintenance, addMaintenance, updateMaintenance, subscribeUnits, addUnit, updateUnit, deleteUnit, clearUnitRequestNotifications, updateProperty } from '../services/firebase';
-import { createTenancy, terminateActiveLeasesForUnit, getActiveTenancy } from '../services/tenancy';
+import { subscribeProperties, subscribePayments, subscribeMaintenance, addMaintenance, updateMaintenance, subscribeUnits, addUnit, updateUnit, deleteUnit, clearUnitRequestNotifications, updateProperty, callApproveTenantRequest } from '../services/firebase';
+import { subscribeUnitTenancyHistory } from '../services/tenancy';
 import { cancelPendingInvoices } from '../services/invoices';
 import { generateInvoicePdf } from '../utils/invoicePdf';
 import { formatUnitDisplay } from '../utils/unitDisplay';
@@ -217,38 +217,18 @@ export default function PropertyDetailPage() {
   };
 
   const handleApproveRequest = async (unit) => {
-    setUnitSaving(true);
     try {
-      await updateUnit(user.uid, id, unit.id, {
-        status: 'occupied',
-        tenantId: unit.pendingTenantId,
-        tenantName: unit.pendingTenantName || '',
-        tenantEmail: unit.pendingTenantEmail || '',
-        pendingTenantId: null,
-        pendingTenantName: null,
-        pendingTenantEmail: null,
-        pendingRequestedAt: null,
-      });
-      await createTenancy({
-        tenantId: unit.pendingTenantId,
-        landlordId: user.uid,
+      toast.loading('Processing approval...', { id: 'approve-request' });
+      await callApproveTenantRequest({
         propertyId: id,
         unitId: unit.id,
-        tenantName: unit.pendingTenantName || '',
-        tenantEmail: unit.pendingTenantEmail || '',
-        unitName: unit.name || '',
-        propertyName: property?.name || '',
-        address: property?.address || '',
-        rentAmount: unit.rentAmount || 0,
-        billingCycle: unit.billingCycle || 'monthly',
-        currency: country?.currency || 'NGN',
-        welcomeMessageSent: true,
-        welcomeMessageDate: new Date(),
+        tenantId: unit.pendingTenantId,
       });
-      await clearUnitRequestNotifications(user.uid, id, unit.id, unit.pendingTenantId);
-      toast.success('Tenant approved!');
-    } catch (err) { toast.error('Approval failed.'); }
-    finally { setUnitSaving(false); }
+      toast.success(`Approved resident for ${unit.name || unit.unitNumber}`, { id: 'approve-request' });
+    } catch (err) {
+      toast.error(err.message || 'Approval failed.', { id: 'approve-request' });
+      console.error(err);
+    }
   };
 
   const handleDeclineRequest = async (unit) => {

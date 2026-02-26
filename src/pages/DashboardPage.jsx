@@ -10,12 +10,14 @@ import {
   subscribeReminders,
   subscribePendingUnits,
   subscribeNotifications,
-  clearUnitRequestNotifications,
-  updateUnit,
-  serverTimestamp
+  callApproveTenantRequest
 } from "../services/firebase";
-import { createTenancy } from "../services/tenancy";
+import { subscribeTenancies } from "../services/tenancy";
 import { toast } from "react-hot-toast";
+import { CornerLeaf, Avatar } from "../components/Shared/Branding";
+import { StatCard } from "../components/Dashboard/StatCard";
+import { RevenueChart } from "../components/Dashboard/RevenueChart";
+import { JoinCard } from "../components/Dashboard/JoinCard";
 
 // ── Utilities ────────────────────────────────────────────────
 const safeToDate = (d) => {
@@ -50,144 +52,6 @@ const Icons = {
   building: "M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z M3 6h18 M16 10a4 4 0 01-8 0",
   mail: "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6l-10 7L2 6",
   arrowUp: "M12 19V5 M5 12l7-7 7 7",
-};
-
-// ── Visual Components ────────────────────────────────────────
-const CornerLeaf = ({ size = 64, opacity = 0.07, color = "#1a3c2e" }) => (
-  <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ position: "absolute", top: 0, right: 0, pointerEvents: "none" }}>
-    <path d="M64 0C64 0 42 6 36 22C32 34 40 46 40 46C40 46 56 34 64 18Z" fill={color} opacity={opacity} />
-    <path d="M64 0C64 0 58 24 46 32C38 38 26 36 26 36C26 36 40 20 64 0Z" fill={color} opacity={opacity * 0.6} />
-  </svg>
-);
-
-const Avatar = ({ initials, size = 36, bg = "#1a3c2e", color = "#7fffd4" }) => (
-  <div style={{ width: size, height: size, borderRadius: "50%", background: bg, color, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.33, fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "0.02em" }}>
-    {initials.toUpperCase()}
-  </div>
-);
-
-const RevenueChart = ({ data, symbol }) => {
-  const [hov, setHov] = useState(null);
-  const vals = data.length > 0 ? data.map(d => d.amount) : [0, 0, 0, 0, 0, 0];
-  const max = Math.max(...vals, 1);
-  const min = Math.min(...vals, 0);
-  const W = 100, H = 80, px = 4, py = 8;
-  const pts = data.map((d, i) => ({
-    x: px + (i / (Math.max(data.length - 1, 1))) * (W - px * 2),
-    y: H - py - ((d.amount - min) / ((max - min) || 1)) * (H - py * 2),
-  }));
-  const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
-  const area = `${line} L${pts[pts.length - 1]?.x || W},${H} L${pts[0]?.x || 0},${H} Z`;
-
-  return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 120, display: "block", overflow: "visible" }} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="aG" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1a6a3c" stopOpacity="0.14" />
-            <stop offset="100%" stopColor="#1a6a3c" stopOpacity="0.01" />
-          </linearGradient>
-        </defs>
-        {[0.25, 0.5, 0.75].map(t => (
-          <line key={t} x1={px} y1={py + t * (H - py * 2)} x2={W - px} y2={py + t * (H - py * 2)} stroke="#e8f0e8" strokeWidth="0.5" strokeDasharray="2,2" />
-        ))}
-        {data.length > 0 && (
-          <>
-            <path d={area} fill="url(#aG)" />
-            <path d={line} fill="none" stroke="#1a6a3c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          </>
-        )}
-        {pts.map((p, i) => (
-          <g key={i}>
-            <circle cx={p.x} cy={p.y} r={hov === i ? 5 : 3} fill={hov === i ? "#1a6a3c" : "#fff"} stroke="#1a6a3c" strokeWidth="2" style={{ cursor: "pointer", transition: "r 0.15s" }} onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)} />
-            {hov === i && (
-              <g>
-                <rect x={p.x - 18} y={p.y - 18} width={36} height={14} rx={4} fill="#1a3c2e" />
-                <text x={p.x} y={p.y - 8} textAnchor="middle" fill="#7fffd4" fontSize="5" fontFamily="'Plus Jakarta Sans',sans-serif" fontWeight="700">{fmtShort(data[i].amount, symbol)}</text>
-              </g>
-            )}
-          </g>
-        ))}
-      </svg>
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-        {data.map((d, i) => (
-          <span key={i} style={{ fontSize: 11, fontFamily: "'Plus Jakarta Sans',sans-serif", color: hov === i ? "#1a6a3c" : "#94a3b8", fontWeight: hov === i ? 700 : 400, transition: "color 0.15s" }}>{d.month}</span>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const StatCard = ({ label, value, sub, subColor, icon, accentBg, accentColor, borderColor, delay = 0 }) => {
-  const [hov, setHov] = useState(false);
-  return (
-    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{
-      background: "#fff", border: `1.5px solid ${hov ? accentColor + "55" : borderColor || "#e2ede8"}`,
-      borderRadius: 20, padding: "22px 24px", position: "relative", overflow: "hidden",
-      animation: `slideUp 0.5s ease ${delay}s both`,
-      boxShadow: hov ? `0 12px 32px ${accentColor}18` : "0 1px 8px rgba(26,60,46,0.06)",
-      transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
-      transform: hov ? "translateY(-3px)" : "translateY(0)", cursor: "default",
-    }}>
-      <CornerLeaf size={56} opacity={0.055} color="#1a3c2e" />
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, borderRadius: "20px 20px 0 0", background: `linear-gradient(90deg, ${accentColor}, ${accentColor}40)` }} />
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 14, background: accentBg, display: "flex", alignItems: "center", justifyContent: "center", color: accentColor }}>{icon}</div>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", fontFamily: "'Plus Jakarta Sans',sans-serif", letterSpacing: "0.06em", textTransform: "uppercase", paddingTop: 4 }}>{label}</span>
-      </div>
-      <p style={{ fontSize: 32, fontWeight: 900, color: "#0f2318", margin: "0 0 6px", fontFamily: "'Fraunces',serif", lineHeight: 1, letterSpacing: "-0.025em" }}>{value}</p>
-      {sub && <p style={{ fontSize: 12, color: subColor || "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 500 }}>{sub}</p>}
-    </div>
-  );
-};
-
-const JoinCard = ({ req, onApprove, approvingSaving }) => {
-  const [status, setStatus] = useState("pending");
-
-  const handleApprove = async () => {
-    if (approvingSaving) return;
-    try {
-      await onApprove?.(req);
-      setStatus("approved");
-    } catch (e) {
-      toast.error("Approval failed");
-    }
-  };
-
-  const initials = (req.pendingTenantName || "U")
-    .split(" ").map(w => w[0]).join("").slice(0, 2);
-
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 14, padding: "14px 0", borderBottom: "1px solid #f0f9f4" }}>
-      <Avatar initials={initials} size={40}
-        bg={status === "approved" ? "#1a3c2e" : status === "rejected" ? "#fef2f2" : "#e8f5ee"}
-        color={status === "approved" ? "#7fffd4" : status === "rejected" ? "#dc2626" : "#1a6a3c"}
-      />
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2 }}>
-          <p style={{ fontSize: 14, fontWeight: 700, color: "#0f2318", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{req.pendingTenantName}</p>
-          {status !== "pending" && (
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, fontFamily: "'Plus Jakarta Sans',sans-serif", flexShrink: 0, background: status === "approved" ? "#dcfce7" : "#fef2f2", color: status === "approved" ? "#16a34a" : "#dc2626" }}>
-              {status === "approved" ? "✓ Approved" : "✗ Declined"}
-            </span>
-          )}
-        </div>
-        <p style={{ fontSize: 12, color: "#94a3b8", margin: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-          <span style={{ color: "#1a6a3c", fontWeight: 600 }}>{req.unitName || req.name}</span> · {req.propertyName}
-        </p>
-      </div>
-      {status === "pending" && (
-        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-          <button onClick={handleApprove} disabled={approvingSaving} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "#e8f5ee", color: "#1a6a3c", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.2s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#1a3c2e"; e.currentTarget.style.color = "#7fffd4"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "#e8f5ee"; e.currentTarget.style.color = "#1a6a3c"; }}
-          >
-            {approvingSaving ? "..." : <Icon d={Icons.check} size={14} stroke={2.5} />}
-          </button>
-        </div>
-      )}
-    </div>
-  );
 };
 
 // ── Main Dashboard ───────────────────────────────────────────
@@ -226,37 +90,14 @@ export default function DashboardPage() {
   const approvePending = async (unit) => {
     setApprovingSaving(true);
     try {
-      await updateUnit(user.uid, unit.propertyId, unit.id, {
-        status: "occupied",
-        tenantId: unit.pendingTenantId,
-        tenantName: unit.pendingTenantName || "",
-        tenantEmail: unit.pendingTenantEmail || "",
-        welcomeMessageSent: true,
-        welcomeMessageDate: serverTimestamp(),
-        pendingTenantId: null,
-        pendingTenantName: null,
-        pendingTenantEmail: null,
-        pendingRequestedAt: null,
-      });
-      await createTenancy({
-        tenantId: unit.pendingTenantId,
-        landlordId: user.uid,
+      await callApproveTenantRequest({
         propertyId: unit.propertyId,
         unitId: unit.id,
-        tenantName: unit.pendingTenantName || "",
-        tenantEmail: unit.pendingTenantEmail || "",
-        unitName: unit.unitName || unit.name || "",
-        propertyName: unit.propertyName || "",
-        rentAmount: unit.rentAmount || 0,
-        billingCycle: unit.billingCycle || "monthly",
-        currency: country?.currency || "NGN",
-        welcomeMessageSent: true,
-        welcomeMessageDate: new Date(),
+        tenantId: unit.pendingTenantId,
       });
-      await clearUnitRequestNotifications(user.uid, unit.propertyId, unit.id, unit.pendingTenantId);
       toast.success(`${unit.pendingTenantName || "Tenant"} approved!`);
     } catch (err) {
-      toast.error("Failed to approve request.");
+      toast.error(err.message || "Failed to approve request.");
       throw err;
     } finally {
       setApprovingSaving(false);

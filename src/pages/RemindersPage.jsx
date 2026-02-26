@@ -43,6 +43,8 @@ export default function RemindersPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [reminderToDelete, setReminderToDelete] = useState(null);
 
   const emptyForm = { tenantName: '', propertyId: '', amount: '', dueDate: '', recurring: false, notifyDaysBefore: 3, notes: '' };
   const [form, setForm] = useState(emptyForm);
@@ -82,9 +84,22 @@ export default function RemindersPage() {
   };
 
   const handleDelete = async (r) => {
-    if (!confirm(`Archive alert for ${r.tenantName}?`)) return;
-    await deleteReminder(user.uid, r.id);
-    toast.success('Alert archived.');
+    setReminderToDelete(r);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    const r = reminderToDelete;
+    if (!r) return;
+    setShowDeleteConfirm(false);
+    try {
+      await deleteReminder(user.uid, r.id);
+      toast.success('Alert archived.');
+    } catch {
+      toast.error('Archive failed.');
+    } finally {
+      setReminderToDelete(null);
+    }
   };
 
   const filtered = filter === 'all' ? reminders : reminders.filter(r => getUrgency(r) === filter);
@@ -314,6 +329,27 @@ export default function RemindersPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Delete Confirmation */}
+      <Modal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title="Archive Procedure" size="sm">
+        <div className="p-8 text-center font-plus">
+          <div className="w-16 h-16 bg-[#fff5f5] text-[#e74c3c] rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shadow-sm border border-[#fee2e2]">
+            <Trash2 size={32} strokeWidth={2.5} />
+          </div>
+          <h3 className="font-fraunces text-2xl font-black text-[#1a2e22] mb-3 italic">Terminate Alert?</h3>
+          <p className="text-[#6b8a7a] font-medium text-sm mb-8 leading-relaxed">
+            Are you sure you want to archive the settlement alert for <span className="font-bold text-[#1a2e22]">{reminderToDelete?.tenantName}</span>? This procedure will be removed from your active registry.
+          </p>
+          <div className="flex flex-col gap-3">
+            <button onClick={confirmDelete} className="w-full btn-primary py-4 bg-[#e74c3c] border-[#e74c3c] hover:bg-black hover:border-black text-white shadow-xl shadow-red-100 uppercase tracking-widest text-[10px] font-black">
+              Confirm Archive
+            </button>
+            <button onClick={() => setShowDeleteConfirm(false)} className="w-full btn-secondary py-4 text-[10px] font-black uppercase tracking-widest border-transparent hover:bg-gray-100">
+              Disregard
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

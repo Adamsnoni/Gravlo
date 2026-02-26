@@ -28,118 +28,25 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import {
-    subscribeProperties,
-    addProperty,
-    subscribeUnits,
-    subscribePendingUnits,
-    updateUnit,
-    deleteUnit,
-    deleteProperty,
-    clearUnitRequestNotifications
-} from '../services/firebase';
-import { subscribeTenancies, createTenancy } from '../services/tenancy';
+import { subscribeTenancies } from '../services/tenancy';
 import { subscribeLandlordInvoices } from '../services/invoices';
 import { createInviteToken } from '../services/inviteTokens';
+import {
+    subscribeProperties,
+    subscribeUnits,
+    subscribePendingUnits,
+    addProperty,
+    deleteProperty,
+    deleteUnit,
+    updateUnit,
+    clearUnitRequestNotifications,
+    callApproveTenantRequest
+} from '../services/firebase';
 import Modal from '../components/Modal';
 import toast from 'react-hot-toast';
 import { canAddProperty, getUpgradePlan, getUserPlan } from '../services/subscription';
-
-// ── Components ──────────────────────────────────────────────
-
-const CornerLeaf = ({ size = 64, opacity = 0.07, color = "#1a3c2e" }) => (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ position: "absolute", top: 0, right: 0, pointerEvents: "none" }}>
-        <path d="M64 0C64 0 42 6 36 22C32 34 40 46 40 46C40 46 56 34 64 18Z" fill={color} opacity={opacity} />
-        <path d="M64 0C64 0 58 24 46 32C38 38 26 36 26 36C26 36 40 20 64 0Z" fill={color} opacity={opacity * 0.6} />
-    </svg>
-);
-
-const PropertyThumb = ({ prop, onSelect, onInvite, inviting, delay = 0 }) => {
-    const [hov, setHov] = useState(false);
-
-    return (
-        <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay, duration: 0.35 }}
-            onMouseEnter={() => setHov(true)}
-            onMouseLeave={() => setHov(false)}
-            onClick={onSelect}
-            style={{
-                background: "#fff",
-                borderRadius: "24px",
-                padding: "24px",
-                border: "1.5px solid",
-                borderColor: hov ? "#1a6a3c" : "#e2ede8",
-                cursor: "pointer",
-                position: "relative",
-                overflow: "hidden",
-                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                transform: hov ? "translateY(-5px)" : "translateY(0)",
-                boxShadow: hov ? "0 20px 40px rgba(26,60,46,0.08)" : "0 4px 12px rgba(0,0,0,0.02)",
-            }}
-        >
-            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: prop.color || "#1a3c2e" }} />
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                    <div style={{
-                        width: "48px",
-                        height: "48px",
-                        borderRadius: "14px",
-                        background: `${prop.color || "#1a3c2e"}15`,
-                        color: prop.color || "#1a3c2e",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center"
-                    }}>
-                        <Building2 size={24} />
-                    </div>
-                    <div className="min-w-0">
-                        <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: "19px", margin: 0, color: "#1a2e22", fontWeight: 800 }} className="truncate">{prop.name}</h3>
-                        <p style={{ fontSize: "12px", color: "#94a3a8", fontWeight: 500, display: "flex", alignItems: "center", gap: "4px" }} className="truncate">
-                            <MapPin size={12} /> {prop.address}
-                        </p>
-                    </div>
-                </div>
-                <div className="flex items-center ml-auto">
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onInvite(prop); }}
-                        disabled={inviting}
-                        className="p-2 rounded-xl bg-[#f4fbf7] text-[#1a6a3c] hover:bg-[#1a3c2e] hover:text-white transition-all border border-[#ddf0e6] flex-shrink-0"
-                        title="Generate Invite Link"
-                    >
-                        {inviting ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
-                    </button>
-                    {prop.occupiedCount === 0 && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onInvite(prop, true); }}
-                            className="ml-2 p-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all border border-red-100 flex-shrink-0"
-                            title="Delete Property"
-                        >
-                            <Trash2 size={14} />
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "20px", borderTop: "1.5px solid #f0f9f4" }}>
-                <div>
-                    <p style={{ fontSize: "10px", fontWeight: 800, color: "#94a3a8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>Asset Status</p>
-                    <span style={{ fontSize: "13px", fontWeight: 800, color: "#1a2e22" }}>{prop.unitCount || 0} Units Total</span>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                    <p style={{ fontSize: "10px", fontWeight: 800, color: "#94a3a8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>Activity</p>
-                    <span style={{ fontSize: "13px", fontWeight: 800, color: "#1a6a3c" }}>{prop.occupiedCount || 0} Occupied</span>
-                </div>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between text-[#1a6a3c] group">
-                <span className="text-[11px] font-bold uppercase tracking-widest">Manage Portfolio</span>
-                <ArrowRight size={14} className={`transition-transform ${hov ? 'translate-x-1' : ''}`} />
-            </div>
-        </motion.div>
-    );
-};
+import { CornerLeaf } from '../components/Shared/Branding';
+import { PropertyThumb } from '../components/Properties/PropertyThumb';
 
 // ── Main Page Component ─────────────────────────────────────
 
@@ -162,6 +69,10 @@ export default function PropertiesPage() {
     const [deletingUnitId, setDeletingUnitId] = useState(null);
     const [form, setForm] = useState({ name: '', address: '', type: 'Apartment', description: '', unitsCount: '' });
     const [saving, setSaving] = useState(false); // Added saving state for addProperty
+    const [showDeletePropConfirm, setShowDeletePropConfirm] = useState(false);
+    const [propertyToDelete, setPropertyToDelete] = useState(null);
+    const [showDeleteUnitConfirm, setShowDeleteUnitConfirm] = useState(false);
+    const [unitToDelete, setUnitToDelete] = useState(null);
 
     // 1. Fetch Properties
     useEffect(() => {
@@ -263,7 +174,15 @@ export default function PropertiesPage() {
     };
 
     const handleDeleteProperty = async (prop) => {
-        if (!window.confirm(`Are you sure you want to delete ${prop.name}? This action cannot be undone.`)) return;
+        setPropertyToDelete(prop);
+        setShowDeletePropConfirm(true);
+    };
+
+    const confirmDeleteProperty = async () => {
+        const prop = propertyToDelete;
+        if (!prop) return;
+
+        setShowDeletePropConfirm(false);
         setDeletingPropId(prop.id);
         try {
             await deleteProperty(user.uid, prop.id);
@@ -272,11 +191,20 @@ export default function PropertiesPage() {
             toast.error(err.message || 'Failed to delete property.');
         } finally {
             setDeletingPropId(null);
+            setPropertyToDelete(null);
         }
     };
 
     const handleDeleteUnit = async (unit) => {
-        if (!window.confirm(`Are you sure you want to delete ${unit.name || unit.unitNumber}?`)) return;
+        setUnitToDelete(unit);
+        setShowDeleteUnitConfirm(true);
+    };
+
+    const confirmDeleteUnit = async () => {
+        const unit = unitToDelete;
+        if (!unit) return;
+
+        setShowDeleteUnitConfirm(false);
         setDeletingUnitId(unit.id);
         try {
             await deleteUnit(user.uid, selectedProperty.id, unit.id);
@@ -285,6 +213,7 @@ export default function PropertiesPage() {
             toast.error(err.message || 'Failed to delete unit.');
         } finally {
             setDeletingUnitId(null);
+            setUnitToDelete(null);
         }
     };
 
@@ -306,40 +235,16 @@ export default function PropertiesPage() {
     };
 
     const handleApproveRequest = async (unit) => {
-        const propName = properties.find(p => p.id === unit.propertyId)?.name || 'Property';
-        const propAddress = properties.find(p => p.id === unit.propertyId)?.address || '';
-
         try {
-            await updateUnit(user.uid, unit.propertyId, unit.id, {
-                status: 'occupied',
-                tenantId: unit.pendingTenantId,
-                tenantName: unit.pendingTenantName || '',
-                tenantEmail: unit.pendingTenantEmail || '',
-                pendingTenantId: null,
-                pendingTenantName: null,
-                pendingTenantEmail: null,
-                pendingRequestedAt: null,
-            });
-            await createTenancy({
-                tenantId: unit.pendingTenantId,
-                landlordId: user.uid,
+            toast.loading('Processing approval...', { id: 'approve-request' });
+            await callApproveTenantRequest({
                 propertyId: unit.propertyId,
                 unitId: unit.id,
-                tenantName: unit.pendingTenantName || '',
-                tenantEmail: unit.pendingTenantEmail || '',
-                unitName: unit.name || '',
-                propertyName: propName,
-                address: propAddress,
-                rentAmount: unit.rentAmount || 0,
-                billingCycle: unit.billingCycle || 'monthly',
-                currency: country?.currency || 'NGN',
-                welcomeMessageSent: true,
-                welcomeMessageDate: new Date(),
+                tenantId: unit.pendingTenantId,
             });
-            await clearUnitRequestNotifications(user.uid, unit.propertyId, unit.id, unit.pendingTenantId);
-            toast.success(`Approved ${unit.pendingTenantName} for ${unit.name}`);
+            toast.success(`Approved resident for ${unit.name || unit.unitNumber}`, { id: 'approve-request' });
         } catch (err) {
-            toast.error('Approval failed.');
+            toast.error(err.message || 'Approval failed.', { id: 'approve-request' });
             console.error(err);
         }
     };
@@ -727,6 +632,48 @@ export default function PropertiesPage() {
                         </button>
                     </div>
                 </form>
+            </Modal>
+
+            {/* Delete Property Confirmation */}
+            <Modal isOpen={showDeletePropConfirm} onClose={() => setShowDeletePropConfirm(false)} title="Final Confirmation" size="sm">
+                <div className="p-8 text-center">
+                    <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Trash2 size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Asset?</h3>
+                    <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+                        Are you sure you want to delete <span className="font-bold text-gray-900">{propertyToDelete?.name}</span>? This action cannot be undone and all unit data will be lost.
+                    </p>
+                    <div className="flex flex-col gap-3">
+                        <button onClick={confirmDeleteProperty} className="w-full btn-primary py-4 bg-red-600 border-red-600 hover:bg-red-700 hover:border-red-700 text-white shadow-xl shadow-red-100">
+                            Delete Permanently
+                        </button>
+                        <button onClick={() => setShowDeletePropConfirm(false)} className="w-full btn-secondary py-4 text-sm font-black uppercase tracking-widest border-transparent hover:bg-gray-100">
+                            Disregard
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Delete Unit Confirmation */}
+            <Modal isOpen={showDeleteUnitConfirm} onClose={() => setShowDeleteUnitConfirm(false)} title="Unit Removal" size="sm">
+                <div className="p-8 text-center">
+                    <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Trash2 size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Remove Unit?</h3>
+                    <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+                        Are you sure you want to delete unit <span className="font-bold text-gray-900">{unitToDelete?.name || unitToDelete?.unitNumber}</span>?
+                    </p>
+                    <div className="flex flex-col gap-3">
+                        <button onClick={confirmDeleteUnit} className="w-full btn-primary py-4 bg-red-600 border-red-600 hover:bg-red-700 hover:border-red-700 text-white shadow-xl shadow-red-100">
+                            Delete Unit
+                        </button>
+                        <button onClick={() => setShowDeleteUnitConfirm(false)} className="w-full btn-secondary py-4 text-sm font-black uppercase tracking-widest border-transparent hover:bg-gray-100">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
             </Modal>
         </div>
     );

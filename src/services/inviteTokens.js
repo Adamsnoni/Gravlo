@@ -114,61 +114,15 @@ export async function fetchInviteToken(token) {
 // ── Accept ────────────────────────────────────────────────────────────────────
 
 /**
- * Accept an invite.  Called after the tenant is authenticated.
- * 1. Validates token is still pending + not expired + unit is vacant
- * 2. Closes any stale active tenancy for the unit (safety net)
- * 3. Updates unit doc with tenant info
- * 4. Creates a new active tenancy record (enables recurring invoices)
- * 5. Marks token as accepted
+ * Accept an invite.  (Now securely handled via Cloud Function)
  *
  * @param {string} token
  * @param {{ uid, displayName, email }} tenantUser
  */
 export async function acceptInviteToken(token, tenantUser) {
-    const { data, valid, reason } = await fetchInviteToken(token);
-    if (!valid) throw new Error(reason);
-
-    const { landlordUid, propertyId, unitId, unitName, propertyName } = data;
-
-    // Get unit details for rent/billing info
-    const unitRef = doc(db, 'users', landlordUid, 'properties', propertyId, 'units', unitId);
-    const unitSnap = await getDoc(unitRef);
-    const unitData = unitSnap.exists() ? unitSnap.data() : {};
-
-    // Safety: close any lingering active tenancy for the unit
-    await terminateActiveLeasesForUnit(landlordUid, propertyId, unitId);
-
-    // Update the unit document
-    await updateUnit(landlordUid, propertyId, unitId, {
-        tenantId: tenantUser.uid,
-        tenantName: tenantUser.displayName || '',
-        tenantEmail: tenantUser.email || '',
-        status: 'occupied',
-    });
-
-    // Create the tenancy record (starts recurring invoice scheduling)
-    await createTenancy({
-        tenantId: tenantUser.uid,
-        landlordId: landlordUid,
-        propertyId,
-        unitId,
-        tenantName: tenantUser.displayName || '',
-        tenantEmail: tenantUser.email || '',
-        unitName: unitName || unitData.unitName || '',
-        propertyName: propertyName || '',
-        rentAmount: unitData.rentAmount || 0,
-        billingCycle: unitData.billingCycle || 'monthly',
-        currency: unitData.currency || 'NGN',
-    });
-
-    // Mark token accepted
-    await updateDoc(doc(db, 'inviteTokens', token), {
-        status: 'accepted',
-        acceptedBy: tenantUser.uid,
-        acceptedAt: Timestamp.now(),
-    });
-
-    return { propertyId, unitId, landlordUid };
+    const { callAcceptUnitInvite } = await import('./firebase');
+    const response = await callAcceptUnitInvite({ token });
+    return response.data;
 }
 
 // ── Revoke ────────────────────────────────────────────────────────────────────
